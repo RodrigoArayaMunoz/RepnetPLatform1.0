@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import ExcelJS from "exceljs/dist/exceljs.min.js";
 import "./PublicationsWithoutCompatibilityModal.css";
 
 function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
@@ -180,103 +179,71 @@ function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
     }
   };
 
-  const handleExportToExcel = async () => {
-    try {
-      setExporting(true);
-      setError("");
+const handleExportToExcel = async () => {
+  try {
+    setExporting(true);
+    setError("");
 
-      const exportPageSize = 500;
-      let exportPage = 1;
-      let allItems = [];
-      let keepFetching = true;
+    const params = new URLSearchParams();
 
-      while (keepFetching) {
-        const params = new URLSearchParams({
-          page: String(exportPage),
-          page_size: String(exportPageSize),
-        });
-
-        if (debouncedSearchText) {
-          params.append("q", debouncedSearchText);
-        }
-
-        const res = await fetch(
-          `${apiBase}/publications/without-compatibilities?${params.toString()}`,
-          {
-            method: "GET",
-            credentials: "include",
-          }
-        );
-
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          throw new Error(
-            data?.detail ||
-              data?.message ||
-              "No se pudieron obtener los datos para exportar."
-          );
-        }
-
-        const pageItems = Array.isArray(data?.items) ? data.items : [];
-        allItems = [...allItems, ...pageItems];
-
-        keepFetching = Boolean(data?.has_next);
-        exportPage += 1;
-      }
-
-      if (allItems.length === 0) {
-        throw new Error("No hay publicaciones para exportar.");
-      }
-
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Sin compatibilidades");
-
-      worksheet.columns = [
-        { header: "MLC", key: "mlc", width: 22 },
-        { header: "Título", key: "title", width: 80 },
-      ];
-
-      allItems.forEach((item) => {
-        worksheet.addRow({
-          mlc: item?.mlc || "-",
-          title: item?.title || "-",
-        });
-      });
-
-      worksheet.getRow(1).font = { bold: true };
-
-      const safeSearch = debouncedSearchText
-        ? debouncedSearchText
-            .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
-            .replace(/\s+/g, "_")
-        : "";
-
-      const fileName = safeSearch
-        ? `publicaciones_sin_compatibilidades_${safeSearch}.xlsx`
-        : "publicaciones_sin_compatibilidades.xlsx";
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(
-        err?.message || "Ocurrió un error al exportar las publicaciones."
-      );
-    } finally {
-      setExporting(false);
+    if (debouncedSearchText) {
+      params.append("q", debouncedSearchText);
     }
-  };
+
+    const url = `${apiBase}/publications/without-compatibilities/export${
+      params.toString() ? `?${params.toString()}` : ""
+    }`;
+
+    const res = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+
+      let message =
+        data?.detail || data?.message || "No se pudo exportar el archivo Excel.";
+
+      if (Array.isArray(data?.detail)) {
+        message = data.detail
+          .map((item) => item?.msg || JSON.stringify(item))
+          .join(" | ");
+      } else if (data?.detail && typeof data.detail === "object") {
+        message = data.detail.msg || JSON.stringify(data.detail);
+      }
+
+      throw new Error(message);
+    }
+
+    const blob = await res.blob();
+
+    const contentDisposition = res.headers.get("Content-Disposition");
+    let fileName = "publicaciones_sin_compatibilidades.xlsx";
+
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="(.+)"/);
+      if (match?.[1]) {
+        fileName = match[1];
+      }
+    }
+
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  } catch (err) {
+    setError(
+      err?.message || "Ocurrió un error al exportar las publicaciones."
+    );
+  } finally {
+    setExporting(false);
+  }
+};
 
   if (!open) return null;
 

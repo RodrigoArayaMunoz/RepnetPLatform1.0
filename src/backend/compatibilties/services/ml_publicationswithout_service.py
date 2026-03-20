@@ -1,8 +1,11 @@
 import asyncio
 import time
 from typing import Any
-
+from io import BytesIO
 from fastapi import HTTPException
+
+from openpyxl import Workbook
+from openpyxl.styles import Font
 
 from services.ml_client import ml_client
 
@@ -50,15 +53,8 @@ class MlPublicationsService:
             access_token=access_token,
         )
 
-        query = (q or "").strip().lower()
-        if query:
-            filtered_items = [
-                item
-                for item in all_items
-                if query in item["mlc"].lower() or query in item["title"].lower()
-            ]
-        else:
-            filtered_items = all_items
+        filtered_items=self._filter_items(all_items, q)
+
 
         result = self._paginate_items(filtered_items, page, page_size)
 
@@ -67,7 +63,7 @@ class MlPublicationsService:
 
         result["cache_ttl_seconds"] = self.CACHE_TTL_SECONDS
         result["cache_size"] = len(all_items)
-        result["search_applied"] = bool(query)
+        result["search_applied"] = bool((q or "").strip())
         result["cache_generated_at"] = cache_meta.get("generated_at")
         result["cache_expires_at"] = cache_meta.get("expires_at")
         result["cache_state"] = cache_meta.get("state", "unknown")
@@ -77,6 +73,54 @@ class MlPublicationsService:
         result["last_refresh_error"] = refresh_meta.get("error")
 
         return result
+    
+    async def export_publications_without_compatibilities_excel(
+        self,
+        user_id: str,
+        q: str = "",
+    ) -> tuple[BytesIO, str]:
+        access_token = await ml_client.get_valid_token(int(user_id))
+        seller_id = await self._get_seller_id(access_token)
+        seller_id_str = str(seller_id)
+
+        all_items = await self._get_or_build_cache(
+            seller_id=seller_id_str,
+            access_token=access_token,
+        )
+
+        filtered_items = self._filter_items(all_items, q)
+
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = "Sin compatibilidades"
+
+        worksheet.append(["MLC", "Título"])
+
+        bold_font = Font(bold=True)
+        worksheet["A1"].font = bold_font
+        worksheet["B1"].font = bold_font
+
+        for item in filtered_items:
+            worksheet.append([
+                str(item.get("mlc") or "-"),
+                str(item.get("title") or "-"),
+            ])
+
+        worksheet.column_dimensions["A"].width = 22
+        worksheet.column_dimensions["B"].width = 90
+
+        output = BytesIO()
+        workbook.save(output)
+        output.seek(0)
+
+        safe_suffix = self._build_safe_filename_suffix(q)
+        filename = (
+            f"publicaciones_sin_compatibilidades_{safe_suffix}.xlsx"
+            if safe_suffix
+            else "publicaciones_sin_compatibilidades.xlsx"
+        )
+
+        return output, filename
 
     async def start_background_refresh(self, user_id: str) -> dict[str, Any]:
         access_token = await ml_client.get_valid_token(int(user_id))
@@ -115,6 +159,38 @@ class MlPublicationsService:
         if not seller_id:
             raise HTTPException(status_code=500, detail="No se pudo obtener el seller_id")
         return int(seller_id)
+
+    def _filter_items(
+        self,
+        items: list[dict[str, str]],
+        q: str = "",
+    ) -> list[dict[str, str]]:
+        query = (q or "").strip().lower()
+
+        if not query:
+            return items
+
+        return [
+            item
+            for item in items
+            if query in str(item.get("mlc", "")).lower()
+            or query in str(item.get("title", "")).lower()
+        ]
+
+    def _build_safe_filename_suffix(self, q: str) -> str:
+        raw = (q or "").strip()
+        if not raw:
+            return ""
+
+        cleaned = "".join(
+            ch if ch.isalnum() or ch in ("_", "-") else "_"
+            for ch in raw.replace(" ", "_")
+        )
+
+        while "__" in cleaned:
+            cleaned = cleaned.replace("__", "_")
+
+        return cleaned.strip("_")
 
     async def _get_or_build_cache(
         self,
@@ -434,6 +510,8 @@ class MlPublicationsService:
             if not task.done():
                 task.cancel()
         self._refresh_tasks.clear()
+
+    
 
 
 ml_publications_service = MlPublicationsService()

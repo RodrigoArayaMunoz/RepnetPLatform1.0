@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from fastapi.responses import StreamingResponse
 
 from config import settings
 from schemas import JobResponse
@@ -291,6 +292,29 @@ async def get_publications_without_compatibilities(
         refresh=refresh,
     )
 
+@app.get("/publications/without-compatibilities/export")
+async def export_publications_without_compatibilities(
+    q: str = Query(""),
+):
+    user_id = token_store.first_user_id()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="No hay cuenta de Mercado Libre conectada")
+
+    file_buffer, filename = await ml_publications_service.export_publications_without_compatibilities_excel(
+        user_id=str(user_id),
+        q=q,
+    )
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"'
+    }
+
+    return StreamingResponse(
+        file_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
+
 @app.post("/publications/without-compatibilities/refresh")
 async def refresh_publications_without_compatibilities():
     user_id = token_store.first_user_id()
@@ -311,4 +335,6 @@ async def get_publications_without_compatibilities_refresh_status():
     return await ml_publications_service.get_refresh_status(
         user_id=str(user_id)
     )
+
+
 
