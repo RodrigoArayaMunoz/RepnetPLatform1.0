@@ -21,6 +21,15 @@ def _build_name_to_id_map(values: list[dict]) -> dict[str, str]:
     return result
 
 
+def _normalize_snapshot_map(data: dict | None) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for key, value in (data or {}).items():
+        if key is None or value is None:
+            continue
+        result[str(key)] = str(value)
+    return result
+
+
 @dataclass
 class GlobalCatalogDictionaries:
     brands: dict[str, str] = field(default_factory=dict)
@@ -39,6 +48,28 @@ class GlobalCatalogDictionaries:
             "engines": len(self.engines),
             "transmissions": len(self.transmissions),
         }
+
+    def to_dict(self) -> dict:
+        return {
+            "brands": self.brands,
+            "models": self.models,
+            "years": self.years,
+            "versions": self.versions,
+            "engines": self.engines,
+            "transmissions": self.transmissions,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict | None) -> "GlobalCatalogDictionaries":
+        data = data or {}
+        return cls(
+            brands=_normalize_snapshot_map(data.get("brands")),
+            models=_normalize_snapshot_map(data.get("models")),
+            years=_normalize_snapshot_map(data.get("years")),
+            versions=_normalize_snapshot_map(data.get("versions")),
+            engines=_normalize_snapshot_map(data.get("engines")),
+            transmissions=_normalize_snapshot_map(data.get("transmissions")),
+        )
 
 
 class CatalogPreloadService:
@@ -93,6 +124,15 @@ class CatalogPreloadService:
         self.data.transmissions = _build_name_to_id_map(transmission_values)
 
         return self.data
+
+    def to_snapshot(self) -> dict:
+        return self.data.to_dict()
+
+    @classmethod
+    def from_snapshot(cls, snapshot: dict) -> "CatalogPreloadService":
+        service = cls(call_ml=None, metrics=None)
+        service.data = GlobalCatalogDictionaries.from_dict(snapshot)
+        return service
 
     def resolve_brand_id(self, brand_name: str) -> str | None:
         return self.data.brands.get(normalize_for_compare(brand_name))

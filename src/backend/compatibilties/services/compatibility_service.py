@@ -1,6 +1,7 @@
 import asyncio
 import random
 import time
+from services.redis_rate_limiter import RedisWindowRateLimiter
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
@@ -19,6 +20,7 @@ from services.excel_service import (
 )
 from services.job_store import JobStore
 from services.ml_client import ml_client
+from typing import Any, Awaitable, Callable, TypeAlias
 
 
 @dataclass
@@ -73,7 +75,7 @@ class SimpleRateLimiter:
 def _settings_value(name: str, default: Any) -> Any:
     return getattr(settings, name, default)
 
-DEBUG_COMPAT = True
+DEBUG_COMPAT = False
 
 
 def dlog(*parts):
@@ -93,8 +95,16 @@ def safe_str(value):
     return str(value)
 
 
-RATE_LIMITER = SimpleRateLimiter(
-    requests_per_second=float(_settings_value("ml_requests_per_second", 3))
+READ_RATE_LIMITER = RedisWindowRateLimiter(
+    redis_url=settings.redis_url,
+    namespace="ml:read",
+    requests_per_second=int(_settings_value("ml_read_requests_per_second", 2)),
+)
+
+WRITE_RATE_LIMITER = RedisWindowRateLimiter(
+    redis_url=settings.redis_url,
+    namespace="ml:write_compat",
+    requests_per_second=int(_settings_value("ml_write_requests_per_second", 1)),
 )
 
 RETRY_ATTEMPTS = int(_settings_value("ml_retry_attempts", 4))
@@ -111,13 +121,15 @@ async def call_ml(
     fn: Callable[..., Awaitable[Any]],
     *args,
     metrics: JobMetrics,
+    limiter=None,
     **kwargs,
 ) -> Any:
     last_exc: Exception | None = None
+    limiter = limiter or READ_RATE_LIMITER
 
     for attempt in range(RETRY_ATTEMPTS):
         try:
-            await RATE_LIMITER.acquire()
+            await limiter.acquire()
             metrics.ml_requests += 1
             return await fn(*args, **kwargs)
 
@@ -132,7 +144,13 @@ async def call_ml(
                 raise
 
             metrics.ml_retries += 1
-            delay = RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.4)
+
+            # En 429 conviene esperar más
+            if getattr(exc, "status_code", None) == 429:
+                delay = max(2.0, RETRY_BASE_DELAY * (2 ** attempt)) + random.uniform(0, 0.5)
+            else:
+                delay = RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.4)
+
             await asyncio.sleep(delay)
 
         except Exception as exc:
@@ -149,7 +167,6 @@ async def call_ml(
     if last_exc:
         raise last_exc
     raise RuntimeError("call_ml terminó sin respuesta ni excepción")
-
 
 def _cache_get(cache: dict, key: Any, metrics: JobMetrics) -> Any:
     if key in cache:
@@ -185,6 +202,7 @@ async def search_vehicle_product_id(
         transmission_id=transmission_id,
         engine_id=engine_id,
         metrics=metrics,
+        limiter=READ_RATE_LIMITER,
     )
 
     value = str(results[0]["id"]) if results and results[0].get("id") else None
@@ -207,6 +225,7 @@ async def get_item_detail_cached(
         access_token,
         item_id,
         metrics=metrics,
+        limiter=READ_RATE_LIMITER,
     )
     caches.item_detail[item_id] = data
     return data
@@ -232,6 +251,187 @@ def dedup_key(row: dict) -> tuple:
     )
 
 
+def build_unique_rows_plan(rows: list[dict]) -> tuple[list[dict], list[list[int]]]:
+    unique_key_to_index: dict[tuple, int] = {}
+    unique_entries: list[dict] = []
+    original_indices_by_unique_index: list[list[int]] = []
+
+    for original_idx, row in enumerate(rows):
+        key = dedup_key(row)
+        unique_index = unique_key_to_index.get(key)
+
+        if unique_index is None:
+            unique_index = len(unique_entries)
+            unique_key_to_index[key] = unique_index
+            unique_entries.append(
+                {
+                    "unique_index": unique_index,
+                    "row": row,
+                }
+            )
+            original_indices_by_unique_index.append([])
+
+        original_indices_by_unique_index[unique_index].append(original_idx)
+
+    return unique_entries, original_indices_by_unique_index
+
+
+def build_results_summary(
+    final_results: list[dict],
+    *,
+    total_rows: int,
+    total_unique_rows: int,
+    duplicated_rows: int,
+    metrics: JobMetrics | dict | None = None,
+) -> dict:
+    rows_ok = sum(1 for r in final_results if r.get("ok"))
+    rows_error = len(final_results) - rows_ok
+
+    compat_total = 0
+    compat_ok = 0
+    compat_error = 0
+    functional_errors = 0
+    technical_errors = 0
+
+    for r in final_results:
+        if r.get("error_type") == "functional":
+            functional_errors += 1
+        elif r.get("error_type") == "technical":
+            technical_errors += 1
+
+        details = r.get("results", [])
+        if not isinstance(details, list):
+            details = []
+
+        if details:
+            compat_total += len(details)
+            compat_ok += sum(1 for d in details if d.get("ok"))
+            compat_error += sum(1 for d in details if not d.get("ok"))
+        else:
+            compat_total += 1
+            if r.get("ok") is True:
+                compat_ok += 1
+            else:
+                compat_error += 1
+
+    if metrics is None:
+        metrics_payload = {}
+    elif isinstance(metrics, dict):
+        metrics_payload = metrics
+    else:
+        metrics_payload = metrics.to_dict()
+
+    return {
+        "processed_rows": total_rows,
+        "unique_rows": total_unique_rows,
+        "duplicated_rows": duplicated_rows,
+        "success_count": rows_ok,
+        "error_count": rows_error,
+        "functional_errors": functional_errors,
+        "technical_errors": technical_errors,
+        "compatibilities_total": compat_total,
+        "compatibilities_ok": compat_ok,
+        "compatibilities_error": compat_error,
+        "metrics": metrics_payload,
+    }
+
+ProgressCallback: TypeAlias = Callable[[int], Awaitable[None]]
+
+async def process_unique_rows_chunk(
+    access_token: str,
+    unique_entries: list[dict],
+    catalog_cache: CatalogPreloadService,
+    on_progress: Callable[[int], Awaitable[None]] | None = None,
+) -> dict:
+    caches = JobCaches()
+    metrics = JobMetrics()
+
+    max_concurrency = max(1, int(_settings_value("max_row_concurrency", 2)))
+    progress_every = max(1, int(_settings_value("chunk_progress_update_every", 25)))
+
+    semaphore = asyncio.Semaphore(max_concurrency)
+    progress_lock = asyncio.Lock()
+
+    total_entries = len(unique_entries)
+    row_results: list[dict | None] = [None] * total_entries
+    completed = 0
+
+    if total_entries == 0:
+        summary = build_results_summary(
+            [],
+            total_rows=0,
+            total_unique_rows=0,
+            duplicated_rows=0,
+            metrics=metrics,
+        )
+        summary["processed_unique_rows"] = 0
+        return {
+            "results": [],
+            "summary": summary,
+        }
+
+    async def worker(pos: int, entry: dict):
+        nonlocal completed
+
+        async with semaphore:
+            result = await process_vehicle_row(
+                access_token=access_token,
+                row=entry["row"],
+                catalog_cache=catalog_cache,
+                caches=caches,
+                metrics=metrics,
+            )
+
+            result["unique_index"] = entry["unique_index"]
+            row_results[pos] = result
+
+            should_report = False
+            completed_snapshot = 0
+
+            async with progress_lock:
+                completed += 1
+                completed_snapshot = completed
+                should_report = (
+                    on_progress is not None
+                    and (
+                        completed_snapshot % progress_every == 0
+                        or completed_snapshot == total_entries
+                    )
+                )
+
+            if should_report and on_progress is not None:
+                try:
+                    await on_progress(completed_snapshot)
+                except Exception:
+                    # El progreso no debe botar el chunk completo
+                    pass
+
+    await asyncio.gather(*(worker(i, entry) for i, entry in enumerate(unique_entries)))
+
+    final_results = [
+        r if r is not None else {
+            "ok": False,
+            "reason": "Resultado faltante",
+            "error_type": "technical",
+            "error_code": "MISSING_RESULT",
+            "results": [],
+        }
+        for r in row_results
+    ]
+
+    summary = build_results_summary(
+        final_results,
+        total_rows=total_entries,
+        total_unique_rows=total_entries,
+        duplicated_rows=0,
+        metrics=metrics,
+    )
+    summary["processed_unique_rows"] = total_entries
+
+    return {
+        "results": final_results,
+        "summary": summary,
+    }
 def _build_error_result(
     item_id: str | None,
     reason: str,
@@ -503,6 +703,7 @@ async def process_vehicle_row(
             product_id=product_id,
             creation_source="DEFAULT",
             metrics=metrics,
+            limiter=WRITE_RATE_LIMITER,
         )
 
         dsep("ML RESPONSE")

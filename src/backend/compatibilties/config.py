@@ -36,10 +36,10 @@ class Settings(BaseSettings):
     # Retry / rate limit
     ml_retry_attempts: int = 4
     ml_retry_base_delay: float = 1.0
-    ml_requests_per_second: float = 2.0
+    ml_requests_per_second: float = 4
 
     # Procesamiento
-    max_row_concurrency: int = 3
+    max_row_concurrency: int = 6
     job_progress_update_every: int = 25
 
     model_config = SettingsConfigDict(
