@@ -101,6 +101,7 @@ async def ml_auth_callback(code: str = Query(...), state: str | None = None):
     headers = {
         "accept": "application/json",
         "content-type": "application/x-www-form-urlencoded",
+        "ngrok-skip-browser-warning": "any",
     }
 
     if not ml_client.client:
