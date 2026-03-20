@@ -1,14 +1,21 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent
 
 class Settings(BaseSettings):
 
     app_env: str = "development"
     frontend_url: str = "http://localhost:5173"
-    upload_dir: str = "uploads"
+
+    #upload_dir: str = "uploads"
+    #tokens_file: str = "tokens.json"
+
+    upload_dir: str = str(BASE_DIR / "uploads")
+    tokens_file: str = str(BASE_DIR / "tokens.json")
 
     redis_url: str = "redis://redis:6379/0"
-    tokens_file: str = "tokens.json"
+    
 
     ml_client_id: str | None = None
     ml_client_secret: str | None = None

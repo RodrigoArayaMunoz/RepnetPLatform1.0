@@ -73,13 +73,16 @@ async def ml_me(user_id: int):
 
 
 @app.get("/auth/login")
-def ml_auth_login():
+def ml_auth_login(state: str | None = None):
     require_ml_env()
     params = {
         "response_type": "code",
         "client_id": settings.ml_client_id,
         "redirect_uri": settings.ml_redirect_uri,
     }
+    if state:
+        params["state"] = state
+
     url = f"{settings.ml_auth_url}?{urlencode(params)}"
     return RedirectResponse(url=url)
 
@@ -104,16 +107,20 @@ async def ml_auth_callback(code: str = Query(...), state: str | None = None):
         raise HTTPException(status_code=500, detail="HTTP client no inicializado")
 
     r = await ml_client.client.post(settings.ml_token_url, data=payload, headers=headers)
+
     if r.status_code >= 400:
         raise HTTPException(status_code=r.status_code, detail=r.text)
 
-    token_data = r.json()
-    user_id = token_data.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=500, detail="No se recibió user_id")
+    token_response = r.json()
 
-    token_store.set(user_id, token_store.build_payload(token_data, user_id))
-    return RedirectResponse(url=settings.frontend_url)
+    user_id = token_response.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=500, detail="No se recibió user_id desde Mercado Libre")
+
+    payload_to_save = token_store.build_payload(token_response, user_id)
+    token_store.set(user_id, payload_to_save)
+
+    return RedirectResponse(url=f"{settings.frontend_url}?ml_connected=1&user_id={user_id}")
 
 
 @app.post("/auth/refresh")

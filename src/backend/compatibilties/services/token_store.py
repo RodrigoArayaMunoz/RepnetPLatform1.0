@@ -1,30 +1,36 @@
 import json
-import os
 import time
+from pathlib import Path
 from typing import Any
+
 from fastapi import HTTPException
+
 from config import settings
 
 
 class TokenStore:
     def __init__(self, path: str):
-        self.path = path
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+        if not self.path.exists():
+            self.path.write_text("{}", encoding="utf-8")
 
     def load(self) -> dict[str, Any]:
         try:
-            if not os.path.exists(self.path):
-                with open(self.path, "w", encoding="utf-8") as f:
-                    json.dump({}, f, ensure_ascii=False, indent=2)
+            raw = self.path.read_text(encoding="utf-8").strip()
+            if not raw:
                 return {}
-            with open(self.path, "r", encoding="utf-8") as f:
-                raw = f.read().strip()
-                return json.loads(raw) if raw else {}
+            data = json.loads(raw)
+            return data if isinstance(data, dict) else {}
         except Exception:
             return {}
 
     def save(self, tokens: dict[str, Any]) -> None:
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(tokens, f, ensure_ascii=False, indent=2)
+        self.path.write_text(
+            json.dumps(tokens, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     def get(self, user_id: int | str) -> dict[str, Any] | None:
         return self.load().get(str(user_id))
@@ -46,9 +52,17 @@ class TokenStore:
     @staticmethod
     def build_payload(token_data: dict[str, Any], user_id: int | str) -> dict[str, Any]:
         expires_in = int(token_data.get("expires_in", 0))
-        token_data["user_id"] = int(user_id)
-        token_data["expires_at"] = int(time.time()) + expires_in - 60
-        return token_data
+        now = int(time.time())
+
+        return {
+            "user_id": str(user_id),
+            "access_token": token_data.get("access_token"),
+            "refresh_token": token_data.get("refresh_token"),
+            "token_type": token_data.get("token_type", "bearer"),
+            "scope": token_data.get("scope"),
+            "expires_in": expires_in,
+            "expires_at": now + expires_in - 60 if expires_in > 60 else now + expires_in,
+        }
 
 
 token_store = TokenStore(settings.tokens_file)
