@@ -246,6 +246,24 @@ def _build_error_result(
     error_code: str = "VALIDATION_ERROR",
     results: list[dict] | None = None,
 ) -> dict:
+    error_details = results
+    if error_details is None:
+        error_details = [
+            {
+                "ok": False,
+                "year": year,
+                "reason": reason,
+                "error_type": error_type,
+                "error_code": error_code,
+                "brand_name": brand_name,
+                "model_name": model_name,
+                "version_name": version_name,
+                "engine_name": engine_name,
+                "transmission_name": transmission_name,
+                "item_id": item_id,
+            }
+        ]
+
     return {
         "ok": False,
         "item_id": item_id,
@@ -260,9 +278,8 @@ def _build_error_result(
         "error_type": error_type,
         "error_code": error_code,
         "reason": reason,
-        "results": results or [],
+        "results": error_details,
     }
-
 
 
 
@@ -687,9 +704,20 @@ async def process_rows_for_job(
             technical_errors += 1
 
         details = r.get("results", [])
-        compat_total += len(details)
-        compat_ok += sum(1 for d in details if d.get("ok"))
-        compat_error += sum(1 for d in details if not d.get("ok"))
+        if not isinstance(details, list):
+            details = []
+
+        if details:
+            compat_total += len(details)
+            compat_ok += sum(1 for d in details if d.get("ok"))
+            compat_error += sum(1 for d in details if not d.get("ok"))
+        else:
+            if r.get("ok") is True:
+                compat_total += 1
+                compat_ok += 1
+            elif r.get("ok") is False:
+                compat_total += 1
+                compat_error += 1
 
     JobStore.update(
         job_id,

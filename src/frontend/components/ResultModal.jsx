@@ -164,9 +164,6 @@ function YearStatusRow({ row }) {
   return (
     <div className={`rm-year-row ${row.ok ? "ok" : "error"}`}>
       <div className="rm-year-main">
-        <div className="rm-year-title">
-          <strong>Año:</strong> {row.year}
-        </div>
 
         <div className={`rm-badge ${row.ok ? "ok" : "error"}`}>
           {row.ok ? "OK" : "Error"}
