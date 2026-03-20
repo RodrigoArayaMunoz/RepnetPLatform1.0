@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ExcelJS from "exceljs/dist/exceljs.min.js";
 import "./PublicationsWithoutCompatibilityModal.css";
 
 function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
@@ -16,6 +17,7 @@ function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const pageSize = 20;
 
@@ -26,6 +28,7 @@ function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
     setSearchText("");
     setDebouncedSearchText("");
     setRefreshMessage("");
+    setError("");
   }, [open]);
 
   useEffect(() => {
@@ -177,6 +180,104 @@ function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
     }
   };
 
+  const handleExportToExcel = async () => {
+    try {
+      setExporting(true);
+      setError("");
+
+      const exportPageSize = 500;
+      let exportPage = 1;
+      let allItems = [];
+      let keepFetching = true;
+
+      while (keepFetching) {
+        const params = new URLSearchParams({
+          page: String(exportPage),
+          page_size: String(exportPageSize),
+        });
+
+        if (debouncedSearchText) {
+          params.append("q", debouncedSearchText);
+        }
+
+        const res = await fetch(
+          `${apiBase}/publications/without-compatibilities?${params.toString()}`,
+          {
+            method: "GET",
+            credentials: "include",
+          }
+        );
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(
+            data?.detail ||
+              data?.message ||
+              "No se pudieron obtener los datos para exportar."
+          );
+        }
+
+        const pageItems = Array.isArray(data?.items) ? data.items : [];
+        allItems = [...allItems, ...pageItems];
+
+        keepFetching = Boolean(data?.has_next);
+        exportPage += 1;
+      }
+
+      if (allItems.length === 0) {
+        throw new Error("No hay publicaciones para exportar.");
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Sin compatibilidades");
+
+      worksheet.columns = [
+        { header: "MLC", key: "mlc", width: 22 },
+        { header: "Título", key: "title", width: 80 },
+      ];
+
+      allItems.forEach((item) => {
+        worksheet.addRow({
+          mlc: item?.mlc || "-",
+          title: item?.title || "-",
+        });
+      });
+
+      worksheet.getRow(1).font = { bold: true };
+
+      const safeSearch = debouncedSearchText
+        ? debouncedSearchText
+            .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+            .replace(/\s+/g, "_")
+        : "";
+
+      const fileName = safeSearch
+        ? `publicaciones_sin_compatibilidades_${safeSearch}.xlsx`
+        : "publicaciones_sin_compatibilidades.xlsx";
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(
+        err?.message || "Ocurrió un error al exportar las publicaciones."
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -207,9 +308,18 @@ function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
             type="button"
             className="refresh-results-button"
             onClick={handleRefreshResults}
-            disabled={refreshing}
+            disabled={refreshing || exporting}
           >
             {refreshing ? "Actualizando..." : "Actualizar resultados"}
+          </button>
+
+          <button
+            type="button"
+            className="refresh-results-button export-results-button"
+            onClick={handleExportToExcel}
+            disabled={loading || exporting || refreshing || total === 0}
+          >
+            {exporting ? "Exportando..." : "Exportar a Excel"}
           </button>
         </div>
 
