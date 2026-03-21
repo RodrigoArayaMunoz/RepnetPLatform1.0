@@ -18,7 +18,8 @@ from services.job_store import JobStore
 from services.excel_service import save_upload_file, load_excel_rows
 from services.ml_client import ml_client
 from tasks.import_tasks import process_excel_job
-
+from routers.product_resolution_router import router as product_resolution_router
+from routers.compatibility_batch_router import router as compatibility_batch_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,6 +30,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Compatibilidades API", lifespan=lifespan)
+
+app.include_router(product_resolution_router)
+app.include_router(compatibility_batch_router)
 
 app.add_middleware(
     CORSMiddleware,

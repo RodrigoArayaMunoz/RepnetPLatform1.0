@@ -335,6 +335,36 @@ class MercadoLibreClient:
         )
         return data if isinstance(data, dict) else {"raw_response": data}
 
+    async def add_user_product_compatibilities_batch(
+        self,
+        access_token: str,
+        user_product_id: str,
+        category_id: str,
+        product_ids: list[str],
+        creation_source: str = "DEFAULT",
+    ) -> dict:
+        if not product_ids:
+            return {"results": []}
+
+        body = {
+            "domain_id": settings.ml_domain_id,
+            "category_id": category_id,
+            "products": [
+                {
+                    "id": str(product_id),
+                    "creation_source": creation_source,
+                }
+                for product_id in product_ids
+            ],
+        }
+
+        data = await self.request(
+            "POST",
+            f"/user-products/{user_product_id}/compatibilities",
+            access_token,
+            json_body=body,
+        )
+        return data if isinstance(data, dict) else {"raw_response": data}
 
 def extract_values_list(data: Any) -> list[dict]:
     if isinstance(data, list):

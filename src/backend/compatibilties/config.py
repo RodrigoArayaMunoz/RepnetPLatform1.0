@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     max_row_concurrency: int = 6
     job_progress_update_every: int = 25
 
+    product_resolution_concurrency: int = 5
+    compat_batch_size: int = 200
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

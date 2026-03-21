@@ -5,7 +5,11 @@ celery_app = Celery(
     "compatibilidades",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["tasks.import_tasks"],
+        include=[
+        "tasks.import_tasks",
+        "tasks.product_resolution_tasks",
+        "tasks.compatibility_batch_tasks",
+    ],
 )
 
 celery_app.conf.update(
@@ -20,5 +24,7 @@ celery_app.conf.update(
         "tasks.process_excel_job": {"queue": "compat_dispatch"},
         "tasks.process_excel_chunk": {"queue": "compat_chunks"},
         "tasks.finalize_excel_job": {"queue": "compat_chunks"},
+        "tasks.resolve_products_job": {"queue": "compat_dispatch"},
+        "tasks.add_compatibilities_batch_job": {"queue": "compat_chunks"},
     },
 )
