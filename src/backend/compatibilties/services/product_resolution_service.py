@@ -1,6 +1,5 @@
 import asyncio
 from dataclasses import dataclass
-from typing import Any
 
 from config import settings
 from services.catalog_preload_service import CatalogPreloadService
@@ -96,7 +95,8 @@ def resolve_attribute_ids(
     engine_id = catalog_cache.resolve_engine_id(row.engine_name) if row.engine_name else None
     transmission_id = (
         catalog_cache.resolve_transmission_id(row.transmission_name)
-        if row.transmission_name else None
+        if row.transmission_name
+        else None
     )
 
     return {
@@ -112,6 +112,7 @@ def resolve_attribute_ids(
 async def resolve_single_product_id(
     *,
     access_token: str,
+    user_id: int | str,
     site_id: str,
     row: ProductResolutionRow,
     catalog_cache: CatalogPreloadService,
@@ -152,6 +153,7 @@ async def resolve_single_product_id(
         version_id=ids["version_id"],
         transmission_id=ids["transmission_id"],
         engine_id=ids["engine_id"],
+        user_id=user_id,
         metrics=metrics,
         limiter=READ_RATE_LIMITER,
     )
@@ -187,12 +189,13 @@ async def resolve_products_from_rows(
     *,
     job_id: str,
     access_token: str,
+    user_id: int | str,
     site_id: str,
     rows: list[dict],
     catalog_cache: CatalogPreloadService,
 ) -> dict:
     metrics = JobMetrics()
-    unique_rows, key_to_original_indices = deduplicate_resolution_rows(rows)
+    unique_rows, _key_to_original_indices = deduplicate_resolution_rows(rows)
 
     max_concurrency = max(1, int(getattr(settings, "product_resolution_concurrency", 5)))
     semaphore = asyncio.Semaphore(max_concurrency)
@@ -206,6 +209,7 @@ async def resolve_products_from_rows(
         async with semaphore:
             result = await resolve_single_product_id(
                 access_token=access_token,
+                user_id=user_id,
                 site_id=site_id,
                 row=row,
                 catalog_cache=catalog_cache,

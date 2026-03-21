@@ -39,6 +39,7 @@ async def _resolve_products_job(job_id: str, user_id: str, site_id: str) -> None
         JobStore.update(job_id, status="processing", progress=1, message="Leyendo Excel...")
 
         rows = load_excel_rows(xlsx_path)
+
         await ml_client.startup()
         try:
             access_token = await ml_client.get_valid_token(int(user_id))
@@ -48,9 +49,11 @@ async def _resolve_products_job(job_id: str, user_id: str, site_id: str) -> None
             await catalog_cache.preload_all(access_token)
 
             JobStore.update(job_id, progress=10, message="Resolviendo product_id...")
+
             outcome = await resolve_products_from_rows(
                 job_id=job_id,
                 access_token=access_token,
+                user_id=int(user_id),
                 site_id=site_id,
                 rows=rows,
                 catalog_cache=catalog_cache,

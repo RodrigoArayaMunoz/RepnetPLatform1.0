@@ -75,6 +75,7 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
 
             outcome = await process_compatibility_batches(
                 access_token=access_token,
+                user_id=int(user_id),
                 rows=rows,
                 on_progress=on_progress,
             )

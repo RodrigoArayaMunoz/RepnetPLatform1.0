@@ -43,30 +43,45 @@ class MercadoLibreClient:
             await self.client.aclose()
             self.client = None
 
+    def _build_headers(self, access_token: str, has_json_body: bool = False) -> dict[str, str]:
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+        }
+        if has_json_body:
+            headers["Content-Type"] = "application/json"
+        return headers
+
     async def request(
         self,
         method: str,
         path: str,
-        access_token: str,
+        access_token: str | None = None,
         json_body: dict | None = None,
         params: dict | None = None,
+        user_id: int | str | None = None,
     ) -> Any:
         if not self.client:
             raise RuntimeError("MercadoLibreClient no inicializado")
 
         url = f"{settings.ml_api_base}{path}"
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/json",
-        }
-        if json_body is not None:
-            headers["Content-Type"] = "application/json"
-
         retryable_status = {429, 500, 502, 503, 504}
         last_error: Exception | None = None
+        refreshed_after_401 = False
+
+        if not access_token and user_id is not None:
+            access_token = await self.get_valid_token(user_id)
+
+        if not access_token:
+            raise HTTPException(status_code=401, detail="No hay access_token disponible")
 
         for attempt in range(1, settings.ml_retry_attempts + 1):
             try:
+                headers = self._build_headers(
+                    access_token=access_token,
+                    has_json_body=json_body is not None,
+                )
+
                 response = await self.client.request(
                     method=method,
                     url=url,
@@ -74,6 +89,23 @@ class MercadoLibreClient:
                     json=json_body,
                     params=params,
                 )
+
+                if response.status_code == 401:
+                    if user_id is not None and not refreshed_after_401:
+                        refreshed_after_401 = True
+                        token_data = await self.refresh_token(user_id)
+                        access_token = token_data.get("access_token")
+                        if not access_token:
+                            raise HTTPException(
+                                status_code=401,
+                                detail="No se pudo renovar access_token tras 401",
+                            )
+                        continue
+
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Token inválido o expirado",
+                    )
 
                 if response.status_code in retryable_status:
                     if attempt == settings.ml_retry_attempts:
@@ -88,12 +120,6 @@ class MercadoLibreClient:
                     ) + random.uniform(0, 0.3)
                     await asyncio.sleep(delay)
                     continue
-
-                if response.status_code == 401:
-                    raise HTTPException(
-                        status_code=401,
-                        detail="Token inválido o expirado",
-                    )
 
                 if response.status_code >= 400:
                     raise HTTPException(
@@ -206,7 +232,9 @@ class MercadoLibreClient:
         expires_at = int(token_data.get("expires_at", 0))
         now = int(time.time())
 
-        if not access_token or now >= expires_at:
+        refresh_margin = int(getattr(settings, "token_refresh_margin_seconds", 600))
+
+        if not access_token or now >= (expires_at - refresh_margin):
             token_data = await self.refresh_token(user_id)
             access_token = token_data.get("access_token")
 
@@ -218,8 +246,18 @@ class MercadoLibreClient:
 
         return access_token
 
-    async def get_item_detail(self, access_token: str, item_id: str) -> dict:
-        data = await self.request("GET", f"/items/{item_id}", access_token)
+    async def get_item_detail(
+        self,
+        access_token: str | None,
+        item_id: str,
+        user_id: int | str | None = None,
+    ) -> dict:
+        data = await self.request(
+            "GET",
+            f"/items/{item_id}",
+            access_token=access_token,
+            user_id=user_id,
+        )
         if not isinstance(data, dict):
             raise HTTPException(
                 status_code=500,
@@ -229,9 +267,10 @@ class MercadoLibreClient:
 
     async def get_top_values(
         self,
-        access_token: str,
+        access_token: str | None,
         attribute_id: str,
         known_attributes: list[dict] | None = None,
+        user_id: int | str | None = None,
     ) -> list[dict]:
         payload: dict[str, Any] = {}
         if known_attributes:
@@ -240,8 +279,9 @@ class MercadoLibreClient:
         response = await self.request(
             "POST",
             f"/catalog_domains/MLC-CARS_AND_VANS_FOR_COMPATIBILITIES/attributes/{attribute_id}/top_values",
-            access_token,
+            access_token=access_token,
             json_body=payload,
+            user_id=user_id,
         )
 
         if isinstance(response, list):
@@ -264,13 +304,14 @@ class MercadoLibreClient:
 
     async def search_vehicle_products(
         self,
-        access_token: str,
+        access_token: str | None = None,
         brand_id: str | None = None,
         model_id: str | None = None,
         year_id: str | None = None,
         version_id: str | None = None,
         transmission_id: str | None = None,
         engine_id: str | None = None,
+        user_id: int | str | None = None,
     ) -> list[dict]:
         known_attributes: list[dict[str, Any]] = []
 
@@ -292,12 +333,13 @@ class MercadoLibreClient:
         response = await self.request(
             "POST",
             "/catalog_compatibilities/products_search/chunks",
-            access_token,
+            access_token=access_token,
             json_body={
                 "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
                 "site_id": "MLC",
                 "known_attributes": known_attributes,
             },
+            user_id=user_id,
         )
 
         if isinstance(response, dict):
@@ -309,11 +351,12 @@ class MercadoLibreClient:
 
     async def add_user_product_compatibility(
         self,
-        access_token: str,
+        access_token: str | None,
         user_product_id: str,
         category_id: str,
         product_id: str,
         creation_source: str = "DEFAULT",
+        user_id: int | str | None = None,
     ) -> dict:
         body = {
             "domain_id": settings.ml_domain_id,
@@ -329,18 +372,20 @@ class MercadoLibreClient:
         data = await self.request(
             "POST",
             f"/user-products/{user_product_id}/compatibilities",
-            access_token,
+            access_token=access_token,
             json_body=body,
+            user_id=user_id,
         )
         return data if isinstance(data, dict) else {"raw_response": data}
 
     async def add_user_product_compatibilities_batch(
         self,
-        access_token: str,
+        access_token: str | None,
         user_product_id: str,
         category_id: str,
         product_ids: list[str],
         creation_source: str = "DEFAULT",
+        user_id: int | str | None = None,
     ) -> dict:
         if not product_ids:
             return {"results": []}
@@ -360,8 +405,9 @@ class MercadoLibreClient:
         data = await self.request(
             "POST",
             f"/user-products/{user_product_id}/compatibilities",
-            access_token,
+            access_token=access_token,
             json_body=body,
+            user_id=user_id,
         )
         return data if isinstance(data, dict) else {"raw_response": data}
 

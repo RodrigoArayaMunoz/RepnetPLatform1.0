@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     compat_batch_size: int = 200
     compat_batch_concurrency: int = 4
 
+    token_refresh_margin_seconds: int = 600
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

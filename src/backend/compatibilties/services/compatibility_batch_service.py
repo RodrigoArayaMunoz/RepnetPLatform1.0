@@ -29,6 +29,7 @@ def chunked(items: list[str], size: int) -> Iterable[list[str]]:
 async def get_item_compact_cached(
     *,
     access_token: str,
+    user_id: int | str,
     item_id: str,
     metrics: JobMetrics,
 ) -> dict:
@@ -42,6 +43,7 @@ async def get_item_compact_cached(
         ml_client.get_item_detail,
         access_token,
         item_id,
+        user_id=user_id,
         metrics=metrics,
     )
 
@@ -76,12 +78,14 @@ def build_grouped_product_ids(rows: list[dict]) -> dict[str, list[str]]:
 async def post_compatibilities_batch(
     *,
     access_token: str,
+    user_id: int | str,
     item_id: str,
     product_ids: list[str],
     metrics: JobMetrics,
 ) -> dict:
     item_compact = await get_item_compact_cached(
         access_token=access_token,
+        user_id=user_id,
         item_id=item_id,
         metrics=metrics,
     )
@@ -120,6 +124,7 @@ async def post_compatibilities_batch(
         category_id=str(category_id),
         product_ids=product_ids,
         creation_source="DEFAULT",
+        user_id=user_id,
         metrics=metrics,
         limiter=WRITE_RATE_LIMITER,
     )
@@ -330,6 +335,7 @@ def build_compat_summary(final_rows: list[dict], batch_results: list[dict], metr
 async def process_compatibility_batches(
     *,
     access_token: str,
+    user_id: int | str,
     rows: list[dict],
     on_progress: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> dict:
@@ -366,6 +372,7 @@ async def process_compatibility_batches(
         async with semaphore:
             result = await post_compatibilities_batch(
                 access_token=access_token,
+                user_id=user_id,
                 item_id=item_id,
                 product_ids=batch,
                 metrics=metrics,
