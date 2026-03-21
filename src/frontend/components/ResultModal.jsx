@@ -3,49 +3,83 @@ import "./ResultModal.css";
 
 const PAGE_SIZE = 20;
 
+function safeText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  const text = String(value).trim();
+  return text || fallback;
+}
 
+function normalizeText(value) {
+  return safeText(value, "").toLowerCase();
+}
 
 function flattenResults(results = []) {
   const rows = [];
 
   results.forEach((group, groupIndex) => {
-    const brandName = group.brand_name || "Sin marca";
-    const modelName = group.model_name || "Sin modelo";
-    const itemId = group.item_id || `item-${groupIndex}`;
-    const engineName = group.engine_name || "";
-    const transmissionName = group.transmission_name || "";
+    const brandName = safeText(group.brand_name, "Sin marca");
+    const modelName = safeText(group.model_name, "Sin modelo");
+    const itemId = safeText(group.item_id, `item-${groupIndex}`);
+    const engineName = safeText(group.engine_name, "");
+    const transmissionName = safeText(group.transmission_name, "");
+    const versionName = safeText(group.version_name, "");
+    const categoryId = safeText(group.category_id, "");
+    const userProductId = safeText(group.user_product_id, "");
+    const groupReason =
+      safeText(group.reason, "") ||
+      safeText(group.error_message, "") ||
+      "Sin detalle";
 
     if (Array.isArray(group.results) && group.results.length > 0) {
       group.results.forEach((detail, detailIndex) => {
         rows.push({
-          key: `${itemId}-${detail.year ?? "na"}-${detailIndex}`,
+          raw_key: `${itemId}-${detail.year ?? group.year ?? "na"}-${detailIndex}`,
           item_id: itemId,
-          brand_name: detail.brand_name || brandName,
-          model_name: detail.model_name || modelName,
-          engine_name: engineName,
-          transmission_name: transmissionName,
-          year: detail.year ?? "-",
+          brand_name: safeText(detail.brand_name, brandName),
+          model_name: safeText(detail.model_name, modelName),
+          version_name: safeText(detail.version_name, versionName),
+          engine_name: safeText(detail.engine_name, engineName),
+          transmission_name: safeText(
+            detail.transmission_name,
+            transmissionName
+          ),
+          year:
+            detail.year ??
+            group.year ??
+            group.year_requested ??
+            group.year_processed ??
+            "-",
           ok: !!detail.ok,
-          product_id: detail.product_id || "",
-          reason: detail.reason || "",
-          category_id: group.category_id || "",
-          user_product_id: group.user_product_id || "",
+          product_id: safeText(detail.product_id, safeText(group.product_id, "")),
+          reason:
+            safeText(detail.reason, "") ||
+            safeText(detail.error_message, "") ||
+            (!detail.ok ? groupReason : ""),
+          error_code: safeText(detail.error_code, safeText(group.error_code, "")),
+          category_id: categoryId,
+          user_product_id: userProductId,
         });
       });
     } else {
       rows.push({
-        key: `${itemId}-empty`,
+        raw_key: `${itemId}-empty`,
         item_id: itemId,
         brand_name: brandName,
         model_name: modelName,
+        version_name: versionName,
         engine_name: engineName,
         transmission_name: transmissionName,
-        year: "-",
+        year:
+          group.year ??
+          group.year_requested ??
+          group.year_processed ??
+          "-",
         ok: !!group.ok,
-        product_id: "",
-        reason: group.reason || "Sin detalle",
-        category_id: group.category_id || "",
-        user_product_id: group.user_product_id || "",
+        product_id: safeText(group.product_id, ""),
+        reason: groupReason,
+        error_code: safeText(group.error_code, ""),
+        category_id: categoryId,
+        user_product_id: userProductId,
       });
     }
   });
@@ -53,13 +87,68 @@ function flattenResults(results = []) {
   return rows;
 }
 
+function buildUniqueCompatKey(row) {
+  if (row.ok && row.product_id) {
+    return `ok::${normalizeText(row.item_id)}::${normalizeText(row.product_id)}`;
+  }
+
+  return [
+    "error",
+    normalizeText(row.item_id),
+    normalizeText(row.brand_name),
+    normalizeText(row.model_name),
+    normalizeText(row.version_name),
+    normalizeText(String(row.year)),
+    normalizeText(row.engine_name),
+    normalizeText(row.transmission_name),
+    normalizeText(row.error_code || row.reason),
+  ].join("::");
+}
+
+function dedupeCompatRows(rows = []) {
+  const map = new Map();
+
+  rows.forEach((row, index) => {
+    const uniqueKey = buildUniqueCompatKey(row);
+
+    if (!map.has(uniqueKey)) {
+      map.set(uniqueKey, {
+        ...row,
+        key: uniqueKey,
+        duplicate_count: 1,
+        source_rows: [index + 1],
+      });
+      return;
+    }
+
+    const existing = map.get(uniqueKey);
+    existing.duplicate_count += 1;
+    existing.source_rows.push(index + 1);
+
+    if (!existing.product_id && row.product_id) {
+      existing.product_id = row.product_id;
+    }
+    if (!existing.reason && row.reason) {
+      existing.reason = row.reason;
+    }
+    if (!existing.error_code && row.error_code) {
+      existing.error_code = row.error_code;
+    }
+  });
+
+  return Array.from(map.values());
+}
+
 function groupRows(rows) {
   const brandMap = new Map();
 
   rows.forEach((row) => {
-    const brandKey = row.brand_name || "Sin marca";
-    const modelKey = row.model_name || "Sin modelo";
-    const itemKey = row.item_id || "Sin item";
+    const brandKey = safeText(row.brand_name, "Sin marca");
+    const modelKey = safeText(
+      row.model_name,
+      row.brand_name ? `${row.brand_name} - Sin modelo` : "Sin modelo"
+    );
+    const itemKey = safeText(row.item_id, "Sin item");
 
     if (!brandMap.has(brandKey)) {
       brandMap.set(brandKey, {
@@ -92,6 +181,7 @@ function groupRows(rows) {
     if (!model.items.has(itemKey)) {
       model.items.set(itemKey, {
         item_id: itemKey,
+        version_name: row.version_name,
         engine_name: row.engine_name,
         transmission_name: row.transmission_name,
         ok: 0,
@@ -120,13 +210,16 @@ function downloadCsv(rows) {
   const headers = [
     "Marca",
     "Modelo",
+    "Versión",
     "Item ID",
     "Año",
     "Estado",
     "Product ID",
     "Motivo",
+    "Código Error",
     "Motor",
     "Transmisión",
+    "Filas agrupadas",
   ];
 
   const escape = (value) => {
@@ -140,13 +233,16 @@ function downloadCsv(rows) {
       [
         escape(row.brand_name),
         escape(row.model_name),
+        escape(row.version_name),
         escape(row.item_id),
         escape(row.year),
         escape(row.ok ? "OK" : "ERROR"),
         escape(row.product_id),
         escape(row.reason),
+        escape(row.error_code),
         escape(row.engine_name),
         escape(row.transmission_name),
+        escape(row.duplicate_count ?? 1),
       ].join(",")
     ),
   ].join("\n");
@@ -164,22 +260,44 @@ function YearStatusRow({ row }) {
   return (
     <div className={`rm-year-row ${row.ok ? "ok" : "error"}`}>
       <div className="rm-year-main">
-
         <div className={`rm-badge ${row.ok ? "ok" : "error"}`}>
           {row.ok ? "OK" : "Error"}
         </div>
       </div>
 
       <div className="rm-year-body">
+        <div>
+          <strong>Año:</strong> {row.year}
+        </div>
+
+        {row.version_name ? (
+          <div>
+            <strong>Versión:</strong> {row.version_name}
+          </div>
+        ) : null}
+
         {row.ok ? (
-          <span>
-            <strong>Product ID:</strong> {row.product_id}
-          </span>
+          <div>
+            <strong>Product ID:</strong> {row.product_id || "-"}
+          </div>
         ) : (
-          <span>
-            <strong>Motivo:</strong> {row.reason || "Sin detalle"}
-          </span>
+          <>
+            <div>
+              <strong>Motivo:</strong> {row.reason || "Sin detalle"}
+            </div>
+            {row.error_code ? (
+              <div>
+                <strong>Código:</strong> {row.error_code}
+              </div>
+            ) : null}
+          </>
         )}
+
+        {(row.duplicate_count ?? 1) > 1 ? (
+          <div>
+            <strong>Filas agrupadas:</strong> {row.duplicate_count}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -208,9 +326,15 @@ function ItemBlock({ item, onlyErrors }) {
         <div className="rm-collapse-left">
           <span className="rm-collapse-title">{item.item_id}</span>
           <span className="rm-collapse-meta">
+            {item.version_name ? `Versión: ${item.version_name}` : ""}
+            {item.version_name && item.engine_name ? " · " : ""}
             {item.engine_name ? `Motor: ${item.engine_name}` : ""}
-            {item.engine_name && item.transmission_name ? " · " : ""}
-            {item.transmission_name ? `Transmisión: ${item.transmission_name}` : ""}
+            {(item.version_name || item.engine_name) && item.transmission_name
+              ? " · "
+              : ""}
+            {item.transmission_name
+              ? `Transmisión: ${item.transmission_name}`
+              : ""}
           </span>
         </div>
 
@@ -309,7 +433,7 @@ function BrandBlock({ brand, onlyErrors }) {
         <div className="rm-collapse-left">
           <span className="rm-collapse-title">{brand.brand_name}</span>
           <span className="rm-collapse-meta">
-            {brand.total} compatibilidades
+            {brand.total} compatibilidades únicas
           </span>
         </div>
 
@@ -336,79 +460,104 @@ function BrandBlock({ brand, onlyErrors }) {
 }
 
 export default function ResultModal({ open, onClose, summary, results }) {
-const [search, setSearch] = useState("");
-const [onlyErrors, setOnlyErrors] = useState(false);
-const [statusFilter, setStatusFilter] = useState("ok");
+  const [search, setSearch] = useState("");
+  const [onlyErrors, setOnlyErrors] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("ok");
 
-useEffect(() => {
-  if (open) {
-    setStatusFilter("ok");
-    setOnlyErrors(false);
-    setSearch("");
-  }
-}, [open]);
+  useEffect(() => {
+    if (open) {
+      setStatusFilter("ok");
+      setOnlyErrors(false);
+      setSearch("");
+    }
+  }, [open]);
 
-  const flatRows = useMemo(() => flattenResults(results || []), [results]);
+  const rawRows = useMemo(() => flattenResults(results || []), [results]);
+  const compatRows = useMemo(() => dedupeCompatRows(rawRows), [rawRows]);
 
-const filteredRows = useMemo(() => {
-  const term = search.trim().toLowerCase();
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLowerCase();
 
-  return flatRows.filter((row) => {
-    const matchesOnlyErrors = onlyErrors ? !row.ok : true;
+    return compatRows.filter((row) => {
+      const matchesOnlyErrors = onlyErrors ? !row.ok : true;
 
-    const matchesStatus =
-      statusFilter === "ok"
-        ? row.ok
-        : statusFilter === "error"
-        ? !row.ok
-        : true;
+      const matchesStatus =
+        statusFilter === "ok"
+          ? row.ok
+          : statusFilter === "error"
+          ? !row.ok
+          : true;
 
-    const haystack = [
-      row.brand_name,
-      row.model_name,
-      row.item_id,
-      row.year,
-      row.product_id,
-      row.reason,
-    ]
-      .join(" ")
-      .toLowerCase();
+      const haystack = [
+        row.brand_name,
+        row.model_name,
+        row.version_name,
+        row.item_id,
+        row.year,
+        row.product_id,
+        row.reason,
+        row.error_code,
+      ]
+        .join(" ")
+        .toLowerCase();
 
-    const matchesSearch = term ? haystack.includes(term) : true;
+      const matchesSearch = term ? haystack.includes(term) : true;
 
-    return matchesOnlyErrors && matchesStatus && matchesSearch;
-  });
-}, [flatRows, onlyErrors, statusFilter, search]);
+      return matchesOnlyErrors && matchesStatus && matchesSearch;
+    });
+  }, [compatRows, onlyErrors, statusFilter, search]);
 
   const grouped = useMemo(() => groupRows(filteredRows), [filteredRows]);
 
   const computedSummary = useMemo(() => {
-    const total = flatRows.length;
-    const ok = flatRows.filter((r) => r.ok).length;
-    const error = flatRows.filter((r) => !r.ok).length;
-    const brands = new Set(flatRows.map((r) => r.brand_name)).size;
+    const total = compatRows.length;
+    const ok = compatRows.filter((r) => r.ok).length;
+    const error = compatRows.filter((r) => !r.ok).length;
+
+    const brands = new Set(
+      compatRows
+        .map((r) => safeText(r.brand_name, "").toLowerCase())
+        .filter(Boolean)
+    ).size;
+
     const models = new Set(
-      flatRows.map((r) => `${r.brand_name}__${r.model_name}`)
+      compatRows
+        .map((r) =>
+          `${safeText(r.brand_name, "").toLowerCase()}__${safeText(
+            r.model_name,
+            ""
+          ).toLowerCase()}`
+        )
+        .filter((v) => !v.endsWith("__"))
     ).size;
 
     return { total, ok, error, brands, models };
-  }, [flatRows]);
+  }, [compatRows]);
 
   if (!open) return null;
 
-  const totalProcessed =
-    summary?.processed_rows ?? summary?.processed ?? computedSummary.total;
+  const processedRows =
+    summary?.processed_rows ??
+    summary?.total_rows ??
+    summary?.processed ??
+    rawRows.length;
 
-    const handleStatusCardClick = (nextFilter) => {
-  setOnlyErrors(false);
+  const totalCompatibilities = computedSummary.total;
+  const compatibilitiesOk = computedSummary.ok;
+  const compatibilitiesError = computedSummary.error;
+  const brandsCount = computedSummary.brands;
+  const modelsCount = computedSummary.models;
 
-  setStatusFilter((current) => {
-    if (current === nextFilter) {
-      return "all";
-    }
-    return nextFilter;
-  });
-};
+  const handleStatusCardClick = (nextFilter) => {
+    setOnlyErrors(false);
+
+    setStatusFilter((current) => {
+      if (current === nextFilter) {
+        return "all";
+      }
+      return nextFilter;
+    });
+  };
 
   return (
     <div className="rm-overlay">
@@ -424,44 +573,44 @@ const filteredRows = useMemo(() => {
           <div className="rm-summary-grid">
             <div className="rm-summary-card neutral">
               <span>Filas procesadas</span>
-              <strong>{summary?.processed_rows ?? totalProcessed}</strong>
+              <strong>{processedRows}</strong>
             </div>
 
             <div className="rm-summary-card neutral">
               <span>Total compatibilidades</span>
-              <strong>{summary?.compatibilities_total ?? computedSummary.total}</strong>
+              <strong>{totalCompatibilities}</strong>
             </div>
 
-<button
-  type="button"
-  className={`rm-summary-card success clickable ${
-    statusFilter === "ok" ? "active" : ""
-  }`}
-  onClick={() => handleStatusCardClick("ok")}
->
-  <span>Compatibilidades OK</span>
-  <strong>{summary?.compatibilities_ok ?? computedSummary.ok}</strong>
-</button>
+            <button
+              type="button"
+              className={`rm-summary-card success clickable ${
+                statusFilter === "ok" ? "active" : ""
+              }`}
+              onClick={() => handleStatusCardClick("ok")}
+            >
+              <span>Compatibilidades OK</span>
+              <strong>{compatibilitiesOk}</strong>
+            </button>
 
-<button
-  type="button"
-  className={`rm-summary-card error clickable ${
-    statusFilter === "error" ? "active" : ""
-  }`}
-  onClick={() => handleStatusCardClick("error")}
->
-  <span>Compatibilidades con error</span>
-  <strong>{summary?.compatibilities_error ?? computedSummary.error}</strong>
-</button>
+            <button
+              type="button"
+              className={`rm-summary-card error clickable ${
+                statusFilter === "error" ? "active" : ""
+              }`}
+              onClick={() => handleStatusCardClick("error")}
+            >
+              <span>Compatibilidades con error</span>
+              <strong>{compatibilitiesError}</strong>
+            </button>
 
             <div className="rm-summary-card info">
               <span>Marcas</span>
-              <strong>{computedSummary.brands}</strong>
+              <strong>{brandsCount}</strong>
             </div>
 
             <div className="rm-summary-card info">
               <span>Modelos</span>
-              <strong>{computedSummary.models}</strong>
+              <strong>{modelsCount}</strong>
             </div>
           </div>
 
@@ -474,20 +623,20 @@ const filteredRows = useMemo(() => {
               onChange={(e) => setSearch(e.target.value)}
             />
 
-<label className="rm-checkbox">
-  <input
-    type="checkbox"
-    checked={onlyErrors}
-    onChange={(e) => {
-      const checked = e.target.checked;
-      setOnlyErrors(checked);
-      if (checked) {
-        setStatusFilter("all");
-      }
-    }}
-  />
-  Mostrar solo errores
-</label>
+            <label className="rm-checkbox">
+              <input
+                type="checkbox"
+                checked={onlyErrors}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setOnlyErrors(checked);
+                  if (checked) {
+                    setStatusFilter("all");
+                  }
+                }}
+              />
+              Mostrar solo errores
+            </label>
 
             <button
               type="button"
@@ -498,13 +647,13 @@ const filteredRows = useMemo(() => {
             </button>
           </div>
 
-<div className="rm-results-meta">
-  Mostrando {filteredRows.length} resultado(s)
-  {search ? ` para "${search}"` : ""}
-  {statusFilter === "ok" ? " · solo OK" : ""}
-  {statusFilter === "error" ? " · solo errores" : ""}
-  {onlyErrors ? " · filtro adicional: solo errores" : ""}
-</div>
+          <div className="rm-results-meta">
+            Mostrando {filteredRows.length} compatibilidad(es) única(s)
+            {search ? ` para "${search}"` : ""}
+            {statusFilter === "ok" ? " · solo OK" : ""}
+            {statusFilter === "error" ? " · solo errores" : ""}
+            {onlyErrors ? " · filtro adicional: solo errores" : ""}
+          </div>
 
           <div className="rm-results-container">
             {grouped.length === 0 ? (

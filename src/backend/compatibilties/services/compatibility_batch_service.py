@@ -1,10 +1,14 @@
+import asyncio
+import logging
 from collections import defaultdict
-from typing import Iterable
+from typing import Awaitable, Callable, Iterable
 
 from config import settings
 from services.compatibility_service import JobMetrics, WRITE_RATE_LIMITER, call_ml
 from services.ml_client import ml_client
 from services.product_cache_service import ProductCacheService
+
+logger = logging.getLogger(__name__)
 
 
 def chunked(items: list[str], size: int) -> Iterable[list[str]]:
@@ -20,8 +24,10 @@ async def get_item_compact_cached(
 ) -> dict:
     cached = ProductCacheService.get_item_compact(item_id)
     if cached:
+        logger.info("[BATCH][CACHE_HIT] item_id=%s", item_id)
         return cached
 
+    logger.info("[BATCH][CACHE_MISS] item_id=%s -> consultando item detail", item_id)
     item_detail = await call_ml(
         ml_client.get_item_detail,
         access_token,
@@ -38,7 +44,7 @@ async def get_item_compact_cached(
     return compact
 
 
-def group_product_ids_by_item(rows: list[dict]) -> dict[str, list[str]]:
+def build_grouped_product_ids(rows: list[dict]) -> dict[str, list[str]]:
     grouped: dict[str, set[str]] = defaultdict(set)
 
     for row in rows:
@@ -64,7 +70,6 @@ async def post_compatibilities_batch(
     product_ids: list[str],
     metrics: JobMetrics,
 ) -> dict:
-    print(f"[BATCH] Entré a post_compatibilities_batch item_id={item_id}", flush=True)
     item_compact = await get_item_compact_cached(
         access_token=access_token,
         item_id=item_id,
@@ -75,9 +80,9 @@ async def post_compatibilities_batch(
     user_product_id = item_compact.get("user_product_id")
 
     if not category_id or not user_product_id:
-        print(
-            f"[BATCH][ERROR] item_id={item_id} sin category_id o user_product_id",
-            flush=True,
+        logger.error(
+            "[BATCH][ERROR] item_id=%s sin category_id o user_product_id",
+            item_id,
         )
         return {
             "ok": False,
@@ -85,17 +90,19 @@ async def post_compatibilities_batch(
             "product_ids": product_ids,
             "error_code": "MISSING_ITEM_DATA",
             "error_message": "No se obtuvo category_id o user_product_id",
+            "response": None,
         }
 
     batch_size = min(200, max(1, int(getattr(settings, "compat_batch_size", 200))))
     product_ids = [str(pid) for pid in product_ids][:batch_size]
 
-    print(
-    f"[BATCH] item_id={item_id} user_product_id={user_product_id} "
-    f"products_sent={len(product_ids)}",
-    flush=True,
-)
-    
+    logger.info(
+        "[BATCH][POST] item_id=%s user_product_id=%s products_sent=%s",
+        item_id,
+        user_product_id,
+        len(product_ids),
+    )
+
     response = await call_ml(
         ml_client.add_user_product_compatibilities_batch,
         access_token=access_token,
@@ -105,6 +112,13 @@ async def post_compatibilities_batch(
         creation_source="DEFAULT",
         metrics=metrics,
         limiter=WRITE_RATE_LIMITER,
+    )
+
+    logger.info(
+        "[BATCH][OK] item_id=%s user_product_id=%s products_sent=%s",
+        item_id,
+        user_product_id,
+        len(product_ids),
     )
 
     return {
@@ -118,37 +132,242 @@ async def post_compatibilities_batch(
     }
 
 
+def build_final_row_results(
+    resolved_rows: list[dict],
+    batch_results: list[dict],
+) -> list[dict]:
+    ok_pairs: set[tuple[str, str]] = set()
+    error_by_pair: dict[tuple[str, str], dict] = {}
+
+    for batch in batch_results:
+        item_id = str(batch.get("item_id") or "")
+        product_ids = [str(pid) for pid in batch.get("product_ids", [])]
+
+        if batch.get("ok"):
+            for pid in product_ids:
+                ok_pairs.add((item_id, pid))
+        else:
+            for pid in product_ids:
+                error_by_pair[(item_id, pid)] = {
+                    "error_code": batch.get("error_code", "BATCH_ERROR"),
+                    "error_message": batch.get("error_message", "Error en batch"),
+                }
+
+    final_rows: list[dict] = []
+
+    for row in resolved_rows:
+        item_id = str(row.get("item_id") or "")
+        product_id = str(row.get("product_id") or "")
+
+        if not row.get("ok") or not product_id:
+            final_rows.append(
+                {
+                    **row,
+                    "success_count": 0,
+                    "error_count": 1,
+                    "results": [
+                        {
+                            "ok": False,
+                            "year": row.get("year"),
+                            "reason": row.get("error_message", "No se pudo resolver product_id"),
+                            "error_type": "functional",
+                            "error_code": row.get("error_code", "PRODUCT_RESOLUTION_ERROR"),
+                        }
+                    ],
+                }
+            )
+            continue
+
+        pair = (item_id, product_id)
+
+        if pair in ok_pairs:
+            final_rows.append(
+                {
+                    **row,
+                    "success_count": 1,
+                    "error_count": 0,
+                    "year_requested": row.get("year"),
+                    "year_processed": row.get("year"),
+                    "results": [
+                        {
+                            "ok": True,
+                            "year": row.get("year"),
+                            "product_id": product_id,
+                        }
+                    ],
+                }
+            )
+        else:
+            error_info = error_by_pair.get(
+                pair,
+                {
+                    "error_code": "MISSING_BATCH_CONFIRMATION",
+                    "error_message": "No se encontró confirmación del batch para esta fila",
+                },
+            )
+            final_rows.append(
+                {
+                    **row,
+                    "ok": False,
+                    "success_count": 0,
+                    "error_count": 1,
+                    "error_type": "technical",
+                    "year_requested": row.get("year"),
+                    "results": [
+                        {
+                            "ok": False,
+                            "year": row.get("year"),
+                            "reason": error_info["error_message"],
+                            "error_type": "technical",
+                            "error_code": error_info["error_code"],
+                            "product_id": product_id,
+                        }
+                    ],
+                }
+            )
+
+    return final_rows
+
+
+def build_compat_summary(final_rows: list[dict], batch_results: list[dict], metrics: JobMetrics) -> dict:
+    processed_rows = len(final_rows)
+    compat_total = processed_rows
+    compat_ok = sum(1 for r in final_rows if r.get("ok"))
+    compat_error = compat_total - compat_ok
+
+    brands = len(
+        {
+            (r.get("brand_name") or "").strip().lower()
+            for r in final_rows
+            if (r.get("brand_name") or "").strip()
+        }
+    )
+
+    models = len(
+        {
+            (r.get("model_name") or "").strip().lower()
+            for r in final_rows
+            if (r.get("model_name") or "").strip()
+        }
+    )
+
+    functional_errors = sum(1 for r in final_rows if r.get("error_type") == "functional")
+    technical_errors = sum(1 for r in final_rows if r.get("error_type") == "technical")
+
+    return {
+        "processed_rows": processed_rows,
+        "total_rows": processed_rows,
+        "success_count": compat_ok,
+        "error_count": compat_error,
+        "compatibilities_total": compat_total,
+        "compatibilities_ok": compat_ok,
+        "compatibilities_error": compat_error,
+        "functional_errors": functional_errors,
+        "technical_errors": technical_errors,
+        "brands": brands,
+        "models": models,
+        "items_count": len({str(r.get("item_id") or "") for r in final_rows if r.get("item_id")}),
+        "batches_count": len(batch_results),
+        "metrics": metrics.to_dict(),
+    }
+
+
 async def process_compatibility_batches(
     *,
     access_token: str,
     rows: list[dict],
+    on_progress: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> dict:
     metrics = JobMetrics()
-    grouped = group_product_ids_by_item(rows)
+    grouped = build_grouped_product_ids(rows)
     batch_size = min(200, max(1, int(getattr(settings, "compat_batch_size", 200))))
+    max_concurrency = max(1, int(getattr(settings, "compat_batch_concurrency", 4)))
 
-    batch_results: list[dict] = []
+    all_batches: list[tuple[str, list[str]]] = []
+    total_products = 0
 
     for item_id, product_ids in grouped.items():
+        total_products += len(product_ids)
         for batch in chunked(product_ids, batch_size):
+            all_batches.append((item_id, batch))
+
+    logger.info(
+        "[BATCH][START] items_grouped=%s total_products=%s total_batches=%s batch_size=%s concurrency=%s",
+        len(grouped),
+        total_products,
+        len(all_batches),
+        batch_size,
+        max_concurrency,
+    )
+
+    semaphore = asyncio.Semaphore(max_concurrency)
+    progress_lock = asyncio.Lock()
+    completed = 0
+    batch_results: list[dict | None] = [None] * len(all_batches)
+
+    async def worker(pos: int, item_id: str, batch: list[str]) -> None:
+        nonlocal completed
+
+        async with semaphore:
             result = await post_compatibilities_batch(
                 access_token=access_token,
                 item_id=item_id,
                 product_ids=batch,
                 metrics=metrics,
             )
-            batch_results.append(result)
+            batch_results[pos] = result
 
-    ok_batches = sum(1 for r in batch_results if r.get("ok"))
-    error_batches = len(batch_results) - ok_batches
+            should_notify = False
+            completed_snapshot = 0
+
+            async with progress_lock:
+                completed += 1
+                completed_snapshot = completed
+                should_notify = on_progress is not None
+
+            logger.info(
+                "[BATCH][PROGRESS] completed=%s/%s last_item=%s sent=%s ok=%s",
+                completed_snapshot,
+                len(all_batches),
+                item_id,
+                len(batch),
+                result.get("ok"),
+            )
+
+            if should_notify and on_progress is not None:
+                try:
+                    await on_progress(completed_snapshot, len(all_batches))
+                except Exception:
+                    logger.exception("[BATCH][WARN] fallo actualizando progreso")
+
+    await asyncio.gather(
+        *(worker(i, item_id, batch) for i, (item_id, batch) in enumerate(all_batches))
+    )
+
+    final_batch_results = [
+        r if r is not None else {
+            "ok": False,
+            "error_code": "MISSING_BATCH_RESULT",
+            "error_message": "Resultado faltante del batch",
+            "item_id": "",
+            "product_ids": [],
+        }
+        for r in batch_results
+    ]
+
+    final_rows = build_final_row_results(rows, final_batch_results)
+    summary = build_compat_summary(final_rows, final_batch_results, metrics)
+
+    logger.info(
+        "[BATCH][END] rows=%s batches=%s ok=%s error=%s",
+        len(final_rows),
+        summary["batches_count"],
+        summary["compatibilities_ok"],
+        summary["compatibilities_error"],
+    )
 
     return {
-        "results": batch_results,
-        "summary": {
-            "items_count": len(grouped),
-            "batches_count": len(batch_results),
-            "ok_batches": ok_batches,
-            "error_batches": error_batches,
-            "metrics": metrics.to_dict(),
-        },
+        "results": final_rows,
+        "batch_results": final_batch_results,
+        "summary": summary,
     }

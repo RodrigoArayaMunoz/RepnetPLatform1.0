@@ -2,11 +2,15 @@ import asyncio
 import json
 import os
 
+from celery.utils.log import get_task_logger
+
 from celery_app import celery_app
 from config import settings
 from services.compatibility_batch_service import process_compatibility_batches
 from services.job_store import JobStore
 from services.ml_client import ml_client
+
+logger = get_task_logger(__name__)
 
 
 def load_json(path: str):
@@ -24,20 +28,18 @@ def save_json(path: str, data) -> None:
 
 @celery_app.task(name="tasks.add_compatibilities_batch_job")
 def add_compatibilities_batch_job(job_id: str, user_id: str, resolved_path: str) -> None:
-    print(
-        f"[TASK BATCH] add_compatibilities_batch_job iniciado "
-        f"job_id={job_id} user_id={user_id} resolved_path={resolved_path}",
-        flush=True,
+    logger.info(
+        "[TASK BATCH][START] job_id=%s user_id=%s resolved_path=%s",
+        job_id,
+        user_id,
+        resolved_path,
     )
     asyncio.run(_add_compatibilities_batch_job(job_id, user_id, resolved_path))
 
 
 async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_path: str) -> None:
     if not os.path.exists(resolved_path):
-        print(
-            f"[TASK BATCH][ERROR] Archivo resuelto no encontrado: {resolved_path}",
-            flush=True,
-        )
+        logger.error("[TASK BATCH][ERROR] Archivo resuelto no encontrado: %s", resolved_path)
         JobStore.update(
             job_id,
             status="error",
@@ -54,26 +56,38 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
             message="Cargando archivo resuelto...",
         )
 
-        print(f"[TASK BATCH] Cargando archivo: {resolved_path}", flush=True)
         rows = load_json(resolved_path)
-        print(f"[TASK BATCH] Filas cargadas: {len(rows)}", flush=True)
+        logger.info("[TASK BATCH] Filas cargadas=%s", len(rows))
+
+        async def on_progress(completed: int, total: int) -> None:
+            progress = 10 + int((completed / max(total, 1)) * 85)
+            JobStore.update(
+                job_id,
+                progress=min(progress, 95),
+                processed_rows=completed,
+                message=f"Procesando batches {completed}/{total}",
+            )
 
         await ml_client.startup()
         try:
             access_token = await ml_client.get_valid_token(int(user_id))
-            print("[TASK BATCH] Token válido obtenido", flush=True)
+            logger.info("[TASK BATCH] Token válido obtenido")
 
             outcome = await process_compatibility_batches(
                 access_token=access_token,
                 rows=rows,
+                on_progress=on_progress,
             )
         finally:
             await ml_client.shutdown()
 
-        print(f"[TASK BATCH] Summary: {outcome['summary']}", flush=True)
+        logger.info("[TASK BATCH] Summary=%s", outcome["summary"])
 
         result_path = os.path.join(settings.upload_dir, f"{job_id}_compat_batch_result.json")
         save_json(result_path, outcome["results"])
+
+        batch_debug_path = os.path.join(settings.upload_dir, f"{job_id}_compat_batch_debug.json")
+        save_json(batch_debug_path, outcome["batch_results"])
 
         JobStore.update(
             job_id,
@@ -81,17 +95,15 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
             progress=100,
             result_path=result_path,
             summary=outcome["summary"],
-            processed_rows=len(rows),
+            processed_rows=outcome["summary"].get("processed_rows", len(rows)),
+            batch_debug_path=batch_debug_path,
             message="Carga batch de compatibilidades finalizada",
         )
 
-        print(
-            f"[TASK BATCH][OK] Finalizado job_id={job_id} result_path={result_path}",
-            flush=True,
-        )
+        logger.info("[TASK BATCH][OK] job_id=%s result_path=%s", job_id, result_path)
 
     except Exception as exc:
-        print(f"[TASK BATCH][ERROR] {str(exc)}", flush=True)
+        logger.exception("[TASK BATCH][ERROR] job_id=%s", job_id)
         JobStore.update(
             job_id,
             status="error",

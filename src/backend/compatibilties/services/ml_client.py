@@ -272,7 +272,7 @@ class MercadoLibreClient:
         transmission_id: str | None = None,
         engine_id: str | None = None,
     ) -> list[dict]:
-        known_attributes: list[dict[str, str]] = []
+        known_attributes: list[dict[str, Any]] = []
 
         if brand_id:
             known_attributes.append({"id": "BRAND", "value_ids": [brand_id]})
@@ -300,7 +300,6 @@ class MercadoLibreClient:
             },
         )
 
-
         if isinstance(response, dict):
             results = response.get("results")
             if isinstance(results, list):
@@ -321,7 +320,7 @@ class MercadoLibreClient:
             "category_id": category_id,
             "products": [
                 {
-                    "id": product_id,
+                    "id": str(product_id),
                     "creation_source": creation_source,
                 }
             ],
@@ -365,6 +364,7 @@ class MercadoLibreClient:
             json_body=body,
         )
         return data if isinstance(data, dict) else {"raw_response": data}
+
 
 def extract_values_list(data: Any) -> list[dict]:
     if isinstance(data, list):
