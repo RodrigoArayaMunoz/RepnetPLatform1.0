@@ -1,5 +1,6 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from config import settings
 from services.excel_service import save_upload_file
 from services.job_store import JobStore
 from tasks.product_resolution_tasks import resolve_products_job
@@ -16,7 +17,7 @@ async def create_resolve_products_job(
         raise HTTPException(status_code=400, detail="Archivo inválido")
 
     job = JobStore.create(file.filename)
-    saved_path = await save_upload_file(file, job["id"])
+    saved_path = await save_upload_file(file, settings.upload_dir)
     JobStore.update(job["id"], xlsx_path=saved_path)
 
     async_result = resolve_products_job.delay(job["id"], user_id, "MLC")

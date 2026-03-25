@@ -245,6 +245,20 @@ def build_final_row_results(
     return final_rows
 
 
+def dedupe_final_rows(rows: list[dict]) -> list[dict]:
+    seen: set[tuple[str, str]] = set()
+    deduped: list[dict] = []
+    for row in rows:
+        key = (
+            str(row.get("item_id") or ""),
+            str(row.get("product_id") or ""),
+        )
+        if key not in seen:
+            seen.add(key)
+            deduped.append(row)
+    return deduped
+
+
 def build_compat_summary(final_rows: list[dict], batch_results: list[dict], metrics: JobMetrics) -> dict:
     deduped_rows = dedupe_final_rows(final_rows)
 
@@ -277,14 +291,14 @@ def build_compat_summary(final_rows: list[dict], batch_results: list[dict], metr
         "brands": len(
             {
                 _norm(r.get("brand_name"))
-                for r in deduped_rows
+                for r in final_rows
                 if _safe_text(r.get("brand_name"))
             }
         ),
         "models": len(
             {
                 f"{_norm(r.get('brand_name'))}::{_norm(r.get('model_name'))}"
-                for r in deduped_rows
+                for r in final_rows
                 if _safe_text(r.get("model_name"))
             }
         ),
