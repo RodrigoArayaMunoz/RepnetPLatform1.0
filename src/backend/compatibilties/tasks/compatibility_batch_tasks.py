@@ -9,6 +9,7 @@ from config import settings
 from services.compatibility_batch_service import process_compatibility_batches
 from services.job_store import JobStore
 from services.ml_client import ml_client
+from services.compatibility_orchestrator_service import process_excel_compatibilities_end_to_end
 
 logger = get_task_logger(__name__)
 
@@ -58,13 +59,21 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
 
         rows = load_json(resolved_path)
         logger.info("[TASK BATCH] Filas cargadas=%s", len(rows))
+        logger.info(
+            "[TASK BATCH] Item IDs únicos=%s",
+            len({str(r.get('item_id') or '') for r in rows if r.get('item_id')})
+        )
+        logger.info(
+            "[TASK BATCH] Product IDs presentes=%s",
+            len({str(r.get('product_id') or '') for r in rows if r.get('product_id')})
+        )
 
         async def on_progress(completed: int, total: int) -> None:
             progress = 10 + int((completed / max(total, 1)) * 85)
             JobStore.update(
                 job_id,
                 progress=min(progress, 95),
-                processed_rows=completed,
+                processed_rows=len(rows),
                 message=f"Procesando batches {completed}/{total}",
             )
 
@@ -73,9 +82,12 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
             access_token = await ml_client.get_valid_token(int(user_id))
             logger.info("[TASK BATCH] Token válido obtenido")
 
+            # IMPORTANTE:
+            # aquí NO debes re-resolver el Excel.
+            # aquí solo debes agregar compatibilidades batch sobre filas ya resueltas.
             outcome = await process_compatibility_batches(
                 access_token=access_token,
-                user_id=int(user_id),
+                user_id=user_id,
                 rows=rows,
                 on_progress=on_progress,
             )

@@ -33,7 +33,7 @@ function flattenResults(results = []) {
     if (Array.isArray(group.results) && group.results.length > 0) {
       group.results.forEach((detail, detailIndex) => {
         rows.push({
-          raw_key: `${itemId}-${detail.year ?? group.year ?? "na"}-${detailIndex}`,
+          raw_key: `${itemId}-${detail.year ?? group.year ?? "na"}-${detailIndex}-${groupIndex}`,
           item_id: itemId,
           brand_name: safeText(detail.brand_name, brandName),
           model_name: safeText(detail.model_name, modelName),
@@ -58,11 +58,15 @@ function flattenResults(results = []) {
           error_code: safeText(detail.error_code, safeText(group.error_code, "")),
           category_id: categoryId,
           user_product_id: userProductId,
+          duplicate_count: Number(group.duplicate_count ?? 1),
+          original_row_index:
+            group.original_row_index ?? detail.original_row_index ?? null,
+          was_duplicated_vehicle: !!group.was_duplicated_vehicle,
         });
       });
     } else {
       rows.push({
-        raw_key: `${itemId}-empty`,
+        raw_key: `${itemId}-empty-${groupIndex}`,
         item_id: itemId,
         brand_name: brandName,
         model_name: modelName,
@@ -80,6 +84,9 @@ function flattenResults(results = []) {
         error_code: safeText(group.error_code, ""),
         category_id: categoryId,
         user_product_id: userProductId,
+        duplicate_count: Number(group.duplicate_count ?? 1),
+        original_row_index: group.original_row_index ?? null,
+        was_duplicated_vehicle: !!group.was_duplicated_vehicle,
       });
     }
   });
@@ -88,7 +95,7 @@ function flattenResults(results = []) {
 }
 
 function buildUniqueCompatKey(row) {
-  if (row.ok && row.product_id) {
+  if (row.ok && row.item_id && row.product_id) {
     return `ok::${normalizeText(row.item_id)}::${normalizeText(row.product_id)}`;
   }
 
@@ -116,14 +123,22 @@ function dedupeCompatRows(rows = []) {
         ...row,
         key: uniqueKey,
         duplicate_count: 1,
-        source_rows: [index + 1],
+        source_rows: [
+          row.original_row_index !== null && row.original_row_index !== undefined
+            ? row.original_row_index + 1
+            : index + 1,
+        ],
       });
       return;
     }
 
     const existing = map.get(uniqueKey);
     existing.duplicate_count += 1;
-    existing.source_rows.push(index + 1);
+    existing.source_rows.push(
+      row.original_row_index !== null && row.original_row_index !== undefined
+        ? row.original_row_index + 1
+        : index + 1
+    );
 
     if (!existing.product_id && row.product_id) {
       existing.product_id = row.product_id;
@@ -220,6 +235,7 @@ function downloadCsv(rows) {
     "Motor",
     "Transmisión",
     "Filas agrupadas",
+    "Filas origen",
   ];
 
   const escape = (value) => {
@@ -243,6 +259,7 @@ function downloadCsv(rows) {
         escape(row.engine_name),
         escape(row.transmission_name),
         escape(row.duplicate_count ?? 1),
+        escape(Array.isArray(row.source_rows) ? row.source_rows.join(" | ") : ""),
       ].join(",")
     ),
   ].join("\n");
@@ -298,6 +315,12 @@ function YearStatusRow({ row }) {
             <strong>Filas agrupadas:</strong> {row.duplicate_count}
           </div>
         ) : null}
+
+        {Array.isArray(row.source_rows) && row.source_rows.length > 1 ? (
+          <div>
+            <strong>Filas Excel:</strong> {row.source_rows.join(", ")}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -310,6 +333,10 @@ function ItemBlock({ item, onlyErrors }) {
   const filteredRows = useMemo(() => {
     return onlyErrors ? item.rows.filter((r) => !r.ok) : item.rows;
   }, [item.rows, onlyErrors]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [onlyErrors, item.item_id]);
 
   if (filteredRows.length === 0) return null;
 
@@ -459,6 +486,63 @@ function BrandBlock({ brand, onlyErrors }) {
   );
 }
 
+function resolveSummary(summary, compatRows) {
+  const fallbackTotal = compatRows.length;
+  const fallbackOk = compatRows.filter((r) => r.ok).length;
+  const fallbackError = fallbackTotal - fallbackOk;
+
+  const fallbackBrands = new Set(
+    compatRows
+      .map((r) => safeText(r.brand_name, "").toLowerCase())
+      .filter(Boolean)
+  ).size;
+
+  const fallbackModels = new Set(
+    compatRows
+      .map((r) =>
+        `${safeText(r.brand_name, "").toLowerCase()}__${safeText(
+          r.model_name,
+          ""
+        ).toLowerCase()}`
+      )
+      .filter((v) => !v.endsWith("__"))
+  ).size;
+
+  return {
+    processedRows:
+      summary?.excel_rows_processed ??
+      summary?.processed_rows ??
+      summary?.total_rows ??
+      summary?.processed ??
+      0,
+
+    uniqueCompatibilities:
+      summary?.unique_compatibilities ??
+      summary?.compatibilities_total ??
+      fallbackTotal,
+
+    compatibilitiesOk:
+      summary?.unique_compatibilities_ok ??
+      summary?.compatibilities_ok ??
+      summary?.success_count ??
+      fallbackOk,
+
+    compatibilitiesError:
+      summary?.unique_compatibilities_error ??
+      summary?.compatibilities_error ??
+      summary?.error_count ??
+      fallbackError,
+
+    brands:
+      summary?.brands ??
+      fallbackBrands,
+
+    models:
+      summary?.models ??
+      fallbackModels,
+  };
+}
+
 export default function ResultModal({ open, onClose, summary, results }) {
   const [search, setSearch] = useState("");
   const [onlyErrors, setOnlyErrors] = useState(false);
@@ -473,7 +557,13 @@ export default function ResultModal({ open, onClose, summary, results }) {
   }, [open]);
 
   const rawRows = useMemo(() => flattenResults(results || []), [results]);
+
   const compatRows = useMemo(() => dedupeCompatRows(rawRows), [rawRows]);
+
+  const summaryData = useMemo(
+    () => resolveSummary(summary, compatRows),
+    [summary, compatRows]
+  );
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -509,44 +599,7 @@ export default function ResultModal({ open, onClose, summary, results }) {
 
   const grouped = useMemo(() => groupRows(filteredRows), [filteredRows]);
 
-  const computedSummary = useMemo(() => {
-    const total = compatRows.length;
-    const ok = compatRows.filter((r) => r.ok).length;
-    const error = compatRows.filter((r) => !r.ok).length;
-
-    const brands = new Set(
-      compatRows
-        .map((r) => safeText(r.brand_name, "").toLowerCase())
-        .filter(Boolean)
-    ).size;
-
-    const models = new Set(
-      compatRows
-        .map((r) =>
-          `${safeText(r.brand_name, "").toLowerCase()}__${safeText(
-            r.model_name,
-            ""
-          ).toLowerCase()}`
-        )
-        .filter((v) => !v.endsWith("__"))
-    ).size;
-
-    return { total, ok, error, brands, models };
-  }, [compatRows]);
-
   if (!open) return null;
-
-  const processedRows =
-    summary?.processed_rows ??
-    summary?.total_rows ??
-    summary?.processed ??
-    rawRows.length;
-
-  const totalCompatibilities = computedSummary.total;
-  const compatibilitiesOk = computedSummary.ok;
-  const compatibilitiesError = computedSummary.error;
-  const brandsCount = computedSummary.brands;
-  const modelsCount = computedSummary.models;
 
   const handleStatusCardClick = (nextFilter) => {
     setOnlyErrors(false);
@@ -573,12 +626,12 @@ export default function ResultModal({ open, onClose, summary, results }) {
           <div className="rm-summary-grid">
             <div className="rm-summary-card neutral">
               <span>Filas procesadas</span>
-              <strong>{processedRows}</strong>
+              <strong>{summaryData.processedRows}</strong>
             </div>
 
             <div className="rm-summary-card neutral">
-              <span>Total compatibilidades</span>
-              <strong>{totalCompatibilities}</strong>
+              <span>Compatibilidades únicas</span>
+              <strong>{summaryData.uniqueCompatibilities}</strong>
             </div>
 
             <button
@@ -589,7 +642,7 @@ export default function ResultModal({ open, onClose, summary, results }) {
               onClick={() => handleStatusCardClick("ok")}
             >
               <span>Compatibilidades OK</span>
-              <strong>{compatibilitiesOk}</strong>
+              <strong>{summaryData.compatibilitiesOk}</strong>
             </button>
 
             <button
@@ -600,17 +653,17 @@ export default function ResultModal({ open, onClose, summary, results }) {
               onClick={() => handleStatusCardClick("error")}
             >
               <span>Compatibilidades con error</span>
-              <strong>{compatibilitiesError}</strong>
+              <strong>{summaryData.compatibilitiesError}</strong>
             </button>
 
             <div className="rm-summary-card info">
               <span>Marcas</span>
-              <strong>{brandsCount}</strong>
+              <strong>{summaryData.brands}</strong>
             </div>
 
             <div className="rm-summary-card info">
               <span>Modelos</span>
-              <strong>{modelsCount}</strong>
+              <strong>{summaryData.models}</strong>
             </div>
           </div>
 
@@ -653,6 +706,9 @@ export default function ResultModal({ open, onClose, summary, results }) {
             {statusFilter === "ok" ? " · solo OK" : ""}
             {statusFilter === "error" ? " · solo errores" : ""}
             {onlyErrors ? " · filtro adicional: solo errores" : ""}
+            {summaryData.processedRows
+              ? ` · ${summaryData.processedRows} fila(s) Excel procesadas`
+              : ""}
           </div>
 
           <div className="rm-results-container">

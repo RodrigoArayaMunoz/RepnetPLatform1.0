@@ -74,7 +74,6 @@ def build_grouped_product_ids(rows: list[dict]) -> dict[str, list[str]]:
         for item_id, product_ids in grouped.items()
     }
 
-
 async def post_compatibilities_batch(
     *,
     access_token: str,
@@ -185,8 +184,8 @@ def build_final_row_results(
                         {
                             "ok": False,
                             "year": row.get("year"),
-                            "reason": row.get("error_message", "No se pudo resolver product_id"),
-                            "error_type": "functional",
+                            "reason": row.get("reason", row.get("error_message", "No se pudo resolver product_id")),
+                            "error_type": row.get("error_type", "functional"),
                             "error_code": row.get("error_code", "PRODUCT_RESOLUTION_ERROR"),
                         }
                     ],
@@ -246,91 +245,53 @@ def build_final_row_results(
     return final_rows
 
 
-def build_unique_compatibility_key(row: dict) -> str:
-    item_id = _norm(row.get("item_id"))
-    product_id = _norm(row.get("product_id"))
-
-    if row.get("ok") and product_id:
-        return f"ok::{item_id}::{product_id}"
-
-    return "::".join(
-        [
-            "error",
-            item_id,
-            _norm(row.get("brand_name")),
-            _norm(row.get("model_name")),
-            _norm(row.get("version_name")),
-            _norm(row.get("year") or row.get("year_requested") or row.get("year_processed")),
-            _norm(row.get("engine_name")),
-            _norm(row.get("transmission_name")),
-            _norm(row.get("error_code") or row.get("reason")),
-        ]
-    )
-
-
-def dedupe_final_rows(final_rows: list[dict]) -> list[dict]:
-    deduped: dict[str, dict] = {}
-
-    for row in final_rows:
-        key = build_unique_compatibility_key(row)
-
-        if key not in deduped:
-            copied = dict(row)
-            copied["duplicate_count"] = 1
-            deduped[key] = copied
-            continue
-
-        deduped[key]["duplicate_count"] = int(deduped[key].get("duplicate_count", 1)) + 1
-
-    return list(deduped.values())
-
-
 def build_compat_summary(final_rows: list[dict], batch_results: list[dict], metrics: JobMetrics) -> dict:
     deduped_rows = dedupe_final_rows(final_rows)
 
     processed_rows = len(final_rows)
     unique_compatibilities = len(deduped_rows)
-    compat_ok = sum(1 for r in deduped_rows if r.get("ok"))
-    compat_error = unique_compatibilities - compat_ok
 
-    brands = len(
-        {
-            _norm(r.get("brand_name"))
-            for r in deduped_rows
-            if _safe_text(r.get("brand_name"))
-        }
-    )
+    rows_ok = sum(1 for r in final_rows if r.get("ok"))
+    rows_error = processed_rows - rows_ok
 
-    models = len(
-        {
-            f"{_norm(r.get('brand_name'))}::{_norm(r.get('model_name'))}"
-            for r in deduped_rows
-            if _safe_text(r.get("model_name"))
-        }
-    )
+    unique_ok = sum(1 for r in deduped_rows if r.get("ok"))
+    unique_error = unique_compatibilities - unique_ok
 
-    functional_errors = sum(1 for r in deduped_rows if r.get("error_type") == "functional")
-    technical_errors = sum(1 for r in deduped_rows if r.get("error_type") == "technical")
+    functional_errors = sum(1 for r in final_rows if r.get("error_type") == "functional")
+    technical_errors = sum(1 for r in final_rows if r.get("error_type") == "technical")
 
     return {
         "processed_rows": processed_rows,
         "total_rows": processed_rows,
         "excel_rows_processed": processed_rows,
+        "success_count": rows_ok,
+        "error_count": rows_error,
         "unique_compatibilities": unique_compatibilities,
-        "success_count": compat_ok,
-        "error_count": compat_error,
-        "compatibilities_total": unique_compatibilities,
-        "compatibilities_ok": compat_ok,
-        "compatibilities_error": compat_error,
+        "unique_compatibilities_ok": unique_ok,
+        "unique_compatibilities_error": unique_error,
+        "compatibilities_total": processed_rows,
+        "compatibilities_ok": rows_ok,
+        "compatibilities_error": rows_error,
         "functional_errors": functional_errors,
         "technical_errors": technical_errors,
-        "brands": brands,
-        "models": models,
-        "items_count": len({str(r.get("item_id") or "") for r in deduped_rows if r.get("item_id")}),
+        "brands": len(
+            {
+                _norm(r.get("brand_name"))
+                for r in deduped_rows
+                if _safe_text(r.get("brand_name"))
+            }
+        ),
+        "models": len(
+            {
+                f"{_norm(r.get('brand_name'))}::{_norm(r.get('model_name'))}"
+                for r in deduped_rows
+                if _safe_text(r.get("model_name"))
+            }
+        ),
+        "items_count": len({str(r.get("item_id") or "") for r in final_rows if r.get("item_id")}),
         "batches_count": len(batch_results),
         "metrics": metrics.to_dict(),
     }
-
 
 async def process_compatibility_batches(
     *,
@@ -423,7 +384,7 @@ async def process_compatibility_batches(
     logger.info(
         "[BATCH][END] excel_rows=%s unique_compatibilities=%s ok=%s error=%s",
         summary["processed_rows"],
-        summary["compatibilities_total"],
+        summary["unique_compatibilities"],
         summary["compatibilities_ok"],
         summary["compatibilities_error"],
     )
