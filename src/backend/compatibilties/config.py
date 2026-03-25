@@ -33,18 +33,19 @@ class Settings(BaseSettings):
     ml_http_max_connections: int = 20
     ml_http_max_keepalive: int = 10
 
-    # Retry / rate limit
+    # Retry / rate limit (ML API limit: 100 rpm por APP_ID)
     ml_retry_attempts: int = 4
     ml_retry_base_delay: float = 1.0
-    ml_requests_per_second: float = 4
+    ml_requests_per_second: float = 1.5
+    ml_read_requests_per_second: int = 1
+    ml_write_requests_per_second: int = 1
 
     # Procesamiento
-    max_row_concurrency: int = 6
+    max_row_concurrency: int = 2
     job_progress_update_every: int = 25
 
-    
     compat_batch_size: int = 200
-    compat_batch_concurrency: int = 4
+    compat_batch_concurrency: int = 2
 
     token_refresh_margin_seconds: int = 600
 
