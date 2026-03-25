@@ -135,6 +135,10 @@ async def post_compatibilities_batch(
         len(product_ids),
     )
 
+    created_count = 0
+    if isinstance(response, dict):
+        created_count = response.get("created_compatibilities_count", 0) or 0
+
     return {
         "ok": True,
         "item_id": item_id,
@@ -143,6 +147,7 @@ async def post_compatibilities_batch(
         "products_sent_count": len(product_ids),
         "product_ids": product_ids,
         "response": response,
+        "created_compatibilities_count": created_count,
     }
 
 
@@ -395,12 +400,25 @@ async def process_compatibility_batches(
     final_rows = build_final_row_results(rows, final_batch_results)
     summary = build_compat_summary(final_rows, final_batch_results, metrics)
 
+    total_created = sum(
+        (r.get("created_compatibilities_count", 0) or 0)
+        for r in final_batch_results
+        if r.get("ok")
+    )
+    summary["total_created_compatibilities"] = total_created
+
     logger.info(
         "[BATCH][END] excel_rows=%s unique_compatibilities=%s ok=%s error=%s",
         summary["processed_rows"],
         summary["unique_compatibilities"],
         summary["compatibilities_ok"],
         summary["compatibilities_error"],
+    )
+    logger.info(
+        "========================================\n"
+        "  TOTAL COMPATIBILIDADES CREADAS: %s\n"
+        "========================================",
+        total_created,
     )
 
     return {

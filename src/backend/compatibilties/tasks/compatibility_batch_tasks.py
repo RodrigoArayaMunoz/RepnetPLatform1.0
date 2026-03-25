@@ -95,6 +95,10 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
             await ml_client.shutdown()
 
         logger.info("[TASK BATCH] Summary=%s", outcome["summary"])
+        logger.info(
+            "[TASK BATCH] ======== TOTAL COMPATIBILIDADES CREADAS: %s ========",
+            outcome["summary"].get("total_created_compatibilities", 0),
+        )
 
         result_path = os.path.join(settings.upload_dir, f"{job_id}_compat_batch_result.json")
         save_json(result_path, outcome["results"])

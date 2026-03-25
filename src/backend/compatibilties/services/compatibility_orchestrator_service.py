@@ -1,6 +1,10 @@
+import logging
+
 from services.compatibility_batch_service import process_compatibility_batches
 from services.compatibility_service import process_rows_for_job
 from services.job_store import JobStore
+
+logger = logging.getLogger(__name__)
 
 
 async def process_excel_compatibilities_end_to_end(
@@ -72,5 +76,9 @@ async def process_excel_compatibilities_end_to_end(
         results=final_result["results"],
     )
 
-    
+    logger.info(
+        "[ORCHESTRATOR] ======== TOTAL COMPATIBILIDADES CREADAS: %s ========",
+        final_summary.get("total_created_compatibilities", 0),
+    )
+
     return final_result
