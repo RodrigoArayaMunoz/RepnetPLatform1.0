@@ -265,6 +265,7 @@ async def resolve_products_from_rows(
         resolved = unique_key_to_result[key]
         final_rows.append(
             {
+                **resolved,
                 "original_row_index": idx,
                 "item_id": mapped.item_id,
                 "brand_name": mapped.brand_name,
@@ -273,7 +274,6 @@ async def resolve_products_from_rows(
                 "engine_name": mapped.engine_name,
                 "transmission_name": mapped.transmission_name,
                 "year": mapped.year,
-                **resolved,
             }
         )
 
