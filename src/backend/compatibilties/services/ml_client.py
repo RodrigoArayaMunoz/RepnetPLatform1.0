@@ -386,7 +386,7 @@ class MercadoLibreClient:
         product_ids: list[str],
         restrictions: list | None = None,
         creation_source: str = "DEFAULT",
-        note: str = "Confirmar con vin, ya que pueden existir variaciones con similares caracterÃ­sticas tÃ©cnicas. El vin es lo Ãºnico que confirma.",
+        note: str = "Confirmar con vin, ya que pueden existir variaciones con similares caracteristicas técnicas. El vin es lo único que confirma.",
         user_id: int | str | None = None,
     ) -> dict:
         if not product_ids:
