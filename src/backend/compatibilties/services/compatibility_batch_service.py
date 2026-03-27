@@ -63,12 +63,12 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
                             {"value_id": dt_value_id, "value_name": dt_name},
                         ]
                     },
-                    #{
-                        #"values": [
-                            #{"value_id": POSICION_ID_VALUE_IDS.get("derecha", ""), "value_name": "Derecha"},
-                            #{"value_id": dt_value_id, "value_name": dt_name},
-                        #]
-                    #},
+                    {
+                        "values": [
+                            {"value_id": POSICION_ID_VALUE_IDS.get("derecha", ""), "value_name": "Derecha"},
+                            {"value_id": dt_value_id, "value_name": dt_name},
+                        ]
+                    },
                 ],
             }
         ]
@@ -80,8 +80,8 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
                 "attribute_values": [
                     {
                         "values": [
+                            {"value_id": id_value_id, "value_name": id_name},
                             {"value_id": dt_value_id, "value_name": dt_name},
-                            #{"value_id": id_value_id, "value_name": id_name},
                         ]
                     }
                 ],
