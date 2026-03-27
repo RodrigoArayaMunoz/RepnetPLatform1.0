@@ -31,6 +31,9 @@ class ProductResolutionRow:
     engine_name: str
     transmission_name: str
     year: int | None
+    familia: str = ""
+    posicion_dt: str = ""
+    posicion_id: str = ""
 
 
 def map_row_to_resolution_input(row: dict, original_row_index: int) -> ProductResolutionRow:
@@ -43,6 +46,9 @@ def map_row_to_resolution_input(row: dict, original_row_index: int) -> ProductRe
         engine_name=normalize_engine(get_row_value(row, "CILINDRADA")),
         transmission_name=normalize_transmission(get_row_value(row, "TRANSMISION")),
         year=parse_year_value(get_row_value(row, "AÑO")),
+        familia=normalize_text(get_row_value(row, "FAMILIA")),
+        posicion_dt=normalize_text(get_row_value(row, "POSICION_DT")),
+        posicion_id=normalize_text(get_row_value(row, "POSICION_ID")),
     )
 
 
@@ -274,6 +280,9 @@ async def resolve_products_from_rows(
                 "engine_name": mapped.engine_name,
                 "transmission_name": mapped.transmission_name,
                 "year": mapped.year,
+                "familia": mapped.familia,
+                "posicion_dt": mapped.posicion_dt,
+                "posicion_id": mapped.posicion_id,
             }
         )
 

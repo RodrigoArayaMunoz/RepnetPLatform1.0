@@ -1,4 +1,5 @@
 import asyncio
+import json
 import random
 import time
 from typing import Any
@@ -394,19 +395,27 @@ class MercadoLibreClient:
 
         resolved_restrictions = restrictions if restrictions is not None else []
 
+        products_list = []
+        for product_id in product_ids:
+            product_entry: dict[str, Any] = {
+                "id": str(product_id),
+                "creation_source": creation_source,
+                "note": note,
+            }
+            if resolved_restrictions:
+                product_entry["restrictions"] = resolved_restrictions
+            products_list.append(product_entry)
+
         body = {
             "domain_id": settings.ml_domain_id,
             "category_id": category_id,
-            "products": [
-                {
-                    "id": str(product_id),
-                    "creation_source": creation_source,
-                    "note": note,
-                    "restrictions": resolved_restrictions,
-                }
-                for product_id in product_ids
-            ],
+            "products": products_list,
         }
+
+        print("\n" + "="*60)
+        print("DEBUG body completo que se enviará al POST:")
+        print(json.dumps(body, indent=2, ensure_ascii=False))
+        print("="*60 + "\n")
 
         data = await self.request(
             "POST",
@@ -415,6 +424,11 @@ class MercadoLibreClient:
             json_body=body,
             user_id=user_id,
         )
+
+        print("DEBUG respuesta de ML:")
+        print(json.dumps(data if isinstance(data, dict) else {"raw": str(data)}, indent=2, ensure_ascii=False))
+        print("="*60 + "\n")
+
         return data if isinstance(data, dict) else {"raw_response": data}
 
     async def add_item_compatibility_exception(

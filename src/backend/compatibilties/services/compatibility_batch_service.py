@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from collections import defaultdict
 from typing import Awaitable, Callable, Iterable
@@ -40,8 +41,16 @@ FAMILIAS_LIGHTS = {"MLC-VEHICLE_TAIL_LIGHTS", "MLC-VEHICLE_HEADLIGHTS"}
 
 def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list:
     """Construye la lista `restrictions` para el body del endpoint."""
+    print("\n" + "="*60)
+    print("DEBUG build_restrictions INPUTS:")
+    print(f"  familia     = '{familia}'")
+    print(f"  posicion_dt = '{posicion_dt}'")
+    print(f"  posicion_id = '{posicion_id}'")
+
     familia_upper = _safe_text(familia).upper()
     if not familia_upper:
+        print("  => familia vacía, retornando []")
+        print("="*60)
         return []
 
     dt_lower = _safe_text(posicion_dt).lower()
@@ -52,8 +61,14 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
     dt_name = _safe_text(posicion_dt)
     id_name = _safe_text(posicion_id)
 
+    print(f"  familia_upper = '{familia_upper}'")
+    print(f"  dt_lower='{dt_lower}' => dt_value_id='{dt_value_id}'")
+    print(f"  id_lower='{id_lower}' => id_value_id='{id_value_id}'")
+    print(f"  Match BRAKE_SHOCK? {familia_upper in FAMILIAS_BRAKE_SHOCK}")
+    print(f"  Match LIGHTS?      {familia_upper in FAMILIAS_LIGHTS}")
+
     if familia_upper in FAMILIAS_BRAKE_SHOCK:
-        return [
+        result = [
             {
                 "attribute_id": "POSITION",
                 "attribute_values": [
@@ -72,9 +87,13 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
                 ],
             }
         ]
+        print(f"  => RESULT (BRAKE_SHOCK):")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        print("="*60)
+        return result
 
     if familia_upper in FAMILIAS_LIGHTS:
-        return [
+        result = [
             {
                 "attribute_id": "POSITION",
                 "attribute_values": [
@@ -82,13 +101,18 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
                         "values": [
                             {"value_id": dt_value_id, "value_name": dt_name},
                             {"value_id": id_value_id, "value_name": id_name},
-                            
                         ]
                     }
                 ],
             }
         ]
+        print(f"  => RESULT (LIGHTS):")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        print("="*60)
+        return result
 
+    print(f"  => familia '{familia_upper}' no coincide con ningún set, retornando []")
+    print("="*60)
     return []
 
 
@@ -132,10 +156,20 @@ def build_grouped_product_ids(rows: list[dict]) -> tuple[dict[str, list[str]], d
     grouped: dict[str, set[str]] = defaultdict(set)
     restriction_data: dict[str, dict] = {}
 
-    for row in rows:
+    print("\n" + "="*60)
+    print("DEBUG build_grouped_product_ids - Revisando rows...")
+
+    for idx, row in enumerate(rows):
         item_id = row.get("item_id")
         product_id = row.get("product_id")
         ok = row.get("ok")
+
+        # Mostrar los primeros 3 rows para debug
+        if idx < 3:
+            print(f"  Row[{idx}]: item_id={item_id}, product_id={product_id}, ok={ok}")
+            print(f"    familia='{row.get('familia', '(NO EXISTE)')}' "
+                  f"posicion_dt='{row.get('posicion_dt', '(NO EXISTE)')}' "
+                  f"posicion_id='{row.get('posicion_id', '(NO EXISTE)')}'")
 
         if not item_id or not product_id or not ok:
             continue
@@ -149,6 +183,10 @@ def build_grouped_product_ids(rows: list[dict]) -> tuple[dict[str, list[str]], d
                 "posicion_dt": _safe_text(row.get("posicion_dt", "")),
                 "posicion_id": _safe_text(row.get("posicion_id", "")),
             }
+
+    print(f"\n  restriction_data final:")
+    print(json.dumps(restriction_data, indent=2, ensure_ascii=False))
+    print("="*60)
 
     sorted_grouped = {
         item_id: sorted(list(product_ids))
