@@ -1,14 +1,15 @@
-from celery import Celery
+﻿from celery import Celery
 from config import settings
 
 celery_app = Celery(
     "compatibilidades",
     broker=settings.redis_url,
     backend=settings.redis_url,
-        include=[
+    include=[
         "tasks.import_tasks",
         "tasks.product_resolution_tasks",
         "tasks.compatibility_batch_tasks",
+        "tasks.compatibility_exception_tasks",
     ],
 )
 
@@ -26,5 +27,6 @@ celery_app.conf.update(
         "tasks.finalize_excel_job": {"queue": "compat_chunks"},
         "tasks.resolve_products_job": {"queue": "compat_dispatch"},
         "tasks.add_compatibilities_batch_job": {"queue": "compat_chunks"},
+        "tasks.process_compatibility_exceptions_job": {"queue": "compat_chunks"},
     },
 )

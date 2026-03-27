@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 from contextlib import asynccontextmanager
 from urllib.parse import urlencode
@@ -15,6 +15,7 @@ from services.job_store import JobStore
 from services.ml_client import ml_client
 from routers.product_resolution_router import router as product_resolution_router
 from routers.compatibility_batch_router import router as compatibility_batch_router
+from routers.compatibility_exception_router import router as compatibility_exception_router
 
 
 @asynccontextmanager
@@ -29,6 +30,7 @@ app = FastAPI(title="Compatibilidades API", lifespan=lifespan)
 
 app.include_router(product_resolution_router)
 app.include_router(compatibility_batch_router)
+app.include_router(compatibility_exception_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -117,7 +119,7 @@ async def ml_auth_callback(code: str = Query(...), state: str | None = None):
 
     user_id = token_response.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=500, detail="No se recibió user_id desde Mercado Libre")
+        raise HTTPException(status_code=500, detail="No se recibiÃ³ user_id desde Mercado Libre")
 
     payload_to_save = token_store.build_payload(token_response, user_id)
     token_store.set(user_id, payload_to_save)
@@ -140,7 +142,7 @@ async def ml_refresh_token(user_id: int):
 @app.post("/auth/logout")
 async def ml_logout(user_id: int):
     token_store.remove(user_id)
-    return {"ok": True, "message": "Sesión local eliminada"}
+    return {"ok": True, "message": "SesiÃ³n local eliminada"}
 
 
 @app.get("/imports/{job_id}", response_model=JobResponse)
@@ -172,11 +174,11 @@ async def get_job_result(job_id: str):
         raise HTTPException(status_code=404, detail="Job no existe")
 
     if job.get("status") != "success":
-        raise HTTPException(status_code=400, detail="El job aún no finaliza correctamente")
+        raise HTTPException(status_code=400, detail="El job aÃºn no finaliza correctamente")
 
     result_path = job.get("result_path")
     if not result_path or not os.path.exists(result_path):
-        raise HTTPException(status_code=404, detail="No se encontró archivo de resultado")
+        raise HTTPException(status_code=404, detail="No se encontrÃ³ archivo de resultado")
 
     with open(result_path, "r", encoding="utf-8") as f:
         result_data = json.load(f)

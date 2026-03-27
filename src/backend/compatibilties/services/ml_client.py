@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import random
 import time
 from typing import Any
@@ -104,7 +104,7 @@ class MercadoLibreClient:
 
                     raise HTTPException(
                         status_code=401,
-                        detail="Token inválido o expirado",
+                        detail="Token invÃ¡lido o expirado",
                     )
 
                 if response.status_code in retryable_status:
@@ -241,7 +241,7 @@ class MercadoLibreClient:
         if not access_token:
             raise HTTPException(
                 status_code=401,
-                detail="No se pudo obtener access_token válido",
+                detail="No se pudo obtener access_token vÃ¡lido",
             )
 
         return access_token
@@ -261,7 +261,7 @@ class MercadoLibreClient:
         if not isinstance(data, dict):
             raise HTTPException(
                 status_code=500,
-                detail=f"Respuesta inválida para item {item_id}",
+                detail=f"Respuesta invÃ¡lida para item {item_id}",
             )
         return data
 
@@ -385,7 +385,7 @@ class MercadoLibreClient:
         category_id: str,
         product_ids: list[str],
         creation_source: str = "DEFAULT",
-        note: str = "Confirmar con vin, ya que pueden existir variaciones con similares características técnicas. El vin es lo único que confirma.",
+        note: str = "Confirmar con vin, ya que pueden existir variaciones con similares caracterÃ­sticas tÃ©cnicas. El vin es lo Ãºnico que confirma.",
         user_id: int | str | None = None,
     ) -> dict:
         if not product_ids:
@@ -413,6 +413,21 @@ class MercadoLibreClient:
         )
         return data if isinstance(data, dict) else {"raw_response": data}
 
+    async def add_item_compatibility_exception(
+        self,
+        access_token: str | None,
+        item_id: str,
+        comment: str,
+        user_id: int | str | None = None,
+    ) -> dict:
+        data = await self.request(
+            "POST",
+            f"/items/{item_id}/compatibilities/exception",
+            access_token=access_token,
+            json_body={"comment": comment},
+            user_id=user_id,
+        )
+        return data if isinstance(data, dict) else {"raw_response": data}
 
 def extract_values_list(data: Any) -> list[dict]:
     if isinstance(data, list):
