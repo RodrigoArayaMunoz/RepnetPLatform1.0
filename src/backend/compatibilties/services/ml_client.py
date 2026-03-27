@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import random
 import time
 from typing import Any
@@ -384,12 +384,15 @@ class MercadoLibreClient:
         user_product_id: str,
         category_id: str,
         product_ids: list[str],
+        restrictions: list | None = None,
         creation_source: str = "DEFAULT",
         note: str = "Confirmar con vin, ya que pueden existir variaciones con similares caracterÃ­sticas tÃ©cnicas. El vin es lo Ãºnico que confirma.",
         user_id: int | str | None = None,
     ) -> dict:
         if not product_ids:
             return {"results": []}
+
+        resolved_restrictions = restrictions if restrictions is not None else []
 
         body = {
             "domain_id": settings.ml_domain_id,
@@ -399,6 +402,7 @@ class MercadoLibreClient:
                     "id": str(product_id),
                     "creation_source": creation_source,
                     "note": note,
+                    "restrictions": resolved_restrictions,
                 }
                 for product_id in product_ids
             ],

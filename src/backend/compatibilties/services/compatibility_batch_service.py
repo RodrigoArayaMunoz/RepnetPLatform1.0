@@ -21,6 +21,76 @@ def _norm(value) -> str:
     return _safe_text(value).lower()
 
 
+# ── Mapeo de value_id para restricciones ──────────────────────────
+POSICION_DT_VALUE_IDS = {
+    "delantera": "13701104",
+    "trasera": "13701105",
+    "conductor": "13373175",
+    "acompañante": "13373176",
+}
+
+POSICION_ID_VALUE_IDS = {
+    "izquierda": "2262158",
+    "derecha": "2262160",
+}
+
+FAMILIAS_BRAKE_SHOCK = {"MLC-VEHICLE_BRAKE_PADS", "MLC-VEHICLE_SHOCK_ABSORBERS"}
+FAMILIAS_LIGHTS = {"MLC-VEHICLE_TAIL_LIGHTS", "MLC-VEHICLE_HEADLIGHTS"}
+
+
+def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list:
+    """Construye la lista `restrictions` para el body del endpoint."""
+    familia_upper = _safe_text(familia).upper()
+    if not familia_upper:
+        return []
+
+    dt_lower = _safe_text(posicion_dt).lower()
+    id_lower = _safe_text(posicion_id).lower()
+
+    dt_value_id = POSICION_DT_VALUE_IDS.get(dt_lower, "")
+    id_value_id = POSICION_ID_VALUE_IDS.get(id_lower, "")
+    dt_name = _safe_text(posicion_dt)
+    id_name = _safe_text(posicion_id)
+
+    if familia_upper in FAMILIAS_BRAKE_SHOCK:
+        return [
+            {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                    {
+                        "values": [
+                            {"value_id": POSICION_ID_VALUE_IDS.get("izquierda", ""), "value_name": "Izquierda"},
+                            {"value_id": dt_value_id, "value_name": dt_name},
+                        ]
+                    },
+                    {
+                        "values": [
+                            {"value_id": POSICION_ID_VALUE_IDS.get("derecha", ""), "value_name": "Derecha"},
+                            {"value_id": dt_value_id, "value_name": dt_name},
+                        ]
+                    },
+                ],
+            }
+        ]
+
+    if familia_upper in FAMILIAS_LIGHTS:
+        return [
+            {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                    {
+                        "values": [
+                            {"value_id": dt_value_id, "value_name": dt_name},
+                            {"value_id": id_value_id, "value_name": id_name},
+                        ]
+                    }
+                ],
+            }
+        ]
+
+    return []
+
+
 def chunked(items: list[str], size: int) -> Iterable[list[str]]:
     for i in range(0, len(items), size):
         yield items[i:i + size]
@@ -56,8 +126,10 @@ async def get_item_compact_cached(
     return compact
 
 
-def build_grouped_product_ids(rows: list[dict]) -> dict[str, list[str]]:
+def build_grouped_product_ids(rows: list[dict]) -> tuple[dict[str, list[str]], dict[str, dict]]:
+    """Agrupa product_ids por item_id y captura datos de restricción del primer row."""
     grouped: dict[str, set[str]] = defaultdict(set)
+    restriction_data: dict[str, dict] = {}
 
     for row in rows:
         item_id = row.get("item_id")
@@ -67,12 +139,21 @@ def build_grouped_product_ids(rows: list[dict]) -> dict[str, list[str]]:
         if not item_id or not product_id or not ok:
             continue
 
-        grouped[str(item_id)].add(str(product_id))
+        item_key = str(item_id)
+        grouped[item_key].add(str(product_id))
 
-    return {
+        if item_key not in restriction_data:
+            restriction_data[item_key] = {
+                "familia": _safe_text(row.get("familia", "")),
+                "posicion_dt": _safe_text(row.get("posicion_dt", "")),
+                "posicion_id": _safe_text(row.get("posicion_id", "")),
+            }
+
+    sorted_grouped = {
         item_id: sorted(list(product_ids))
         for item_id, product_ids in grouped.items()
     }
+    return sorted_grouped, restriction_data
 
 async def post_compatibilities_batch(
     *,
@@ -80,6 +161,7 @@ async def post_compatibilities_batch(
     user_id: int | str,
     item_id: str,
     product_ids: list[str],
+    restrictions: list | None = None,
     metrics: JobMetrics,
 ) -> dict:
     item_compact = await get_item_compact_cached(
@@ -110,10 +192,11 @@ async def post_compatibilities_batch(
     product_ids = [str(pid) for pid in product_ids][:batch_size]
 
     logger.info(
-        "[BATCH][POST] item_id=%s user_product_id=%s products_sent=%s",
+        "[BATCH][POST] item_id=%s user_product_id=%s products_sent=%s restrictions=%s",
         item_id,
         user_product_id,
         len(product_ids),
+        restrictions,
     )
 
     response = await call_ml(
@@ -122,6 +205,7 @@ async def post_compatibilities_batch(
         user_product_id=str(user_product_id),
         category_id=str(category_id),
         product_ids=product_ids,
+        restrictions=restrictions if restrictions is not None else [],
         creation_source="DEFAULT",
         user_id=user_id,
         metrics=metrics,
@@ -320,17 +404,23 @@ async def process_compatibility_batches(
     on_progress: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> dict:
     metrics = JobMetrics()
-    grouped = build_grouped_product_ids(rows)
+    grouped, restriction_data = build_grouped_product_ids(rows)
     batch_size = min(200, max(1, int(getattr(settings, "compat_batch_size", 200))))
     max_concurrency = max(1, int(getattr(settings, "compat_batch_concurrency", 4)))
 
-    all_batches: list[tuple[str, list[str]]] = []
+    all_batches: list[tuple[str, list[str], list]] = []
     total_products = 0
 
     for item_id, product_ids in grouped.items():
         total_products += len(product_ids)
+        rd = restriction_data.get(item_id, {})
+        restrictions = build_restrictions(
+            rd.get("familia", ""),
+            rd.get("posicion_dt", ""),
+            rd.get("posicion_id", ""),
+        )
         for batch in chunked(product_ids, batch_size):
-            all_batches.append((item_id, batch))
+            all_batches.append((item_id, batch, restrictions))
 
     logger.info(
         "[BATCH][START] items_grouped=%s total_products=%s total_batches=%s batch_size=%s concurrency=%s",
@@ -346,7 +436,7 @@ async def process_compatibility_batches(
     completed = 0
     batch_results: list[dict | None] = [None] * len(all_batches)
 
-    async def worker(pos: int, item_id: str, batch: list[str]) -> None:
+    async def worker(pos: int, item_id: str, batch: list[str], restrictions: list) -> None:
         nonlocal completed
 
         async with semaphore:
@@ -355,6 +445,7 @@ async def process_compatibility_batches(
                 user_id=user_id,
                 item_id=item_id,
                 product_ids=batch,
+                restrictions=restrictions,
                 metrics=metrics,
             )
             batch_results[pos] = result
@@ -383,7 +474,7 @@ async def process_compatibility_batches(
                     logger.exception("[BATCH][WARN] fallo actualizando progreso")
 
     await asyncio.gather(
-        *(worker(i, item_id, batch) for i, (item_id, batch) in enumerate(all_batches))
+        *(worker(i, item_id, batch, restrictions) for i, (item_id, batch, restrictions) in enumerate(all_batches))
     )
 
     final_batch_results = [

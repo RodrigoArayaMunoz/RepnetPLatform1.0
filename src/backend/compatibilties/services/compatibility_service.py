@@ -439,6 +439,9 @@ async def resolve_vehicle_product_row(
     engine_name = normalize_engine(get_row_value(row, "CILINDRADA"))
     transmission_name = normalize_transmission(get_row_value(row, "TRANSMISION"))
     year = parse_year_value(get_row_value(row, "AÑO"))
+    familia = normalize_text(get_row_value(row, "FAMILIA"))
+    posicion_dt = normalize_text(get_row_value(row, "POSICION_DT"))
+    posicion_id = normalize_text(get_row_value(row, "POSICION_ID"))
 
     if not item_id:
         return _build_error_result(
@@ -602,6 +605,9 @@ async def resolve_vehicle_product_row(
             "year_processed": year,
             "year": year,
             "product_id": product_id,
+            "familia": familia,
+            "posicion_dt": posicion_dt,
+            "posicion_id": posicion_id,
             "success_count": 1,
             "error_count": 0,
             "results": [
@@ -677,6 +683,11 @@ def expand_resolved_rows_to_originals(
             row_copy["year_processed"] = year
             row_copy["original_row_index"] = original_idx
             row_copy["was_duplicated_vehicle"] = len(original_indices) > 1
+
+            # Propagar columnas de restricción desde la fila original
+            row_copy["familia"] = normalize_text(get_row_value(original_row, "FAMILIA"))
+            row_copy["posicion_dt"] = normalize_text(get_row_value(original_row, "POSICION_DT"))
+            row_copy["posicion_id"] = normalize_text(get_row_value(original_row, "POSICION_ID"))
 
             expanded[original_idx] = row_copy
 
