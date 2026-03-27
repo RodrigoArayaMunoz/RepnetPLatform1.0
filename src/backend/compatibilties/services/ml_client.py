@@ -385,6 +385,7 @@ class MercadoLibreClient:
         category_id: str,
         product_ids: list[str],
         creation_source: str = "DEFAULT",
+        note: str = "Confirmar con vin, ya que pueden existir variaciones con similares características técnicas. El vin es lo único que confirma.",
         user_id: int | str | None = None,
     ) -> dict:
         if not product_ids:
@@ -397,6 +398,7 @@ class MercadoLibreClient:
                 {
                     "id": str(product_id),
                     "creation_source": creation_source,
+                    "note": note,
                 }
                 for product_id in product_ids
             ],
