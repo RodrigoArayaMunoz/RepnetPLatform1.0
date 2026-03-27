@@ -1,5 +1,5 @@
 ﻿import "../styles/CompatibilitiesUpload.css";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import ResultModal from "../components/ResultModal";
 import PublicationsWithoutCompatibilityModal from "../components/PublicationsWithoutCompatibilityModal";
 
@@ -44,7 +44,10 @@ function CompatibilitiesUpload() {
 
   const [jobResult, setJobResult] = useState(null);
   const [loadingResult, setLoadingResult] = useState(false);
-  const [exceptionJobId, setExceptionJobId] = useState(null);
+
+  const [resolveJobId, setResolveJobId] = useState(null);
+  const [batchJobId, setBatchJobId] = useState(null);
+
   const [loadingProcess, setLoadingProcess] = useState(false);
   const [progress, setProgress] = useState(0);
   const [processMessage, setProcessMessage] = useState("");
@@ -61,7 +64,8 @@ function CompatibilitiesUpload() {
   const handleCloseResultModal = () => {
     setShowResultModal(false);
     setFile(null);
-    setExceptionJobId(null);
+    setResolveJobId(null);
+    setBatchJobId(null);
     setJobResult(null);
     setProgress(0);
     setProcessMessage("");
@@ -109,25 +113,26 @@ function CompatibilitiesUpload() {
     }
   };
 
-  const isExcelFile = (selectedFile) => {
-    if (!selectedFile) return false;
-
-    const name = selectedFile.name?.toLowerCase() || "";
-    const validExtension =
-      name.endsWith(".xlsx") ||
-      name.endsWith(".xls") ||
-      name.endsWith(".csv");
-
-    const validMime =
-      selectedFile.type ===
+  const isExcelFile = (f) => {
+    if (!f) return false;
+    const nameOk = f.name?.toLowerCase().endsWith(".xlsx");
+    const typeOk =
+      f.type ===
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-      selectedFile.type === "application/vnd.ms-excel" ||
-      selectedFile.type === "text/csv" ||
-      selectedFile.type === "application/csv" ||
-      selectedFile.type === "" ||
-      selectedFile.type === "application/octet-stream";
+      f.type === "" ||
+      f.type === "application/octet-stream";
+    return nameOk && typeOk;
+  };
 
-    return validExtension && validMime;
+  const isCsvFile = (f) => {
+    if (!f) return false;
+    const nameOk = f.name?.toLowerCase().endsWith(".csv");
+    const typeOk =
+      f.type === "text/csv" ||
+      f.type === "application/vnd.ms-excel" ||
+      f.type === "" ||
+      f.type === "application/csv";
+    return nameOk && typeOk;
   };
 
   const handleFileChange = (e) => {
@@ -136,16 +141,18 @@ function CompatibilitiesUpload() {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    if (!isExcelFile(selectedFile)) {
+    if (!isExcelFile(selectedFile) && !isCsvFile(selectedFile)) {
       setFile(null);
-      setExceptionJobId(null);
+      setResolveJobId(null);
+      setBatchJobId(null);
       setStatus("error");
-      setMessage("Archivo no válido. Selecciona un Excel (.xlsx, .xls) o CSV (.csv).");
+      setMessage("Archivo no válido. Selecciona un Excel (.xlsx) o CSV (.csv).");
       return;
     }
 
     setFile(selectedFile);
-    setExceptionJobId(null);
+    setResolveJobId(null);
+    setBatchJobId(null);
     setStatus("idle");
     setMessage("");
     setJobResult(null);
@@ -154,7 +161,7 @@ function CompatibilitiesUpload() {
     setProcessMessage("");
   };
 
-  const startCompatibilityExceptionsJob = async (fileToUpload) => {
+  const startResolveProductsJob = async (fileToUpload) => {
     if (!mlUserId) {
       throw new Error("No se encontró user_id de Mercado Libre conectado.");
     }
@@ -163,7 +170,7 @@ function CompatibilitiesUpload() {
     formData.append("file", fileToUpload);
 
     const res = await fetch(
-      `${API_BASE}/imports/compatibility-exceptions?user_id=${encodeURIComponent(mlUserId)}`,
+      `${API_BASE}/imports/resolve-products?user_id=${encodeURIComponent(mlUserId)}`,
       {
         method: "POST",
         body: formData,
@@ -175,14 +182,44 @@ function CompatibilitiesUpload() {
 
     if (!res.ok) {
       throw new Error(
-        data?.detail ||
-          data?.message ||
-          "No se pudo iniciar el proceso de excepciones de compatibilidad."
+        data?.detail || data?.message || "No se pudo iniciar la resolución de product_id."
       );
     }
 
     if (!data?.job_id) {
-      throw new Error("No se recibió job_id del proceso de excepciones.");
+      throw new Error("No se recibió job_id del proceso de resolución.");
+    }
+
+    return data.job_id;
+  };
+
+  const startBatchCompatibilitiesJob = async (resolvedJobIdValue) => {
+    if (!mlUserId) {
+      throw new Error("No se encontró user_id de Mercado Libre conectado.");
+    }
+
+    const res = await fetch(`${API_BASE}/imports/add-compatibilities-batch`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        user_id: String(mlUserId),
+        resolved_job_id: resolvedJobIdValue,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(
+        data?.detail || data?.message || "No se pudo iniciar la carga batch."
+      );
+    }
+
+    if (!data?.job_id) {
+      throw new Error("No se recibió job_id del proceso batch.");
     }
 
     return data.job_id;
@@ -208,39 +245,57 @@ function CompatibilitiesUpload() {
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const pollStageJob = async (currentJobId, stageLabel) => {
+  const pollStageJob = async (
+    currentJobId,
+    {
+      stageLabel,
+      progressBase,
+      progressSpan,
+    }
+  ) => {
     let finished = false;
 
     while (!finished) {
-      const response = await fetch(`${API_BASE}/imports/${currentJobId}`, {
-        credentials: "include",
-      });
+      try {
+        const r = await fetch(`${API_BASE}/imports/${currentJobId}`, {
+          credentials: "include",
+        });
 
-      const data = await response.json().catch(() => ({}));
+        const data = await r.json().catch(() => ({}));
 
-      if (!response.ok) {
-        throw new Error(
-          data?.detail || data?.message || "Error consultando el estado del proceso."
+        if (!r.ok) {
+          throw new Error(
+            data?.detail || data?.message || "Error consultando el estado del proceso."
+          );
+        }
+
+        const currentProgress =
+          typeof data.progress === "number" ? data.progress : 0;
+
+        const mappedProgress = Math.min(
+          100,
+          progressBase + Math.round((currentProgress / 100) * progressSpan)
         );
+
+        setProgress(mappedProgress);
+        setProcessMessage(
+          `${stageLabel}: ${data.message || "Procesando..."}`
+        );
+        setMessage(data.message || "");
+
+        if (data.status === "success") {
+          finished = true;
+          return data;
+        }
+
+        if (data.status === "error") {
+          throw new Error(data.message || `Error en etapa ${stageLabel}`);
+        }
+
+        await sleep(1200);
+      } catch (err) {
+        throw err;
       }
-
-      const currentProgress =
-        typeof data.progress === "number" ? data.progress : 0;
-
-      setProgress(Math.min(100, currentProgress));
-      setProcessMessage(`${stageLabel}: ${data.message || "Procesando..."}`);
-      setMessage(data.message || "");
-
-      if (data.status === "success") {
-        finished = true;
-        return data;
-      }
-
-      if (data.status === "error") {
-        throw new Error(data.message || `Error en etapa ${stageLabel}`);
-      }
-
-      await sleep(1200);
     }
   };
 
@@ -271,22 +326,35 @@ function CompatibilitiesUpload() {
       setLoadingResult(false);
       setProgress(0);
       setMessage("");
-      setProcessMessage("Iniciando proceso de excepciones...");
+      setProcessMessage("Iniciando resolución de productos...");
 
-      const newExceptionJobId = await startCompatibilityExceptionsJob(file);
-      setExceptionJobId(newExceptionJobId);
+      const newResolveJobId = await startResolveProductsJob(file);
+      setResolveJobId(newResolveJobId);
 
-      await pollStageJob(
-        newExceptionJobId,
-        "Informando excepciones por MLC"
-      );
+      await pollStageJob(newResolveJobId, {
+        stageLabel: "Etapa 1/2 - Resolviendo product_id",
+        progressBase: 0,
+        progressSpan: 50,
+      });
+
+      setProgress(50);
+      setProcessMessage("Etapa 1 completada. Iniciando carga batch...");
+
+      const newBatchJobId = await startBatchCompatibilitiesJob(newResolveJobId);
+      setBatchJobId(newBatchJobId);
+
+      await pollStageJob(newBatchJobId, {
+        stageLabel: "Etapa 2/2 - Agregando compatibilidades batch",
+        progressBase: 50,
+        progressSpan: 50,
+      });
 
       setProgress(100);
       setStatus("success");
 
       try {
         setLoadingResult(true);
-        await fetchJobResult(newExceptionJobId);
+        await fetchJobResult(newBatchJobId);
       } catch (error) {
         setStatus("error");
         setMessage(
@@ -310,14 +378,14 @@ function CompatibilitiesUpload() {
     window.location.href = `${API_BASE}/auth/login`;
   };
 
-  const acceptText = "Archivo permitido: .xlsx, .xls o .csv con columna MLC";
+  const acceptText = "Archivo permitido: .xlsx o .csv";
   const buttonText =
-    status === "processing" ? "Procesando..." : "Informar Excepciones";
+    status === "processing" ? "Procesando..." : "Procesar Archivo";
 
   const connectButtonText = checkingConnection
     ? "Verificando conexión..."
     : mlVerified
-    ? "Cuenta conectada"
+    ? "✅ Cuenta conectada"
     : "Conectar con MercadoLibre";
 
   const statusText = checkingConnection
@@ -364,7 +432,7 @@ function CompatibilitiesUpload() {
               className={`file-label ${!mlVerified ? "disabled-label" : ""}`}
               htmlFor="fileInput"
             >
-              Seleccionar archivo con columna MLC
+              📂 Elegir archivo (Excel o CSV)
             </label>
 
             <input
@@ -372,7 +440,7 @@ function CompatibilitiesUpload() {
               id="fileInput"
               className="file-input"
               type="file"
-              accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={handleFileChange}
               disabled={!mlVerified || status === "processing" || checkingConnection}
             />
@@ -420,9 +488,10 @@ function CompatibilitiesUpload() {
             <p className={`status-message ${status}`}>{message}</p>
           )}
 
-          {exceptionJobId && (
+          {(resolveJobId || batchJobId) && (
             <div className="job-debug-info">
-              <p>Job excepciones: {exceptionJobId}</p>
+              {resolveJobId && <p>Job resolución: {resolveJobId}</p>}
+              {batchJobId && <p>Job batch: {batchJobId}</p>}
             </div>
           )}
         </div>

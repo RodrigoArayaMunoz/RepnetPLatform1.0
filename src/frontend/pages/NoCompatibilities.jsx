@@ -29,18 +29,22 @@ function ProcessingOverlay({ visible, progress = 0, message = "" }) {
 
 function NoCompatibilitiesUpload() {
   const fileInputRef = useRef(null);
+
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
 
   const [mlConnected, setMlConnected] = useState(false);
   const [mlVerified, setMlVerified] = useState(false);
+  const [mlUserId, setMlUserId] = useState(null);
   const [checkingConnection, setCheckingConnection] = useState(true);
   const [mlStatusMessage, setMlStatusMessage] = useState(
     "Verificando conexión con Mercado Libre..."
   );
 
   const [jobResult, setJobResult] = useState(null);
+  const [loadingResult, setLoadingResult] = useState(false);
+  const [exceptionJobId, setExceptionJobId] = useState(null);
   const [loadingProcess, setLoadingProcess] = useState(false);
   const [progress, setProgress] = useState(0);
   const [processMessage, setProcessMessage] = useState("");
@@ -57,6 +61,7 @@ function NoCompatibilitiesUpload() {
   const handleCloseResultModal = () => {
     setShowResultModal(false);
     setFile(null);
+    setExceptionJobId(null);
     setJobResult(null);
     setProgress(0);
     setProcessMessage("");
@@ -73,6 +78,7 @@ function NoCompatibilitiesUpload() {
       setCheckingConnection(true);
       setMlVerified(false);
       setMlConnected(false);
+      setMlUserId(null);
       setMlStatusMessage("Verificando conexión con Mercado Libre...");
 
       const res = await fetch(`${API_BASE}/ml/status`, {
@@ -85,33 +91,41 @@ function NoCompatibilitiesUpload() {
       if (res.ok && data?.connected === true) {
         setMlConnected(true);
         setMlVerified(true);
+        setMlUserId(data?.user_id ? String(data.user_id) : null);
         setMlStatusMessage("Conectado exitosamente");
       } else {
         setMlConnected(false);
         setMlVerified(false);
+        setMlUserId(null);
         setMlStatusMessage("Debes conectar tu cuenta de Mercado Libre");
       }
     } catch (error) {
       setMlConnected(false);
       setMlVerified(false);
+      setMlUserId(null);
       setMlStatusMessage("No se pudo verificar la conexión con Mercado Libre");
     } finally {
       setCheckingConnection(false);
     }
   };
 
-  const isExcelFile = (f) => {
-    if (!f) return false;
+  const isExcelFile = (selectedFile) => {
+    if (!selectedFile) return false;
 
-    const name = f.name?.toLowerCase() || "";
-    const validExtension = name.endsWith(".xlsx") || name.endsWith(".xls");
+    const name = selectedFile.name?.toLowerCase() || "";
+    const validExtension =
+      name.endsWith(".xlsx") ||
+      name.endsWith(".xls") ||
+      name.endsWith(".csv");
 
     const validMime =
-      f.type ===
+      selectedFile.type ===
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-      f.type === "application/vnd.ms-excel" ||
-      f.type === "" ||
-      f.type === "application/octet-stream";
+      selectedFile.type === "application/vnd.ms-excel" ||
+      selectedFile.type === "text/csv" ||
+      selectedFile.type === "application/csv" ||
+      selectedFile.type === "" ||
+      selectedFile.type === "application/octet-stream";
 
     return validExtension && validMime;
   };
@@ -124,12 +138,14 @@ function NoCompatibilitiesUpload() {
 
     if (!isExcelFile(selectedFile)) {
       setFile(null);
+      setExceptionJobId(null);
       setStatus("error");
-      setMessage("Archivo no válido. Selecciona un Excel (.xlsx o .xls).");
+      setMessage("Archivo no válido. Selecciona un Excel (.xlsx, .xls) o CSV (.csv).");
       return;
     }
 
     setFile(selectedFile);
+    setExceptionJobId(null);
     setStatus("idle");
     setMessage("");
     setJobResult(null);
@@ -138,50 +154,106 @@ function NoCompatibilitiesUpload() {
     setProcessMessage("");
   };
 
-  const processNoCompatibilitiesFile = async (fileToUpload) => {
+  const startCompatibilityExceptionsJob = async (fileToUpload) => {
+    if (!mlUserId) {
+      throw new Error("No se encontró user_id de Mercado Libre conectado.");
+    }
+
     const formData = new FormData();
     formData.append("file", fileToUpload);
 
-    const res = await fetch(`${API_BASE}/compatibility-exceptions/upload`, {
-      method: "POST",
-      body: formData,
+    const res = await fetch(
+      `${API_BASE}/imports/compatibility-exceptions?user_id=${encodeURIComponent(mlUserId)}`,
+      {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      }
+    );
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(
+        data?.detail ||
+          data?.message ||
+          "No se pudo iniciar el proceso de excepciones de compatibilidad."
+      );
+    }
+
+    if (!data?.job_id) {
+      throw new Error("No se recibió job_id del proceso de excepciones.");
+    }
+
+    return data.job_id;
+  };
+
+  const fetchJobResult = async (currentJobId) => {
+    const res = await fetch(`${API_BASE}/imports/${currentJobId}/result`, {
+      method: "GET",
       credentials: "include",
     });
 
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      const detail =
-        data?.detail ||
-        data?.message ||
-        "Error procesando el archivo de no compatibilidades.";
       throw new Error(
-        typeof detail === "string"
-          ? detail
-          : "Error procesando el archivo de no compatibilidades."
+        data?.detail || data?.message || "No se pudo obtener el resultado final."
       );
     }
 
-    return data;
+    setJobResult(data);
+    setShowResultModal(true);
   };
 
-  const buildResultModalData = (apiResponse) => {
-    return {
-      summary: {
-        total: apiResponse?.total ?? 0,
-        success: apiResponse?.success ?? 0,
-        errors: apiResponse?.errors ?? 0,
-        comment_used: apiResponse?.comment_used ?? "",
-        filename: apiResponse?.filename ?? file?.name ?? "",
-      },
-      results: apiResponse?.results ?? [],
-    };
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const pollStageJob = async (currentJobId, stageLabel) => {
+    let finished = false;
+
+    while (!finished) {
+      const response = await fetch(`${API_BASE}/imports/${currentJobId}`, {
+        credentials: "include",
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail || data?.message || "Error consultando el estado del proceso."
+        );
+      }
+
+      const currentProgress =
+        typeof data.progress === "number" ? data.progress : 0;
+
+      setProgress(Math.min(100, currentProgress));
+      setProcessMessage(`${stageLabel}: ${data.message || "Procesando..."}`);
+      setMessage(data.message || "");
+
+      if (data.status === "success") {
+        finished = true;
+        return data;
+      }
+
+      if (data.status === "error") {
+        throw new Error(data.message || `Error en etapa ${stageLabel}`);
+      }
+
+      await sleep(1200);
+    }
   };
 
   const handleProcess = async () => {
     if (!mlVerified) {
       setStatus("error");
       setMessage("Primero debes conectar tu cuenta de Mercado Libre.");
+      return;
+    }
+
+    if (!mlUserId) {
+      setStatus("error");
+      setMessage("No se encontró user_id asociado a la conexión de Mercado Libre.");
       return;
     }
 
@@ -196,35 +268,40 @@ function NoCompatibilitiesUpload() {
       setJobResult(null);
       setStatus("processing");
       setLoadingProcess(true);
-      setProgress(25);
-      setProcessMessage("Subiendo archivo...");
+      setLoadingResult(false);
+      setProgress(0);
       setMessage("");
+      setProcessMessage("Iniciando proceso de excepciones...");
 
-      const response = await processNoCompatibilitiesFile(file);
+      const newExceptionJobId = await startCompatibilityExceptionsJob(file);
+      setExceptionJobId(newExceptionJobId);
 
-      setProgress(85);
-      setProcessMessage("Procesando resultado...");
-
-      const modalData = buildResultModalData(response);
-      setJobResult(modalData);
+      await pollStageJob(
+        newExceptionJobId,
+        "Informando excepciones por MLC"
+      );
 
       setProgress(100);
       setStatus("success");
-      setMessage(
-        `Proceso finalizado. Éxitos: ${response?.success ?? 0}, errores: ${
-          response?.errors ?? 0
-        }.`
-      );
-      setShowResultModal(true);
+
+      try {
+        setLoadingResult(true);
+        await fetchJobResult(newExceptionJobId);
+      } catch (error) {
+        setStatus("error");
+        setMessage(
+          error?.message ||
+            "El proceso terminó, pero no se pudo obtener el resumen."
+        );
+      } finally {
+        setLoadingResult(false);
+        setLoadingProcess(false);
+      }
     } catch (error) {
-      setStatus("error");
-      setMessage(
-        error?.message || "Ocurrió un error al procesar el archivo."
-      );
-    } finally {
       setLoadingProcess(false);
-      setProcessMessage("");
-      setProgress(0);
+      setLoadingResult(false);
+      setStatus("error");
+      setMessage(error?.message || "Ocurrió un error al procesar el archivo.");
     }
   };
 
@@ -233,14 +310,14 @@ function NoCompatibilitiesUpload() {
     window.location.href = `${API_BASE}/auth/login`;
   };
 
-  const acceptText = "Archivo permitido: .xlsx o .xls";
+  const acceptText = "Archivo permitido: .xlsx, .xls o .csv con columna MLC";
   const buttonText =
-    status === "processing" ? "Procesando..." : "Procesar Archivo";
+    status === "processing" ? "Procesando..." : "Informar Excepciones";
 
   const connectButtonText = checkingConnection
     ? "Verificando conexión..."
     : mlVerified
-    ? "✅ Cuenta conectada"
+    ? "Cuenta conectada"
     : "Conectar con MercadoLibre";
 
   const statusText = checkingConnection
@@ -287,7 +364,7 @@ function NoCompatibilitiesUpload() {
               className={`file-label ${!mlVerified ? "disabled-label" : ""}`}
               htmlFor="fileInput"
             >
-              📂 Elegir archivo (Excel)
+              Seleccionar archivo con columna MLC
             </label>
 
             <input
@@ -295,7 +372,7 @@ function NoCompatibilitiesUpload() {
               id="fileInput"
               className="file-input"
               type="file"
-              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               onChange={handleFileChange}
               disabled={!mlVerified || status === "processing" || checkingConnection}
             />
@@ -313,33 +390,50 @@ function NoCompatibilitiesUpload() {
               onClick={handleProcess}
               disabled={
                 !mlVerified ||
+                !mlUserId ||
                 !file ||
                 status === "processing" ||
                 checkingConnection ||
+                loadingResult ||
                 loadingProcess
               }
               type="button"
             >
-              {loadingProcess ? "Procesando..." : buttonText}
+              {loadingResult
+                ? "Cargando resumen..."
+                : loadingProcess
+                ? "Procesando..."
+                : buttonText}
             </button>
 
             <button
               className="process-button secondary-action-button"
               onClick={handleViewPublicationsWithoutCompatibilities}
-              disabled={!mlVerified || checkingConnection || loadingProcess}
+              disabled={!mlVerified || checkingConnection || loadingProcess || loadingResult}
               type="button"
             >
-              Ver Publicaciones No Informadas
+              Ver Publicaciones sin compatibilidades
             </button>
           </div>
 
           {message && !loadingProcess && (
             <p className={`status-message ${status}`}>{message}</p>
           )}
+
+          {exceptionJobId && (
+            <div className="job-debug-info">
+              <p>Job excepciones: {exceptionJobId}</p>
+            </div>
+          )}
         </div>
       </section>
 
-
+      <ResultModal
+        open={showResultModal}
+        onClose={handleCloseResultModal}
+        summary={jobResult?.summary}
+        results={jobResult?.results}
+      />
 
       <ResultViewNoCompatibilities
         open={showPublicationsModal}
