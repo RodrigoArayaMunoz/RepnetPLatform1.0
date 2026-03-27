@@ -231,7 +231,7 @@ async def post_compatibilities_batch(
     product_ids = [str(pid) for pid in product_ids][:batch_size]
 
     logger.info(
-        "[BATCH][POST] item_id=%s user_product_id=%s products_sent=%s restrictions=%s",
+        "[BATCH][PUT] item_id=%s user_product_id=%s products_sent=%s restrictions=%s",
         item_id,
         user_product_id,
         len(product_ids),
@@ -245,7 +245,6 @@ async def post_compatibilities_batch(
         category_id=str(category_id),
         product_ids=product_ids,
         restrictions=restrictions if restrictions is not None else [],
-        creation_source="DEFAULT",
         user_id=user_id,
         metrics=metrics,
         limiter=WRITE_RATE_LIMITER,

@@ -386,8 +386,6 @@ class MercadoLibreClient:
         category_id: str,
         product_ids: list[str],
         restrictions: list | None = None,
-        creation_source: str = "DEFAULT",
-        note: str = "Confirmar con vin, ya que pueden existir variaciones con similares caracteristicas técnicas. El vin es lo único que confirma.",
         user_id: int | str | None = None,
     ) -> dict:
         if not product_ids:
@@ -399,8 +397,6 @@ class MercadoLibreClient:
         for product_id in product_ids:
             product_entry: dict[str, Any] = {
                 "id": str(product_id),
-                "creation_source": creation_source,
-                "note": note,
             }
             if resolved_restrictions:
                 product_entry["restrictions"] = resolved_restrictions
@@ -409,16 +405,18 @@ class MercadoLibreClient:
         body = {
             "domain_id": settings.ml_domain_id,
             "category_id": category_id,
-            "products": products_list,
+            "update": {
+                "products": products_list,
+            }
         }
 
         print("\n" + "="*60)
-        print("DEBUG body completo que se enviará al POST:")
+        print("DEBUG body completo que se enviará al PUT:")
         print(json.dumps(body, indent=2, ensure_ascii=False))
         print("="*60 + "\n")
 
         data = await self.request(
-            "POST",
+            "PUT",
             f"/user-products/{user_product_id}/compatibilities",
             access_token=access_token,
             json_body=body,
