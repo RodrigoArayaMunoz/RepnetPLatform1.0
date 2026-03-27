@@ -1,5 +1,4 @@
 import asyncio
-import json
 import random
 import time
 from typing import Any
@@ -410,11 +409,6 @@ class MercadoLibreClient:
             }
         }
 
-        print("\n" + "="*60)
-        print("DEBUG body completo que se enviará al PUT:")
-        print(json.dumps(body, indent=2, ensure_ascii=False))
-        print("="*60 + "\n")
-
         data = await self.request(
             "PUT",
             f"/user-products/{user_product_id}/compatibilities",
@@ -422,10 +416,6 @@ class MercadoLibreClient:
             json_body=body,
             user_id=user_id,
         )
-
-        print("DEBUG respuesta de ML:")
-        print(json.dumps(data if isinstance(data, dict) else {"raw": str(data)}, indent=2, ensure_ascii=False))
-        print("="*60 + "\n")
 
         return data if isinstance(data, dict) else {"raw_response": data}
 
