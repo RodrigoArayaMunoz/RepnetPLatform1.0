@@ -1,7 +1,7 @@
 import "../styles/NoCompatibilitiesUpload.css";
 import { useEffect, useState, useRef } from "react";
 import ResultModal from "../components/ResultModal";
-import PublicationsWithoutCompatibilityModal from "../components/PublicationsWithoutCompatibilityModal";
+import ResultViewNoCompatibilities from "../components/ResultViewNoCompatibilities";
 
 function ProcessingOverlay({ visible, progress = 0, message = "" }) {
   if (!visible) return null;
@@ -10,7 +10,7 @@ function ProcessingOverlay({ visible, progress = 0, message = "" }) {
     <div className="processing-overlay">
       <div className="processing-box">
         <div className="processing-spinner" />
-        <h2>Procesando compatibilidades</h2>
+        <h2>Informando No Compatibilidades</h2>
         <p className="processing-progress">{progress}%</p>
         <p className="processing-message">
           {message || "Procesando archivo..."}
@@ -41,9 +41,6 @@ function NoCompatibilitiesUpload() {
   );
 
   const [jobResult, setJobResult] = useState(null);
-  const [loadingResult, setLoadingResult] = useState(false);
-
-  const [jobId, setJobId] = useState(null);
   const [loadingProcess, setLoadingProcess] = useState(false);
   const [progress, setProgress] = useState(0);
   const [processMessage, setProcessMessage] = useState("");
@@ -60,7 +57,6 @@ function NoCompatibilitiesUpload() {
   const handleCloseResultModal = () => {
     setShowResultModal(false);
     setFile(null);
-    setJobId(null);
     setJobResult(null);
     setProgress(0);
     setProcessMessage("");
@@ -106,24 +102,18 @@ function NoCompatibilitiesUpload() {
 
   const isExcelFile = (f) => {
     if (!f) return false;
-    const nameOk = f.name?.toLowerCase().endsWith(".xlsx");
-    const typeOk =
+
+    const name = f.name?.toLowerCase() || "";
+    const validExtension = name.endsWith(".xlsx") || name.endsWith(".xls");
+
+    const validMime =
       f.type ===
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-      f.type === "" ||
-      f.type === "application/octet-stream";
-    return nameOk && typeOk;
-  };
-
-  const isCsvFile = (f) => {
-    if (!f) return false;
-    const nameOk = f.name?.toLowerCase().endsWith(".csv");
-    const typeOk =
-      f.type === "text/csv" ||
       f.type === "application/vnd.ms-excel" ||
       f.type === "" ||
-      f.type === "application/csv";
-    return nameOk && typeOk;
+      f.type === "application/octet-stream";
+
+    return validExtension && validMime;
   };
 
   const handleFileChange = (e) => {
@@ -132,16 +122,14 @@ function NoCompatibilitiesUpload() {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    if (!isExcelFile(selectedFile) && !isCsvFile(selectedFile)) {
+    if (!isExcelFile(selectedFile)) {
       setFile(null);
-      setJobId(null);
       setStatus("error");
-      setMessage("Archivo no válido. Selecciona un Excel (.xlsx) o CSV (.csv).");
+      setMessage("Archivo no válido. Selecciona un Excel (.xlsx o .xls).");
       return;
     }
 
     setFile(selectedFile);
-    setJobId(null);
     setStatus("idle");
     setMessage("");
     setJobResult(null);
@@ -150,143 +138,44 @@ function NoCompatibilitiesUpload() {
     setProcessMessage("");
   };
 
-  const uploadFile = async (fileToUpload) => {
+  const processNoCompatibilitiesFile = async (fileToUpload) => {
     const formData = new FormData();
     formData.append("file", fileToUpload);
 
-    const isExcel = fileToUpload.name.toLowerCase().endsWith(".xlsx");
-    const endpoint = isExcel ? "/imports-excel" : "/imports";
-
-    const res = await fetch(`${API_BASE}${endpoint}`, {
+    const res = await fetch(`${API_BASE}/compatibility-exceptions/upload`, {
       method: "POST",
       body: formData,
       credentials: "include",
     });
 
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const detail =
-        data?.detail || data?.message || "Error subiendo el archivo.";
-      throw new Error(
-        typeof detail === "string" ? detail : "Error subiendo el archivo."
-      );
-    }
 
-    if (!data?.job_id) {
-      throw new Error("No se recibió job_id del servidor.");
-    }
-
-    return data.job_id;
-  };
-
-  const startJob = async (currentJobId) => {
-    const res = await fetch(`${API_BASE}/imports/${currentJobId}/start`, {
-      method: "POST",
-      credentials: "include",
-    });
-
-    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const detail =
         data?.detail ||
         data?.message ||
-        "No se pudo iniciar el procesamiento.";
+        "Error procesando el archivo de no compatibilidades.";
       throw new Error(
         typeof detail === "string"
           ? detail
-          : "No se pudo iniciar el procesamiento."
+          : "Error procesando el archivo de no compatibilidades."
       );
     }
 
     return data;
   };
 
-  const fetchJobResult = async (currentJobId) => {
-    const res = await fetch(`${API_BASE}/imports/${currentJobId}/result`, {
-      method: "GET",
-      credentials: "include",
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw new Error(
-        data?.detail || data?.message || "No se pudo obtener el resultado final."
-      );
-    }
-
-    setJobResult(data);
-    setShowResultModal(true);
-  };
-
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const pollJob = async (currentJobId) => {
-    let finished = false;
-
-    while (!finished) {
-      try {
-        const r = await fetch(`${API_BASE}/imports/${currentJobId}`, {
-          credentials: "include",
-        });
-
-        const data = await r.json().catch(() => ({}));
-
-        if (!r.ok) {
-          setLoadingProcess(false);
-          setLoadingResult(false);
-          setStatus("error");
-          setMessage("Error consultando el estado del proceso.");
-          return;
-        }
-
-        const currentProgress =
-          typeof data.progress === "number" ? data.progress : 0;
-
-        setProgress(currentProgress);
-        setProcessMessage(data.message || "");
-        setMessage(data.message || "");
-
-        if (data.status === "success") {
-          finished = true;
-          setProgress(100);
-          setStatus("success");
-
-          try {
-            setLoadingResult(true);
-            await fetchJobResult(currentJobId);
-          } catch (error) {
-            setStatus("error");
-            setMessage(
-              error?.message ||
-                "El proceso terminó, pero no se pudo obtener el resumen."
-            );
-          } finally {
-            setLoadingResult(false);
-            setLoadingProcess(false);
-          }
-
-          return;
-        }
-
-        if (data.status === "error") {
-          finished = true;
-          setLoadingProcess(false);
-          setLoadingResult(false);
-          setStatus("error");
-          setMessage(data.message || "Ocurrió un error al procesar el archivo.");
-          return;
-        }
-
-        await sleep(1200);
-      } catch (err) {
-        setLoadingProcess(false);
-        setLoadingResult(false);
-        setStatus("error");
-        setMessage("Error de red consultando el estado del proceso.");
-        return;
-      }
-    }
+  const buildResultModalData = (apiResponse) => {
+    return {
+      summary: {
+        total: apiResponse?.total ?? 0,
+        success: apiResponse?.success ?? 0,
+        errors: apiResponse?.errors ?? 0,
+        comment_used: apiResponse?.comment_used ?? "",
+        filename: apiResponse?.filename ?? file?.name ?? "",
+      },
+      results: apiResponse?.results ?? [],
+    };
   };
 
   const handleProcess = async () => {
@@ -307,27 +196,35 @@ function NoCompatibilitiesUpload() {
       setJobResult(null);
       setStatus("processing");
       setLoadingProcess(true);
-      setLoadingResult(false);
-      setProgress(0);
+      setProgress(25);
       setProcessMessage("Subiendo archivo...");
       setMessage("");
 
-      const isExcel = file.name.toLowerCase().endsWith(".xlsx");
-      setProcessMessage(isExcel ? "Subiendo Excel..." : "Subiendo CSV...");
+      const response = await processNoCompatibilitiesFile(file);
 
-      const newJobId = await uploadFile(file);
-      setJobId(newJobId);
+      setProgress(85);
+      setProcessMessage("Procesando resultado...");
 
-      setProgress(5);
-      setProcessMessage("Iniciando procesamiento...");
-      await startJob(newJobId);
+      const modalData = buildResultModalData(response);
+      setJobResult(modalData);
 
-      await pollJob(newJobId);
+      setProgress(100);
+      setStatus("success");
+      setMessage(
+        `Proceso finalizado. Éxitos: ${response?.success ?? 0}, errores: ${
+          response?.errors ?? 0
+        }.`
+      );
+      setShowResultModal(true);
     } catch (error) {
-      setLoadingProcess(false);
-      setLoadingResult(false);
       setStatus("error");
-      setMessage(error?.message || "Ocurrió un error al procesar el archivo.");
+      setMessage(
+        error?.message || "Ocurrió un error al procesar el archivo."
+      );
+    } finally {
+      setLoadingProcess(false);
+      setProcessMessage("");
+      setProgress(0);
     }
   };
 
@@ -336,7 +233,7 @@ function NoCompatibilitiesUpload() {
     window.location.href = `${API_BASE}/auth/login`;
   };
 
-  const acceptText = "Archivo permitido: .xlsx o .csv";
+  const acceptText = "Archivo permitido: .xlsx o .xls";
   const buttonText =
     status === "processing" ? "Procesando..." : "Procesar Archivo";
 
@@ -360,107 +257,97 @@ function NoCompatibilitiesUpload() {
     setShowPublicationsModal(false);
   };
 
-return (
-  <>
-    <ProcessingOverlay
-      visible={loadingProcess}
-      progress={progress}
-      message={processMessage}
-    />
+  return (
+    <>
+      <ProcessingOverlay
+        visible={loadingProcess}
+        progress={progress}
+        message={processMessage}
+      />
 
-    <section className="compat-page">
-      <div className="compat-upload-layout">
-        <div className="ml-connection-block">
-          <button
-            className={`process-button-ml ${mlVerified ? "connected" : ""}`}
-            onClick={handleConnectMercadoLibre}
-            disabled={checkingConnection || mlVerified}
-            type="button"
-          >
-            {connectButtonText}
-          </button>
+      <section className="compat-page">
+        <div className="compat-upload-layout">
+          <div className="ml-connection-block">
+            <button
+              className={`process-button-ml ${mlVerified ? "connected" : ""}`}
+              onClick={handleConnectMercadoLibre}
+              disabled={checkingConnection || mlVerified}
+              type="button"
+            >
+              {connectButtonText}
+            </button>
 
-          <p className={`ml-status ${mlVerified ? "success" : "pending"}`}>
-            {statusText}
-          </p>
+            <p className={`ml-status ${mlVerified ? "success" : "pending"}`}>
+              {statusText}
+            </p>
+          </div>
+
+          <div className={`file-wrapper ${!mlVerified ? "disabled-section" : ""}`}>
+            <label
+              className={`file-label ${!mlVerified ? "disabled-label" : ""}`}
+              htmlFor="fileInput"
+            >
+              📂 Elegir archivo (Excel)
+            </label>
+
+            <input
+              ref={fileInputRef}
+              id="fileInput"
+              className="file-input"
+              type="file"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              onChange={handleFileChange}
+              disabled={!mlVerified || status === "processing" || checkingConnection}
+            />
+
+            <span className="file-name">
+              {file ? file.name : "Ningún archivo seleccionado"}
+            </span>
+
+            <small className="file-help-text">{acceptText}</small>
+          </div>
+
+          <div className="actions-row">
+            <button
+              className="process-button"
+              onClick={handleProcess}
+              disabled={
+                !mlVerified ||
+                !file ||
+                status === "processing" ||
+                checkingConnection ||
+                loadingProcess
+              }
+              type="button"
+            >
+              {loadingProcess ? "Procesando..." : buttonText}
+            </button>
+
+            <button
+              className="process-button secondary-action-button"
+              onClick={handleViewPublicationsWithoutCompatibilities}
+              disabled={!mlVerified || checkingConnection || loadingProcess}
+              type="button"
+            >
+              Ver Publicaciones No Informadas
+            </button>
+          </div>
+
+          {message && !loadingProcess && (
+            <p className={`status-message ${status}`}>{message}</p>
+          )}
         </div>
+      </section>
 
-        <div className={`file-wrapper ${!mlVerified ? "disabled-section" : ""}`}>
-          <label
-            className={`file-label ${!mlVerified ? "disabled-label" : ""}`}
-            htmlFor="fileInput"
-          >
-            📂 Elegir archivo (Excel o CSV)
-          </label>
 
-          <input
-            ref={fileInputRef}
-            id="fileInput"
-            className="file-input"
-            type="file"
-            accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            onChange={handleFileChange}
-            disabled={!mlVerified || status === "processing" || checkingConnection}
-          />
 
-          <span className="file-name">
-            {file ? file.name : "Ningún archivo seleccionado"}
-          </span>
-
-          <small className="file-help-text">{acceptText}</small>
-        </div>
-
-        <div className="actions-row">
-          <button
-            className="process-button"
-            onClick={handleProcess}
-            disabled={
-              !mlVerified ||
-              !file ||
-              status === "processing" ||
-              checkingConnection ||
-              loadingResult ||
-              loadingProcess
-            }
-            type="button"
-          >
-            {loadingResult
-              ? "Cargando resumen..."
-              : loadingProcess
-              ? "Procesando..."
-              : buttonText}
-          </button>
-
-          <button
-            className="process-button secondary-action-button"
-            onClick={handleViewPublicationsWithoutCompatibilities}
-            disabled={!mlVerified || checkingConnection || loadingProcess || loadingResult}
-            type="button"
-          >
-            Ver Publicaciones sin compatibilidades
-          </button>
-        </div>
-
-        {message && !loadingProcess && (
-          <p className={`status-message ${status}`}>{message}</p>
-        )}
-      </div>
-    </section>
-
-    <ResultModal
-      open={showResultModal}
-      onClose={handleCloseResultModal}
-      summary={jobResult?.summary}
-      results={jobResult?.results}
-    />
-
-    <PublicationsWithoutCompatibilityModal
-      open={showPublicationsModal}
-      onClose={handleClosePublicationsModal}
-      apiBase={API_BASE}
-    />
-  </>
-);
+      <ResultViewNoCompatibilities
+        open={showPublicationsModal}
+        onClose={handleClosePublicationsModal}
+        apiBase={API_BASE}
+      />
+    </>
+  );
 }
 
 export default NoCompatibilitiesUpload;
