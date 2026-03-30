@@ -386,6 +386,7 @@ class MercadoLibreClient:
         product_ids: list[str],
         restrictions: list | None = None,
         user_id: int | str | None = None,
+        note: str = "Confirmar con vin, ya que pueden existir variaciones con similares caracteristicas técnicas. El vin es lo único que confirma.",
     ) -> dict:
         if not product_ids:
             return {"results": []}
@@ -396,6 +397,7 @@ class MercadoLibreClient:
         for product_id in product_ids:
             product_entry: dict[str, Any] = {
                 "id": str(product_id),
+                "note": note,
             }
             if resolved_restrictions:
                 product_entry["restrictions"] = resolved_restrictions
