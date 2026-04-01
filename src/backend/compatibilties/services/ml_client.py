@@ -397,6 +397,7 @@ class MercadoLibreClient:
         for product_id in product_ids:
             product_entry: dict[str, Any] = {
                 "id": str(product_id),
+                "creation_source": "DEFAULT",
                 "note": note,
             }
             if resolved_restrictions:
@@ -406,18 +407,28 @@ class MercadoLibreClient:
         body = {
             "domain_id": settings.ml_domain_id,
             "category_id": category_id,
-            "update": {
+            #"update": {
                 "products": products_list,
-            }
+            #}
         }
 
+        #import json as _json
+        #print("=" * 60)
+        #print(f"[DEBUG] POST /user-products/{user_product_id}/compatibilities")
+        #print(f"[DEBUG] BODY:\n{_json.dumps(body, indent=2, ensure_ascii=False)}")
+        #print("=" * 60)
+
         data = await self.request(
-            "PUT",
+            #"PUT",
+            "POST",
             f"/user-products/{user_product_id}/compatibilities",
             access_token=access_token,
             json_body=body,
             user_id=user_id,
         )
+
+        #print(f"[DEBUG] RESPONSE:\n{_json.dumps(data if isinstance(data, dict) else {'raw': str(data)}, indent=2, ensure_ascii=False)}")
+       # print("=" * 60)
 
         return data if isinstance(data, dict) else {"raw_response": data}
 
