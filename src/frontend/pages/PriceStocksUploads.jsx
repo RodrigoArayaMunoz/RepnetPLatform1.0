@@ -35,6 +35,7 @@ function PriceStocksUploads() {
 
   const [mlConnected, setMlConnected] = useState(false);
   const [mlVerified, setMlVerified] = useState(false);
+  const [mlUserId, setMlUserId] = useState(null);
   const [checkingConnection, setCheckingConnection] = useState(true);
   const [mlStatusMessage, setMlStatusMessage] = useState(
     "Verificando conexión con Mercado Libre..."
@@ -77,6 +78,7 @@ function PriceStocksUploads() {
       setCheckingConnection(true);
       setMlVerified(false);
       setMlConnected(false);
+      setMlUserId(null);
       setMlStatusMessage("Verificando conexión con Mercado Libre...");
 
       const res = await fetch(`${API_BASE}/ml/status`, {
@@ -89,15 +91,18 @@ function PriceStocksUploads() {
       if (res.ok && data?.connected === true) {
         setMlConnected(true);
         setMlVerified(true);
+        setMlUserId(data?.user_id ? String(data.user_id) : null);
         setMlStatusMessage("Conectado exitosamente");
       } else {
         setMlConnected(false);
         setMlVerified(false);
+        setMlUserId(null);
         setMlStatusMessage("Debes conectar tu cuenta de Mercado Libre");
       }
     } catch (error) {
       setMlConnected(false);
       setMlVerified(false);
+      setMlUserId(null);
       setMlStatusMessage("No se pudo verificar la conexión con Mercado Libre");
     } finally {
       setCheckingConnection(false);
@@ -106,24 +111,20 @@ function PriceStocksUploads() {
 
   const isExcelFile = (f) => {
     if (!f) return false;
-    const nameOk = f.name?.toLowerCase().endsWith(".xlsx");
-    const typeOk =
+    const name = f.name?.toLowerCase() || "";
+    const validExtension =
+      name.endsWith(".xlsx") ||
+      name.endsWith(".xls") ||
+      name.endsWith(".csv");
+    const validMime =
       f.type ===
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      f.type === "application/vnd.ms-excel" ||
+      f.type === "text/csv" ||
+      f.type === "application/csv" ||
       f.type === "" ||
       f.type === "application/octet-stream";
-    return nameOk && typeOk;
-  };
-
-  const isCsvFile = (f) => {
-    if (!f) return false;
-    const nameOk = f.name?.toLowerCase().endsWith(".csv");
-    const typeOk =
-      f.type === "text/csv" ||
-      f.type === "application/vnd.ms-excel" ||
-      f.type === "" ||
-      f.type === "application/csv";
-    return nameOk && typeOk;
+    return validExtension && validMime;
   };
 
   const handleFileChange = (e) => {
@@ -132,11 +133,11 @@ function PriceStocksUploads() {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    if (!isExcelFile(selectedFile) && !isCsvFile(selectedFile)) {
+    if (!isExcelFile(selectedFile)) {
       setFile(null);
       setJobId(null);
       setStatus("error");
-      setMessage("Archivo no válido. Selecciona un Excel (.xlsx) o CSV (.csv).");
+      setMessage("Archivo no válido. Selecciona un Excel (.xlsx, .xls) o CSV (.csv).");
       return;
     }
 
@@ -150,55 +151,38 @@ function PriceStocksUploads() {
     setProcessMessage("");
   };
 
-  const uploadFile = async (fileToUpload) => {
+  const startPriceStockJob = async (fileToUpload) => {
+    if (!mlUserId) {
+      throw new Error("No se encontró user_id de Mercado Libre conectado.");
+    }
+
     const formData = new FormData();
     formData.append("file", fileToUpload);
 
-    const isExcel = fileToUpload.name.toLowerCase().endsWith(".xlsx");
-    const endpoint = isExcel ? "/imports-excel" : "/imports";
-
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    });
+    const res = await fetch(
+      `${API_BASE}/imports/price-stock?user_id=${encodeURIComponent(mlUserId)}`,
+      {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      }
+    );
 
     const data = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-      const detail =
-        data?.detail || data?.message || "Error subiendo el archivo.";
       throw new Error(
-        typeof detail === "string" ? detail : "Error subiendo el archivo."
+        data?.detail ||
+          data?.message ||
+          "No se pudo iniciar el proceso de actualización de precios/stock."
       );
     }
 
     if (!data?.job_id) {
-      throw new Error("No se recibió job_id del servidor.");
+      throw new Error("No se recibió job_id del proceso.");
     }
 
     return data.job_id;
-  };
-
-  const startJob = async (currentJobId) => {
-    const res = await fetch(`${API_BASE}/imports/${currentJobId}/start`, {
-      method: "POST",
-      credentials: "include",
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const detail =
-        data?.detail ||
-        data?.message ||
-        "No se pudo iniciar el procesamiento.";
-      throw new Error(
-        typeof detail === "string"
-          ? detail
-          : "No se pudo iniciar el procesamiento."
-      );
-    }
-
-    return data;
   };
 
   const fetchJobResult = async (currentJobId) => {
@@ -221,71 +205,39 @@ function PriceStocksUploads() {
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const pollJob = async (currentJobId) => {
+  const pollStageJob = async (currentJobId, stageLabel) => {
     let finished = false;
 
     while (!finished) {
-      try {
-        const r = await fetch(`${API_BASE}/imports/${currentJobId}`, {
-          credentials: "include",
-        });
+      const response = await fetch(`${API_BASE}/imports/${currentJobId}`, {
+        credentials: "include",
+      });
 
-        const data = await r.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
 
-        if (!r.ok) {
-          setLoadingProcess(false);
-          setLoadingResult(false);
-          setStatus("error");
-          setMessage("Error consultando el estado del proceso.");
-          return;
-        }
-
-        const currentProgress =
-          typeof data.progress === "number" ? data.progress : 0;
-
-        setProgress(currentProgress);
-        setProcessMessage(data.message || "");
-        setMessage(data.message || "");
-
-        if (data.status === "success") {
-          finished = true;
-          setProgress(100);
-          setStatus("success");
-
-          try {
-            setLoadingResult(true);
-            await fetchJobResult(currentJobId);
-          } catch (error) {
-            setStatus("error");
-            setMessage(
-              error?.message ||
-                "El proceso terminó, pero no se pudo obtener el resumen."
-            );
-          } finally {
-            setLoadingResult(false);
-            setLoadingProcess(false);
-          }
-
-          return;
-        }
-
-        if (data.status === "error") {
-          finished = true;
-          setLoadingProcess(false);
-          setLoadingResult(false);
-          setStatus("error");
-          setMessage(data.message || "Ocurrió un error al procesar el archivo.");
-          return;
-        }
-
-        await sleep(1200);
-      } catch (err) {
-        setLoadingProcess(false);
-        setLoadingResult(false);
-        setStatus("error");
-        setMessage("Error de red consultando el estado del proceso.");
-        return;
+      if (!response.ok) {
+        throw new Error(
+          data?.detail || data?.message || "Error consultando el estado del proceso."
+        );
       }
+
+      const currentProgress =
+        typeof data.progress === "number" ? data.progress : 0;
+
+      setProgress(Math.min(100, currentProgress));
+      setProcessMessage(`${stageLabel}: ${data.message || "Procesando..."}`);
+      setMessage(data.message || "");
+
+      if (data.status === "success") {
+        finished = true;
+        return data;
+      }
+
+      if (data.status === "error") {
+        throw new Error(data.message || `Error en etapa ${stageLabel}`);
+      }
+
+      await sleep(1200);
     }
   };
 
@@ -293,6 +245,12 @@ function PriceStocksUploads() {
     if (!mlVerified) {
       setStatus("error");
       setMessage("Primero debes conectar tu cuenta de Mercado Libre.");
+      return;
+    }
+
+    if (!mlUserId) {
+      setStatus("error");
+      setMessage("No se encontró user_id asociado a la conexión de Mercado Libre.");
       return;
     }
 
@@ -309,20 +267,33 @@ function PriceStocksUploads() {
       setLoadingProcess(true);
       setLoadingResult(false);
       setProgress(0);
-      setProcessMessage("Subiendo archivo...");
       setMessage("");
+      setProcessMessage("Iniciando actualización de precios y stock...");
 
-      const isExcel = file.name.toLowerCase().endsWith(".xlsx");
-      setProcessMessage(isExcel ? "Subiendo Excel..." : "Subiendo CSV...");
-
-      const newJobId = await uploadFile(file);
+      const newJobId = await startPriceStockJob(file);
       setJobId(newJobId);
 
-      setProgress(5);
-      setProcessMessage("Iniciando procesamiento...");
-      await startJob(newJobId);
+      await pollStageJob(
+        newJobId,
+        "Actualizando precios y stock"
+      );
 
-      await pollJob(newJobId);
+      setProgress(100);
+      setStatus("success");
+
+      try {
+        setLoadingResult(true);
+        await fetchJobResult(newJobId);
+      } catch (error) {
+        setStatus("error");
+        setMessage(
+          error?.message ||
+            "El proceso terminó, pero no se pudo obtener el resumen."
+        );
+      } finally {
+        setLoadingResult(false);
+        setLoadingProcess(false);
+      }
     } catch (error) {
       setLoadingProcess(false);
       setLoadingResult(false);
@@ -336,7 +307,7 @@ function PriceStocksUploads() {
     window.location.href = `${API_BASE}/auth/login`;
   };
 
-  const acceptText = "Archivo permitido: .xlsx o .csv";
+  const acceptText = "Archivo permitido: .xlsx, .xls o .csv con columnas MLC, ESTADO, STOCK, PRECIO";
   const buttonText =
     status === "processing" ? "Procesando..." : "Procesar Archivo";
 
@@ -404,7 +375,7 @@ function PriceStocksUploads() {
               id="priceStocksFileInput"
               className="price-stocks-file-input"
               type="file"
-              accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               onChange={handleFileChange}
               disabled={!mlVerified || status === "processing" || checkingConnection}
             />
@@ -422,6 +393,7 @@ function PriceStocksUploads() {
               onClick={handleProcess}
               disabled={
                 !mlVerified ||
+                !mlUserId ||
                 !file ||
                 status === "processing" ||
                 checkingConnection ||

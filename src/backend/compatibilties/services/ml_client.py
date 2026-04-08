@@ -432,6 +432,35 @@ class MercadoLibreClient:
 
         return data if isinstance(data, dict) else {"raw_response": data}
 
+    async def update_item_price_stock(
+        self,
+        access_token: str | None,
+        item_id: str,
+        price: float | None = None,
+        available_quantity: int | None = None,
+        status: str | None = None,
+        user_id: int | str | None = None,
+    ) -> dict:
+        body: dict[str, Any] = {}
+        if price is not None:
+            body["price"] = price
+        if available_quantity is not None:
+            body["available_quantity"] = int(available_quantity)
+        if status is not None:
+            body["status"] = status
+
+        if not body:
+            return {"ok": False, "reason": "No hay campos para actualizar"}
+
+        data = await self.request(
+            "PUT",
+            f"/items/{item_id}",
+            access_token=access_token,
+            json_body=body,
+            user_id=user_id,
+        )
+        return data if isinstance(data, dict) else {"raw_response": data}
+
     async def add_item_compatibility_exception(
         self,
         access_token: str | None,
