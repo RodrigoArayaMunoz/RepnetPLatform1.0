@@ -443,7 +443,7 @@ class MercadoLibreClient:
     ) -> dict:
         body: dict[str, Any] = {}
         if price is not None:
-            body["price"] = price
+            body["price"] = int(price)
         if available_quantity is not None:
             body["available_quantity"] = int(available_quantity)
         if status is not None:

@@ -1,4 +1,4 @@
-﻿from celery import Celery
+from celery import Celery
 from config import settings
 
 celery_app = Celery(
@@ -10,6 +10,7 @@ celery_app = Celery(
         "tasks.product_resolution_tasks",
         "tasks.compatibility_batch_tasks",
         "tasks.compatibility_exception_tasks",
+        "tasks.price_stock_tasks",
     ],
 )
 
@@ -28,5 +29,6 @@ celery_app.conf.update(
         "tasks.resolve_products_job": {"queue": "compat_dispatch"},
         "tasks.add_compatibilities_batch_job": {"queue": "compat_chunks"},
         "tasks.process_compatibility_exceptions_job": {"queue": "compat_chunks"},
+        "tasks.process_price_stock_job": {"queue": "compat_dispatch"},
     },
 )
