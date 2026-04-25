@@ -1,7 +1,7 @@
 import json
 import os
 from contextlib import asynccontextmanager
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse, StreamingResponse
 from config import settings
 from schemas import JobResponse
 from services.ml_publicationswithout_service import ml_publications_service
+from services.supabase_meli_connection_store import supabase_meli_connection_store
 from services.token_store import token_store, require_ml_env
 from services.job_store import JobStore
 from services.ml_client import ml_client
@@ -23,6 +24,7 @@ from routers.price_stock_router import router as price_stock_router
 async def lifespan(app: FastAPI):
     os.makedirs(settings.upload_dir, exist_ok=True)
     await ml_client.startup()
+    await supabase_meli_connection_store.restore_token_store()
     yield
     await ml_client.shutdown()
 
@@ -46,28 +48,42 @@ app.add_middleware(
 )
 
 
+def build_safe_frontend_redirect(redirect_to: str | None = None) -> str:
+    base_frontend_url = settings.frontend_url.rstrip("/")
+
+    if not redirect_to:
+        return f"{base_frontend_url}/"
+
+    parsed = urlparse(redirect_to)
+    is_safe_relative_path = (
+        not parsed.scheme
+        and not parsed.netloc
+        and redirect_to.startswith("/")
+        and not redirect_to.startswith("//")
+    )
+
+    if not is_safe_relative_path:
+        return f"{base_frontend_url}/"
+
+    normalized_path = parsed.path or "/"
+    query = f"?{parsed.query}" if parsed.query else ""
+    fragment = f"#{parsed.fragment}" if parsed.fragment else ""
+    return f"{base_frontend_url}{normalized_path}{query}{fragment}"
+
+
 @app.get("/ml/status")
 async def ml_status():
-    user_id = token_store.first_user_id()
-    if not user_id:
+    rows = await supabase_meli_connection_store.list_rows(include_tokens=False)
+    if not rows:
         return {"connected": False}
 
-    token_data = token_store.get(user_id)
-    if not token_data:
-        return {"connected": False}
+    row = rows[0]
+    connected = bool(row.get("is_active") and row.get("ml_user_id"))
 
-    try:
-        await ml_client.get_valid_token(user_id)
-        token_data = token_store.get(user_id)
-        return {
-            "connected": True,
-            "user_id": user_id,
-            "has_refresh_token": bool(token_data.get("refresh_token")),
-            "expires_in": token_data.get("expires_in"),
-            "expires_at": token_data.get("expires_at"),
-        }
-    except HTTPException:
-        return {"connected": False}
+    return {
+        "connected": connected,
+        "user_id": str(row.get("ml_user_id")) if connected else None,
+    }
 
 
 @app.get("/ml/me")
@@ -78,15 +94,16 @@ async def ml_me(user_id: int):
 
 
 @app.get("/auth/login")
-def ml_auth_login(state: str | None = None):
+def ml_auth_login(redirect_to: str | None = None, state: str | None = None):
     require_ml_env()
     params = {
         "response_type": "code",
         "client_id": settings.ml_client_id,
         "redirect_uri": settings.ml_redirect_uri,
     }
-    if state:
-        params["state"] = state
+    redirect_state = redirect_to or state
+    if redirect_state:
+        params["state"] = redirect_state
 
     url = f"{settings.ml_auth_url}?{urlencode(params)}"
     return RedirectResponse(url=url)
@@ -125,8 +142,17 @@ async def ml_auth_callback(code: str = Query(...), state: str | None = None):
 
     payload_to_save = token_store.build_payload(token_response, user_id)
     token_store.set(user_id, payload_to_save)
+    synced = await supabase_meli_connection_store.sync_connection(
+        payload_to_save,
+        is_active=True,
+    )
+    if not synced:
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo guardar la conexion de Mercado Libre en Supabase",
+        )
 
-    return RedirectResponse(url=f"{settings.frontend_url}?ml_connected=1&user_id={user_id}")
+    return RedirectResponse(url=build_safe_frontend_redirect(state))
 
 
 @app.post("/auth/refresh")
@@ -144,6 +170,7 @@ async def ml_refresh_token(user_id: int):
 @app.post("/auth/logout")
 async def ml_logout(user_id: int):
     token_store.remove(user_id)
+    await supabase_meli_connection_store.mark_disconnected(user_id)
     return {"ok": True, "message": "SesiÃ³n local eliminada"}
 
 

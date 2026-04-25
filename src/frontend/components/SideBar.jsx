@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
 import { supabase } from "../../lib/supabase.js";
+import {
+  ML_VERIFYING_MESSAGE,
+  readMlConnectionStatus,
+} from "../../lib/meliConnection.js";
 import "../styles/SideBar.css";
 
 const navItems = [
@@ -51,12 +55,15 @@ const navItems = [
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const API_BASE =
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
   const [userEmail, setUserEmail] = useState("");
   const [authLoading, setAuthLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const [isMlConnected, setIsMlConnected] = useState(false);
   const [mlStatusLoading, setMlStatusLoading] = useState(true);
+  const [mlStatusMessage, setMlStatusMessage] = useState(ML_VERIFYING_MESSAGE);
 
   const getMenuStateFromPath = (pathname) => ({
     compatibilidades: pathname.startsWith("/compatibilidades"),
@@ -122,43 +129,43 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   useEffect(() => {
     if (!supabase) {
       setMlStatusLoading(false);
+      setMlStatusMessage("Sin configuracion");
       return;
     }
 
     if (authLoading || !userEmail) {
+      if (!authLoading && !userEmail) {
+        setIsMlConnected(false);
+        setMlStatusLoading(false);
+        setMlStatusMessage("No conectado");
+      }
       return;
     }
 
-    let mounted = true;
+    let cancelled = false;
 
     const checkMlConnection = async () => {
       setMlStatusLoading(true);
+      setMlStatusMessage(ML_VERIFYING_MESSAGE);
 
       try {
-        const { data, error } = await supabase
-          .from("meli_global_connection")
-          .select("id, is_active")
-          .limit(1)
-          .maybeSingle();
+        const connection = await readMlConnectionStatus();
 
-        if (!mounted) {
+        if (cancelled) {
           return;
         }
 
-        if (error) {
-          console.error("Error verificando conexion ML:", error);
-          setIsMlConnected(false);
-        } else {
-          setIsMlConnected(Boolean(data && data.is_active === true));
-        }
+        setIsMlConnected(connection.connected);
+        setMlStatusMessage(connection.statusMessage);
       } catch (error) {
         console.error("Error inesperado verificando conexion ML:", error);
 
-        if (mounted) {
+        if (!cancelled) {
           setIsMlConnected(false);
+          setMlStatusMessage("No se pudo verificar la conexion con Mercado Libre");
         }
       } finally {
-        if (mounted) {
+        if (!cancelled) {
           setMlStatusLoading(false);
         }
       }
@@ -166,10 +173,25 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
 
     checkMlConnection();
 
-    return () => {
-      mounted = false;
+    const handleWindowFocus = () => {
+      checkMlConnection();
     };
-  }, [authLoading, userEmail]);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkMlConnection();
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [authLoading, location.pathname, location.search, userEmail]);
 
   const toggleMenu = (key) => {
     setOpenMenus((prev) => ({
@@ -192,6 +214,18 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
 
     try {
       setSigningOut(true);
+
+      const connection = await readMlConnectionStatus();
+
+      if (connection.userId) {
+        await fetch(
+          `${API_BASE}/auth/logout?user_id=${encodeURIComponent(connection.userId)}`,
+          {
+            method: "POST",
+            credentials: "include",
+          }
+        );
+      }
 
       if (supabase) {
         const { error } = await supabase.auth.signOut();
@@ -219,8 +253,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
       return "Verificando...";
     }
 
-    return isMlConnected ? "Conectado" : "No conectado";
-  }, [isMlConnected, mlStatusLoading]);
+    return isMlConnected ? "Conectado" : mlStatusMessage;
+  }, [isMlConnected, mlStatusLoading, mlStatusMessage]);
 
   return (
     <>
@@ -272,7 +306,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
               </span>
               <span
                 className={`sidebar__status-badge ${
-                  isMlConnected
+                  mlStatusLoading
+                    ? "sidebar__status-badge--pending"
+                    : isMlConnected
                     ? "sidebar__status-badge--success"
                     : "sidebar__status-badge--danger"
                 }`}

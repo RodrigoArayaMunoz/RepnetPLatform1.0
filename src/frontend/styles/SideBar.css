@@ -459,6 +459,11 @@
   color: #fecaca;
 }
 
+.sidebar__status-badge--pending {
+  background: rgba(250, 204, 21, 0.16);
+  color: #fef08a;
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;

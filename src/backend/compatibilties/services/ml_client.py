@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 from config import settings
 from services.excel_service import normalize_for_compare
+from services.supabase_meli_connection_store import supabase_meli_connection_store
 from services.token_store import require_ml_env, token_store
 
 
@@ -197,6 +198,7 @@ class MercadoLibreClient:
         refresh_token = token_data.get("refresh_token")
         if not refresh_token:
             token_store.remove(user_id)
+            await supabase_meli_connection_store.mark_disconnected(user_id)
             raise HTTPException(
                 status_code=400,
                 detail="No hay refresh_token guardado",
@@ -219,10 +221,15 @@ class MercadoLibreClient:
         r = await self.client.post(settings.ml_token_url, data=payload, headers=headers)
         if r.status_code >= 400:
             token_store.remove(user_id)
+            await supabase_meli_connection_store.mark_disconnected(user_id)
             raise HTTPException(status_code=r.status_code, detail=r.text)
 
         new_token_data = token_store.build_payload(r.json(), user_id)
         token_store.set(user_id, new_token_data)
+        await supabase_meli_connection_store.sync_connection(
+            new_token_data,
+            is_active=True,
+        )
         return new_token_data
 
     async def get_valid_token(self, user_id: int | str) -> str:

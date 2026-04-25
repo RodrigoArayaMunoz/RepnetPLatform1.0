@@ -1,5 +1,6 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
+from pydantic import AliasChoices, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -27,6 +28,22 @@ class Settings(BaseSettings):
     ml_api_base: str = "https://api.mercadolibre.com"
     ml_domain_id: str = "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES"
     ml_site_id: str = "MLC"
+    supabase_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SUPABASE_URL", "VITE_SUPABASE_URL"),
+    )
+    supabase_anon_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY"),
+    )
+    supabase_service_role_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "SUPABASE_SERVICE_KEY",
+        ),
+    )
+    supabase_meli_connection_table: str = "meli_global_connection"
 
     ml_compatibility_exception_comment: str = (
         "No aparecen detalles técnicos del modelo correspondiente."

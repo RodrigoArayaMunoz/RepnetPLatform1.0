@@ -2,6 +2,10 @@
 import { useEffect, useState, useRef } from "react";
 import ResultModal from "../components/ResultModal";
 import PublicationsWithoutCompatibilityModal from "../components/PublicationsWithoutCompatibilityModal";
+import {
+  ML_VERIFYING_MESSAGE,
+  readMlConnectionStatus,
+} from "../../lib/meliConnection.js";
 
 function ProcessingOverlay({ visible, progress = 0, message = "" }) {
   if (!visible) return null;
@@ -38,9 +42,7 @@ function CompatibilitiesUpload() {
   const [mlVerified, setMlVerified] = useState(false);
   const [mlUserId, setMlUserId] = useState(null);
   const [checkingConnection, setCheckingConnection] = useState(true);
-  const [mlStatusMessage, setMlStatusMessage] = useState(
-    "Verificando conexión con Mercado Libre..."
-  );
+  const [mlStatusMessage, setMlStatusMessage] = useState(ML_VERIFYING_MESSAGE);
 
   const [jobResult, setJobResult] = useState(null);
   const [loadingResult, setLoadingResult] = useState(false);
@@ -83,26 +85,14 @@ function CompatibilitiesUpload() {
       setMlVerified(false);
       setMlConnected(false);
       setMlUserId(null);
-      setMlStatusMessage("Verificando conexión con Mercado Libre...");
+      setMlStatusMessage(ML_VERIFYING_MESSAGE);
 
-      const res = await fetch(`${API_BASE}/ml/status`, {
-        method: "GET",
-        credentials: "include",
-      });
+      const connection = await readMlConnectionStatus();
 
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok && data?.connected === true) {
-        setMlConnected(true);
-        setMlVerified(true);
-        setMlUserId(data?.user_id ? String(data.user_id) : null);
-        setMlStatusMessage("Conectado exitosamente");
-      } else {
-        setMlConnected(false);
-        setMlVerified(false);
-        setMlUserId(null);
-        setMlStatusMessage("Debes conectar tu cuenta de Mercado Libre");
-      }
+      setMlConnected(connection.connected);
+      setMlVerified(connection.verified);
+      setMlUserId(connection.userId);
+      setMlStatusMessage(connection.statusMessage);
     } catch (error) {
       setMlConnected(false);
       setMlVerified(false);
@@ -375,7 +365,10 @@ function CompatibilitiesUpload() {
 
   const handleConnectMercadoLibre = () => {
     if (checkingConnection || mlVerified) return;
-    window.location.href = `${API_BASE}/auth/login`;
+    const redirectTo = `${window.location.pathname}${window.location.search}`;
+    window.location.href = `${API_BASE}/auth/login?redirect_to=${encodeURIComponent(
+      redirectTo
+    )}`;
   };
 
   const acceptText = "Archivo permitido: .xlsx o .csv";

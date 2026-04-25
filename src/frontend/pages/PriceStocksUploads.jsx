@@ -304,7 +304,10 @@ function PriceStocksUploads() {
 
   const handleConnectMercadoLibre = () => {
     if (checkingConnection || mlVerified) return;
-    window.location.href = `${API_BASE}/auth/login`;
+    const redirectTo = `${window.location.pathname}${window.location.search}`;
+    window.location.href = `${API_BASE}/auth/login?redirect_to=${encodeURIComponent(
+      redirectTo
+    )}`;
   };
 
   const acceptText = "Archivo permitido: .xlsx, .xls o .csv con columnas mlc, precio_nuevo, stock_nuevo, estado_nuevo";
