@@ -122,6 +122,8 @@ class MercadoLibreClient:
                     continue
 
                 if response.status_code >= 400:
+                    print(f"[DEBUG ML_CLIENT] ERROR {response.status_code} for {method} {url}")
+                    print(f"[DEBUG ML_CLIENT] RESPONSE BODY: {response.text}")
                     raise HTTPException(
                         status_code=response.status_code,
                         detail=f"ML API error {response.status_code}: {response.text}",
@@ -452,6 +454,12 @@ class MercadoLibreClient:
         if not body:
             return {"ok": False, "reason": "No hay campos para actualizar"}
 
+        import json as _json
+        #print("=" * 60)
+        #print(f"[DEBUG PRICE_STOCK] PUT /items/{item_id}")
+        #print(f"[DEBUG PRICE_STOCK] BODY:\n{_json.dumps(body, indent=2, ensure_ascii=False)}")
+        #print("=" * 60)
+
         data = await self.request(
             "PUT",
             f"/items/{item_id}",
@@ -459,6 +467,10 @@ class MercadoLibreClient:
             json_body=body,
             user_id=user_id,
         )
+
+        #print(f"[DEBUG PRICE_STOCK] RESPONSE for {item_id}:\n{_json.dumps(data if isinstance(data, dict) else {'raw': str(data)}, indent=2, ensure_ascii=False)}")
+        #print("=" * 60)
+
         return data if isinstance(data, dict) else {"raw_response": data}
 
     async def add_item_compatibility_exception(

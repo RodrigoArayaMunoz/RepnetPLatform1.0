@@ -307,7 +307,7 @@ function PriceStocksUploads() {
     window.location.href = `${API_BASE}/auth/login`;
   };
 
-  const acceptText = "Archivo permitido: .xlsx, .xls o .csv con columnas MLC, ESTADO, STOCK, PRECIO";
+  const acceptText = "Archivo permitido: .xlsx, .xls o .csv con columnas mlc, precio_nuevo, stock_nuevo, estado_nuevo";
   const buttonText =
     status === "processing" ? "Procesando..." : "Procesar Archivo";
 

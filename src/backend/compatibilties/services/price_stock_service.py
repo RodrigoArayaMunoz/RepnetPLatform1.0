@@ -27,6 +27,9 @@ ESTADO_COLUMN_ALIASES = [
     "ESTADO",
     "Estado",
     "estado",
+    "ESTADO_NUEVO",
+    "estado_nuevo",
+    "Estado_Nuevo",
     "STATUS",
     "status",
     "Status",
@@ -36,6 +39,9 @@ STOCK_COLUMN_ALIASES = [
     "STOCK",
     "Stock",
     "stock",
+    "STOCK_NUEVO",
+    "stock_nuevo",
+    "Stock_Nuevo",
     "CANTIDAD",
     "cantidad",
     "Cantidad",
@@ -45,6 +51,9 @@ PRECIO_COLUMN_ALIASES = [
     "PRECIO",
     "Precio",
     "precio",
+    "PRECIO_NUEVO",
+    "precio_nuevo",
+    "Precio_Nuevo",
     "PRICE",
     "price",
     "Price",
@@ -129,7 +138,7 @@ def _parse_estado(raw_value: str) -> str | None:
 
 def _parse_precio(raw_value: Any) -> float | None:
     if raw_value is None or (isinstance(raw_value, float) and pd.isna(raw_value)):
-        return None
+        return 0
     try:
         value = float(raw_value)
         if value < 0:
