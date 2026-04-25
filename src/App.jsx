@@ -1,31 +1,155 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-import MainLayout from "../src/frontend/layouts/MainLayout";
-import Home from "../src/frontend/pages/Home";
+import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import MainLayout from "./frontend/layouts/MainLayout";
+import Home from "./frontend/pages/Home";
 import Compatibilidades from "./frontend/pages/CompatibilitiesUpload";
 import PreciosStock from "./frontend/pages/PriceStocksUploads";
 import NoCompatibilidades from "./frontend/pages/NoCompatibilities";
 import Login from "./frontend/pages/Login";
+import { isSupabaseConfigured, supabase } from "./lib/supabase";
+
+function AuthLoadingScreen() {
+  return <div className="app-root" />;
+}
+
+function RequireAuth({ canAccessProtectedRoutes, authLoading, children }) {
+  if (authLoading) {
+    return <AuthLoadingScreen />;
+  }
+
+  return canAccessProtectedRoutes ? children : <Navigate to="/" replace />;
+}
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [hasAuthenticatedInApp, setHasAuthenticatedInApp] = useState(false);
+  const [authLoading, setAuthLoading] = useState(isSupabaseConfigured);
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false);
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        console.error("No se pudo obtener la sesion actual.", error);
+      }
+
+      if (!isMounted) {
+        return;
+      }
+
+      setSession(data?.session ?? null);
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!isMounted) {
+        return;
+      }
+
+      setSession(nextSession);
+
+      if (event === "SIGNED_IN") {
+        setHasAuthenticatedInApp(true);
+      }
+
+      if (event === "SIGNED_OUT") {
+        setHasAuthenticatedInApp(false);
+      }
+
+      setAuthLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const canAccessProtectedRoutes = Boolean(session && hasAuthenticatedInApp);
+
+  const handleLoginSuccess = (nextSession) => {
+    setSession(nextSession);
+    setHasAuthenticatedInApp(true);
+  };
+
   return (
-    //<Login></Login>
-      <BrowserRouter>
+    <BrowserRouter>
       <Routes>
-        <Route element={<MainLayout />}>
-          <Route path="/" element={<Home />} />
-          <Route
-            path="/compatibilidades/carga-masiva"
-            element={<Compatibilidades />}
-          />
-          <Route
-            path="/compatibilidades/no-compatibilidades"
-            element={<NoCompatibilidades />}
-          />
-          <Route
-            path="/actualizaciones/precios-stock"
-            element={<PreciosStock />}
-          />
+        <Route
+          path="/"
+          element={
+            <Login
+              supabaseConfigured={isSupabaseConfigured}
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              onLoginSuccess={handleLoginSuccess}
+            />
+          }
+        />
+
+        <Route
+          path="/menu"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<Home />} />
         </Route>
+
+        <Route
+          path="/compatibilidades/carga-masiva"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<Compatibilidades />} />
+        </Route>
+
+        <Route
+          path="/compatibilidades/no-compatibilidades"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<NoCompatibilidades />} />
+        </Route>
+
+        <Route
+          path="/actualizaciones/precios-stock"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<PreciosStock />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
