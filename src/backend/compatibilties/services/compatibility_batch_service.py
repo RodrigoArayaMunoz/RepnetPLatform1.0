@@ -1,7 +1,10 @@
 import asyncio
+import json
 import logging
 from collections import defaultdict
 from typing import Awaitable, Callable, Iterable
+
+from fastapi import HTTPException
 
 from config import settings
 from services.compatibility_service import JobMetrics, WRITE_RATE_LIMITER, call_ml
@@ -36,6 +39,7 @@ POSICION_ID_VALUE_IDS = {
 
 FAMILIAS_BRAKE_SHOCK = {"MLC-VEHICLE_BRAKE_PADS", "MLC-VEHICLE_SHOCK_ABSORBERS"}
 FAMILIAS_LIGHTS = {"MLC-VEHICLE_TAIL_LIGHTS", "MLC-VEHICLE_HEADLIGHTS"}
+FAMILIAS_BRAKE_DISC = {"MLC-VEHICLE_BRAKE_DISCS"}
 
 
 def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list:
@@ -87,13 +91,69 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
                 ],
             }
         ]
+    
+    if familia_upper in FAMILIAS_BRAKE_DISC:
+        return  [
+            {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                    {
+                        "values": [
+                            {"value_id": dt_value_id, "value_name": dt_name},
+                        ]
+                    }
+                ],
+            }
+        ]
+        #print("=" * 60)
+        #print(f"[BRAKE_DISC][RESTRICTION] familia={familia_upper} posicion_dt={dt_name}")
+        #print(f"[BRAKE_DISC][RESTRICTION] JSON:\n{json.dumps(restriction, indent=2, ensure_ascii=False)}")
+        #print("=" * 60)
+        #logger.info(
+            #"[BRAKE_DISC][RESTRICTION] familia=%s posicion_dt=%s restriction=%s",
+            #familia_upper, dt_name, json.dumps(restriction, ensure_ascii=False),
+        #)
+        return restriction
 
-    return []
+    #return []
 
 
 def chunked(items: list[str], size: int) -> Iterable[list[str]]:
     for i in range(0, len(items), size):
         yield items[i:i + size]
+
+
+def _error_type_for_status(status_code: int | None) -> str:
+    if status_code is not None and 400 <= status_code < 500:
+        return "functional"
+    return "technical"
+
+
+def _pick_error_text(payload: dict) -> str | None:
+    for key in ("message", "detail", "error"):
+        value = payload.get(key)
+        if value not in (None, ""):
+            return str(value)
+    return None
+
+
+def _extract_http_error_message(detail) -> str:
+    if isinstance(detail, dict):
+        return _pick_error_text(detail) or json.dumps(detail, ensure_ascii=False)
+
+    if not isinstance(detail, str):
+        return str(detail)
+
+    first_brace = detail.find("{")
+    if first_brace >= 0:
+        try:
+            parsed = json.loads(detail[first_brace:])
+            if isinstance(parsed, dict):
+                return _pick_error_text(parsed) or detail
+        except json.JSONDecodeError:
+            pass
+
+    return detail
 
 
 async def get_item_compact_cached(
@@ -164,74 +224,111 @@ async def post_compatibilities_batch(
     restrictions: list | None = None,
     metrics: JobMetrics,
 ) -> dict:
-    item_compact = await get_item_compact_cached(
-        access_token=access_token,
-        user_id=user_id,
-        item_id=item_id,
-        metrics=metrics,
-    )
+    batch_size = min(200, max(1, int(getattr(settings, "compat_batch_size", 200))))
+    product_ids = [str(pid) for pid in product_ids][:batch_size]
 
-    category_id = item_compact.get("category_id")
-    user_product_id = item_compact.get("user_product_id")
+    try:
+        item_compact = await get_item_compact_cached(
+            access_token=access_token,
+            user_id=user_id,
+            item_id=item_id,
+            metrics=metrics,
+        )
 
-    if not category_id or not user_product_id:
-        logger.error(
-            "[BATCH][ERROR] item_id=%s sin category_id o user_product_id",
+        category_id = item_compact.get("category_id")
+        user_product_id = item_compact.get("user_product_id")
+
+        if not category_id or not user_product_id:
+            logger.error(
+                "[BATCH][ERROR] item_id=%s sin category_id o user_product_id",
+                item_id,
+            )
+            return {
+                "ok": False,
+                "item_id": item_id,
+                "product_ids": product_ids,
+                "error_type": "technical",
+                "error_code": "MISSING_ITEM_DATA",
+                "error_message": "No se obtuvo category_id o user_product_id",
+                "response": None,
+            }
+
+        logger.info(
+            "[BATCH][PUT] item_id=%s user_product_id=%s products_sent=%s restrictions=%s",
             item_id,
+            user_product_id,
+            len(product_ids),
+            restrictions,
+        )
+
+        response = await call_ml(
+            ml_client.add_user_product_compatibilities_batch,
+            access_token=access_token,
+            user_product_id=str(user_product_id),
+            category_id=str(category_id),
+            product_ids=product_ids,
+            restrictions=restrictions if restrictions is not None else [],
+            user_id=user_id,
+            metrics=metrics,
+            limiter=WRITE_RATE_LIMITER,
+        )
+
+        logger.info(
+            "[BATCH][OK] item_id=%s user_product_id=%s products_sent=%s",
+            item_id,
+            user_product_id,
+            len(product_ids),
+        )
+
+        created_count = 0
+        if isinstance(response, dict):
+            created_count = response.get("created_compatibilities_count", 0) or 0
+
+        return {
+            "ok": True,
+            "item_id": item_id,
+            "user_product_id": str(user_product_id),
+            "category_id": str(category_id),
+            "products_sent_count": len(product_ids),
+            "product_ids": product_ids,
+            "response": response,
+            "created_compatibilities_count": created_count,
+        }
+    except HTTPException as exc:
+        status_code = getattr(exc, "status_code", None)
+        error_message = _extract_http_error_message(getattr(exc, "detail", exc))
+        logger.warning(
+            "[BATCH][HTTP_ERROR] item_id=%s status=%s products_sent=%s detail=%s",
+            item_id,
+            status_code,
+            len(product_ids),
+            error_message,
         )
         return {
             "ok": False,
             "item_id": item_id,
             "product_ids": product_ids,
-            "error_code": "MISSING_ITEM_DATA",
-            "error_message": "No se obtuvo category_id o user_product_id",
+            "status_code": status_code,
+            "error_type": _error_type_for_status(status_code),
+            "error_code": f"ML_HTTP_{status_code}" if status_code else "ML_HTTP_ERROR",
+            "error_message": error_message,
             "response": None,
         }
-
-    batch_size = min(200, max(1, int(getattr(settings, "compat_batch_size", 200))))
-    product_ids = [str(pid) for pid in product_ids][:batch_size]
-
-    logger.info(
-        "[BATCH][PUT] item_id=%s user_product_id=%s products_sent=%s restrictions=%s",
-        item_id,
-        user_product_id,
-        len(product_ids),
-        restrictions,
-    )
-
-    response = await call_ml(
-        ml_client.add_user_product_compatibilities_batch,
-        access_token=access_token,
-        user_product_id=str(user_product_id),
-        category_id=str(category_id),
-        product_ids=product_ids,
-        restrictions=restrictions if restrictions is not None else [],
-        user_id=user_id,
-        metrics=metrics,
-        limiter=WRITE_RATE_LIMITER,
-    )
-
-    logger.info(
-        "[BATCH][OK] item_id=%s user_product_id=%s products_sent=%s",
-        item_id,
-        user_product_id,
-        len(product_ids),
-    )
-
-    created_count = 0
-    if isinstance(response, dict):
-        created_count = response.get("created_compatibilities_count", 0) or 0
-
-    return {
-        "ok": True,
-        "item_id": item_id,
-        "user_product_id": str(user_product_id),
-        "category_id": str(category_id),
-        "products_sent_count": len(product_ids),
-        "product_ids": product_ids,
-        "response": response,
-        "created_compatibilities_count": created_count,
-    }
+    except Exception as exc:
+        logger.exception(
+            "[BATCH][UNEXPECTED_ERROR] item_id=%s products_sent=%s",
+            item_id,
+            len(product_ids),
+        )
+        return {
+            "ok": False,
+            "item_id": item_id,
+            "product_ids": product_ids,
+            "error_type": "technical",
+            "error_code": "UNEXPECTED_BATCH_ERROR",
+            "error_message": str(exc),
+            "response": None,
+        }
 
 
 def build_final_row_results(
@@ -251,6 +348,7 @@ def build_final_row_results(
         else:
             for pid in product_ids:
                 error_by_pair[(item_id, pid)] = {
+                    "error_type": batch.get("error_type", "technical"),
                     "error_code": batch.get("error_code", "BATCH_ERROR"),
                     "error_message": batch.get("error_message", "Error en batch"),
                 }
@@ -315,14 +413,14 @@ def build_final_row_results(
                     "ok": False,
                     "success_count": 0,
                     "error_count": 1,
-                    "error_type": "technical",
+                    "error_type": error_info.get("error_type", "technical"),
                     "year_requested": row.get("year"),
                     "results": [
                         {
                             "ok": False,
                             "year": row.get("year"),
                             "reason": error_info["error_message"],
-                            "error_type": "technical",
+                            "error_type": error_info.get("error_type", "technical"),
                             "error_code": error_info["error_code"],
                             "product_id": product_id,
                         }
@@ -418,6 +516,16 @@ async def process_compatibility_batches(
             rd.get("posicion_dt", ""),
             rd.get("posicion_id", ""),
         )
+        #print("=" * 60)
+        #print(f"[BATCH][BUILD_RESTRICTION] item_id={item_id} familia={rd.get('familia', '')} posicion_dt={rd.get('posicion_dt', '')} posicion_id={rd.get('posicion_id', '')}")
+        #print(f"[BATCH][BUILD_RESTRICTION] restrictions={json.dumps(restrictions, indent=2, ensure_ascii=False)}")
+        #print("=" * 60)
+        #logger.info(
+            #"[BATCH][BUILD_RESTRICTION] item_id=%s familia=%s posicion_dt=%s posicion_id=%s restrictions=%s",
+            #item_id, rd.get('familia', ''), rd.get('posicion_dt', ''), rd.get('posicion_id', ''),
+            #json.dumps(restrictions, ensure_ascii=False),
+        #)
+        
         for batch in chunked(product_ids, batch_size):
             all_batches.append((item_id, batch, restrictions))
 
@@ -439,14 +547,30 @@ async def process_compatibility_batches(
         nonlocal completed
 
         async with semaphore:
-            result = await post_compatibilities_batch(
-                access_token=access_token,
-                user_id=user_id,
-                item_id=item_id,
-                product_ids=batch,
-                restrictions=restrictions,
-                metrics=metrics,
-            )
+            try:
+                result = await post_compatibilities_batch(
+                    access_token=access_token,
+                    user_id=user_id,
+                    item_id=item_id,
+                    product_ids=batch,
+                    restrictions=restrictions,
+                    metrics=metrics,
+                )
+            except Exception as exc:
+                logger.exception(
+                    "[BATCH][WORKER_ERROR] item_id=%s products_sent=%s",
+                    item_id,
+                    len(batch),
+                )
+                result = {
+                    "ok": False,
+                    "item_id": item_id,
+                    "product_ids": batch,
+                    "error_type": "technical",
+                    "error_code": "WORKER_UNHANDLED_ERROR",
+                    "error_message": str(exc),
+                    "response": None,
+                }
             batch_results[pos] = result
 
             should_notify = False

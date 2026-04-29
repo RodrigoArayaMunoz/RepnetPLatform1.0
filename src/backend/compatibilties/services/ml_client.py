@@ -105,7 +105,7 @@ class MercadoLibreClient:
 
                     raise HTTPException(
                         status_code=401,
-                        detail="Token invÃ¡lido o expirado",
+                        detail="Token inválido o expirado",
                     )
 
                 if response.status_code in retryable_status:
@@ -250,7 +250,7 @@ class MercadoLibreClient:
         if not access_token:
             raise HTTPException(
                 status_code=401,
-                detail="No se pudo obtener access_token vÃ¡lido",
+                detail="No se pudo obtener access_token válido",
             )
 
         return access_token
@@ -270,7 +270,7 @@ class MercadoLibreClient:
         if not isinstance(data, dict):
             raise HTTPException(
                 status_code=500,
-                detail=f"Respuesta invÃ¡lida para item {item_id}",
+                detail=f"Respuesta inválida para item {item_id}",
             )
         return data
 
@@ -416,19 +416,16 @@ class MercadoLibreClient:
         body = {
             "domain_id": settings.ml_domain_id,
             "category_id": category_id,
-            #"update": {
-                "products": products_list,
-            #}
+            "products": products_list,
         }
 
-        #import json as _json
+        import json as _json
         #print("=" * 60)
         #print(f"[DEBUG] POST /user-products/{user_product_id}/compatibilities")
         #print(f"[DEBUG] BODY:\n{_json.dumps(body, indent=2, ensure_ascii=False)}")
         #print("=" * 60)
 
         data = await self.request(
-            #"PUT",
             "POST",
             f"/user-products/{user_product_id}/compatibilities",
             access_token=access_token,
@@ -437,7 +434,7 @@ class MercadoLibreClient:
         )
 
         #print(f"[DEBUG] RESPONSE:\n{_json.dumps(data if isinstance(data, dict) else {'raw': str(data)}, indent=2, ensure_ascii=False)}")
-       # print("=" * 60)
+        #print("=" * 60)
 
         return data if isinstance(data, dict) else {"raw_response": data}
 
@@ -461,12 +458,6 @@ class MercadoLibreClient:
         if not body:
             return {"ok": False, "reason": "No hay campos para actualizar"}
 
-        import json as _json
-        #print("=" * 60)
-        #print(f"[DEBUG PRICE_STOCK] PUT /items/{item_id}")
-        #print(f"[DEBUG PRICE_STOCK] BODY:\n{_json.dumps(body, indent=2, ensure_ascii=False)}")
-        #print("=" * 60)
-
         data = await self.request(
             "PUT",
             f"/items/{item_id}",
@@ -474,9 +465,6 @@ class MercadoLibreClient:
             json_body=body,
             user_id=user_id,
         )
-
-        #print(f"[DEBUG PRICE_STOCK] RESPONSE for {item_id}:\n{_json.dumps(data if isinstance(data, dict) else {'raw': str(data)}, indent=2, ensure_ascii=False)}")
-        #print("=" * 60)
 
         return data if isinstance(data, dict) else {"raw_response": data}
 

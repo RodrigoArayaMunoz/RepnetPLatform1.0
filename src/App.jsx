@@ -7,6 +7,7 @@ import PreciosStock from "./frontend/pages/PriceStocksUploads";
 import NoCompatibilidades from "./frontend/pages/NoCompatibilities";
 import Login from "./frontend/pages/Login";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
+import MainSyncJobs from "./frontend/pages/MainSyncJobs.jsx";
 
 function AuthLoadingScreen() {
   return <div className="app-root" />;
@@ -147,6 +148,20 @@ export default function App() {
           }
         >
           <Route index element={<PreciosStock />} />
+        </Route>
+
+      <Route
+          path="/procesos/sincronizacion-procesos"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<MainSyncJobs />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

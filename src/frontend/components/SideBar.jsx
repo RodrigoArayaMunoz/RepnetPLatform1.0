@@ -11,6 +11,7 @@ import {
   LogOut,
   FileSpreadsheet,
   Ban,
+  FolderSync,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
 import { supabase } from "../../lib/supabase.js";
@@ -50,6 +51,19 @@ const navItems = [
       },
     ],
   },
+
+    {
+    key: "procesos",
+    label: "PROCESOS",
+    icon: FolderSync,
+    children: [
+      {
+        to: "/procesos/sincronizacion-procesos",
+        label: "Sincronización de Procesos",
+        icon: FileSpreadsheet,
+      },
+    ],
+  },
 ];
 
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
@@ -68,6 +82,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const getMenuStateFromPath = (pathname) => ({
     compatibilidades: pathname.startsWith("/compatibilidades"),
     actualizaciones: pathname.startsWith("/actualizaciones"),
+    procesos: pathname.startsWith("/procesos"),
   });
 
   const [openMenus, setOpenMenus] = useState(
@@ -199,6 +214,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
         key === "compatibilidades" ? !prev.compatibilidades : false,
       actualizaciones:
         key === "actualizaciones" ? !prev.actualizaciones : false,
+
+      procesos:
+        key === "procesos" ? !prev.procesos : false,
     }));
   };
 
