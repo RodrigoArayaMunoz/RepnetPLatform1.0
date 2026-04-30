@@ -302,6 +302,46 @@
   color: #b91c1c;
 }
 
+.status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 160px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3b82f6 0%, #6366f1 100%);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+}
+
+.progress-label {
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+  min-width: fit-content;
+}
+
 .main-sync-jobs__generate-button {
   min-width: 220px;
   height: 48px;

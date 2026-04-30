@@ -11,6 +11,13 @@ from services.compatibility_service import JobMetrics, WRITE_RATE_LIMITER, call_
 from services.excel_service import extract_item_id, normalize_text
 from services.job_store import JobStore
 from services.ml_client import ml_client
+from services.process_chunking_service import (
+    chunk_sequence,
+    count_chunks,
+    format_pause_minutes,
+    get_process_file_chunk_pause_seconds,
+    get_process_file_chunk_size,
+)
 
 MLC_COLUMN_ALIASES = [
     "MLC",
@@ -213,6 +220,9 @@ async def process_compatibility_exceptions_job(
     total_rows = len(rows)
     comment = settings.ml_compatibility_exception_comment
     metrics = JobMetrics()
+    chunk_size = get_process_file_chunk_size()
+    pause_seconds = get_process_file_chunk_pause_seconds()
+    total_chunks = count_chunks(total_rows, chunk_size)
 
     JobStore.update(
         job_id,
@@ -220,6 +230,8 @@ async def process_compatibility_exceptions_job(
         progress=5,
         total_rows=total_rows,
         total_unique_rows=total_rows,
+        total_chunks=total_chunks,
+        completed_chunks=0,
         message="Archivo leído correctamente. Preparando envío de excepciones...",
     )
 
@@ -240,35 +252,85 @@ async def process_compatibility_exceptions_job(
     access_token = await ml_client.get_valid_token(int(user_id))
 
     max_concurrency = max(1, int(getattr(settings, "max_row_concurrency", 2)))
-    semaphore = asyncio.Semaphore(max_concurrency)
     progress_lock = asyncio.Lock()
     results: list[dict[str, Any] | None] = [None] * total_rows
     completed = 0
+    indexed_rows = list(enumerate(rows))
 
-    async def worker(index: int, row: dict[str, Any]) -> None:
+    async def worker(
+        index: int,
+        row: dict[str, Any],
+        *,
+        chunk_number: int,
+        total_chunks_count: int,
+    ) -> None:
         nonlocal completed
-        async with semaphore:
-            result = await _process_exception_row(
-                access_token=access_token,
-                row=row,
-                user_id=user_id,
-                comment=comment,
-                metrics=metrics,
-            )
-            results[index] = result
+        result = await _process_exception_row(
+            access_token=access_token,
+            row=row,
+            user_id=user_id,
+            comment=comment,
+            metrics=metrics,
+        )
+        results[index] = result
 
-            async with progress_lock:
-                completed += 1
-                progress = 10 + int((completed / max(total_rows, 1)) * 85)
-                JobStore.update(
-                    job_id,
-                    progress=min(progress, 95),
-                    processed_rows=completed,
-                    processed_unique_rows=completed,
-                    message=f"Informando excepciones {completed}/{total_rows}",
+        async with progress_lock:
+            completed += 1
+            progress = 10 + int((completed / max(total_rows, 1)) * 85)
+            JobStore.update(
+                job_id,
+                progress=min(progress, 95),
+                processed_rows=completed,
+                processed_unique_rows=completed,
+                message=(
+                    f"Chunk {chunk_number}/{total_chunks_count} - "
+                    f"informando excepciones {completed}/{total_rows}"
+                ),
+            )
+
+    for chunk_number, (_, chunk_entries) in enumerate(
+        chunk_sequence(indexed_rows, chunk_size),
+        start=1,
+    ):
+        JobStore.update(
+            job_id,
+            message=(
+                f"Iniciando chunk {chunk_number}/{total_chunks} "
+                f"de excepciones con {len(chunk_entries)} filas"
+            ),
+        )
+
+        semaphore = asyncio.Semaphore(max_concurrency)
+
+        async def chunk_worker(index: int, row: dict[str, Any]) -> None:
+            async with semaphore:
+                await worker(
+                    index,
+                    row,
+                    chunk_number=chunk_number,
+                    total_chunks_count=total_chunks,
                 )
 
-    await asyncio.gather(*(worker(index, row) for index, row in enumerate(rows)))
+        await asyncio.gather(
+            *(chunk_worker(index, row) for index, row in chunk_entries)
+        )
+
+        JobStore.update(
+            job_id,
+            completed_chunks=chunk_number,
+            message=f"Chunk {chunk_number}/{total_chunks} de excepciones finalizado",
+        )
+
+        if chunk_number < total_chunks and pause_seconds > 0:
+            JobStore.update(
+                job_id,
+                message=(
+                    f"Chunk {chunk_number}/{total_chunks} finalizado. "
+                    f"Esperando {format_pause_minutes(pause_seconds)} para continuar "
+                    f"con el siguiente bloque."
+                ),
+            )
+            await asyncio.sleep(pause_seconds)
 
     final_results = [
         result

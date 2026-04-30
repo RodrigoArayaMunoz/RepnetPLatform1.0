@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from services.job_store import JobStore
 from services.process_queue_store import process_queue_store
 from tasks.process_queue_tasks import run_process_queue_task
 
@@ -44,4 +45,22 @@ async def start_process_queue(payload: StartProcessQueueRequest):
 
 @router.get("/status")
 async def get_process_queue_status():
-    return process_queue_store.get_state()
+    state = process_queue_store.get_state()
+
+    current_job_id = state.get("current_job_id")
+    if current_job_id and state.get("running"):
+        job = JobStore.get(current_job_id)
+        if job:
+            state["job_processed_rows"] = job.get("processed_rows", 0)
+            state["job_total_rows"] = job.get("total_rows", 0)
+            state["job_progress"] = job.get("progress", 0)
+        else:
+            state["job_processed_rows"] = 0
+            state["job_total_rows"] = 0
+            state["job_progress"] = 0
+    else:
+        state["job_processed_rows"] = 0
+        state["job_total_rows"] = 0
+        state["job_progress"] = 0
+
+    return state

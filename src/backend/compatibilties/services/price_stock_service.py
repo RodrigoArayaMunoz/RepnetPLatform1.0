@@ -11,6 +11,13 @@ from services.compatibility_service import JobMetrics, WRITE_RATE_LIMITER, call_
 from services.excel_service import extract_item_id, normalize_text
 from services.job_store import JobStore
 from services.ml_client import ml_client
+from services.process_chunking_service import (
+    chunk_sequence,
+    count_chunks,
+    format_pause_minutes,
+    get_process_file_chunk_pause_seconds,
+    get_process_file_chunk_size,
+)
 
 
 MLC_COLUMN_ALIASES = [
@@ -199,7 +206,6 @@ def load_price_stock_rows(file_path: str) -> list[dict[str, Any]]:
 
 
 async def _process_price_stock_row(
-    access_token: str,
     row: dict[str, Any],
     user_id: str,
     metrics: JobMetrics,
@@ -276,6 +282,7 @@ async def _process_price_stock_row(
         }
 
     try:
+        access_token = await ml_client.get_valid_token(int(user_id))
         response = await call_ml(
             ml_client.update_item_price_stock,
             access_token,
@@ -356,6 +363,9 @@ async def process_price_stock_job(
     rows = load_price_stock_rows(file_path)
     total_rows = len(rows)
     metrics = JobMetrics()
+    chunk_size = get_process_file_chunk_size()
+    pause_seconds = get_process_file_chunk_pause_seconds()
+    total_chunks = count_chunks(total_rows, chunk_size)
 
     JobStore.update(
         job_id,
@@ -363,6 +373,8 @@ async def process_price_stock_job(
         progress=5,
         total_rows=total_rows,
         total_unique_rows=total_rows,
+        total_chunks=total_chunks,
+        completed_chunks=0,
         message="Archivo leído correctamente. Preparando actualización de precios/stock...",
     )
 
@@ -379,37 +391,85 @@ async def process_price_stock_job(
         }
         return {"results": [], "summary": summary}
 
-    access_token = await ml_client.get_valid_token(int(user_id))
 
     max_concurrency = max(1, int(getattr(settings, "max_row_concurrency", 2)))
-    semaphore = asyncio.Semaphore(max_concurrency)
     progress_lock = asyncio.Lock()
     results: list[dict[str, Any] | None] = [None] * total_rows
     completed = 0
+    indexed_rows = list(enumerate(rows))
 
-    async def worker(index: int, row: dict[str, Any]) -> None:
+    async def worker(
+        index: int,
+        row: dict[str, Any],
+        *,
+        chunk_number: int,
+        total_chunks_count: int,
+    ) -> None:
         nonlocal completed
-        async with semaphore:
-            result = await _process_price_stock_row(
-                access_token=access_token,
-                row=row,
-                user_id=user_id,
-                metrics=metrics,
-            )
-            results[index] = result
+        result = await _process_price_stock_row(
+            row=row,
+            user_id=user_id,
+            metrics=metrics,
+        )
+        results[index] = result
 
-            async with progress_lock:
-                completed += 1
-                progress = 10 + int((completed / max(total_rows, 1)) * 85)
-                JobStore.update(
-                    job_id,
-                    progress=min(progress, 95),
-                    processed_rows=completed,
-                    processed_unique_rows=completed,
-                    message=f"Actualizando precios/stock {completed}/{total_rows}",
+        async with progress_lock:
+            completed += 1
+            progress = 10 + int((completed / max(total_rows, 1)) * 85)
+            JobStore.update(
+                job_id,
+                progress=min(progress, 95),
+                processed_rows=completed,
+                processed_unique_rows=completed,
+                message=(
+                    f"Chunk {chunk_number}/{total_chunks_count} - "
+                    f"actualizando precios/stock {completed}/{total_rows}"
+                ),
+            )
+
+    for chunk_number, (_, chunk_entries) in enumerate(
+        chunk_sequence(indexed_rows, chunk_size),
+        start=1,
+    ):
+        JobStore.update(
+            job_id,
+            message=(
+                f"Iniciando chunk {chunk_number}/{total_chunks} "
+                f"de precios/stock con {len(chunk_entries)} filas"
+            ),
+        )
+
+        semaphore = asyncio.Semaphore(max_concurrency)
+
+        async def chunk_worker(index: int, row: dict[str, Any]) -> None:
+            async with semaphore:
+                await worker(
+                    index,
+                    row,
+                    chunk_number=chunk_number,
+                    total_chunks_count=total_chunks,
                 )
 
-    await asyncio.gather(*(worker(index, row) for index, row in enumerate(rows)))
+        await asyncio.gather(
+            *(chunk_worker(index, row) for index, row in chunk_entries)
+        )
+
+        JobStore.update(
+            job_id,
+            completed_chunks=chunk_number,
+            message=f"Chunk {chunk_number}/{total_chunks} de precios/stock finalizado",
+        )
+
+        if chunk_number < total_chunks and pause_seconds > 0:
+            JobStore.update(
+                job_id,
+                message=(
+                    f"Chunk {chunk_number}/{total_chunks} finalizado. "
+                    f"Esperando {format_pause_minutes(pause_seconds)} para continuar "
+                    f"con el siguiente bloque."
+                ),
+            )
+            await asyncio.sleep(pause_seconds)
 
     final_results = [
         result

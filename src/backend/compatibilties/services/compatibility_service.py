@@ -92,13 +92,13 @@ def dsep(title: str = ""):
 READ_RATE_LIMITER = RedisWindowRateLimiter(
     redis_url=settings.redis_url,
     namespace="ml:read",
-    requests_per_second=int(_settings_value("ml_read_requests_per_second", 2)),
+    requests_per_second=float(_settings_value("ml_read_requests_per_second", 0.8)),
 )
 
 WRITE_RATE_LIMITER = RedisWindowRateLimiter(
     redis_url=settings.redis_url,
     namespace="ml:write_compat",
-    requests_per_second=int(_settings_value("ml_write_requests_per_second", 1)),
+    requests_per_second=float(_settings_value("ml_write_requests_per_second", 0.35)),
 )
 
 RETRY_ATTEMPTS = int(_settings_value("ml_retry_attempts", 4))
@@ -111,6 +111,19 @@ ProgressCallback: TypeAlias = Callable[[int], Awaitable[None]]
 def _is_retryable_http_exception(exc: HTTPException) -> bool:
     status = getattr(exc, "status_code", None)
     return status in {429, 500, 502, 503, 504}
+
+
+def _retry_after_from_http_exception(exc: HTTPException) -> float | None:
+    detail = getattr(exc, "detail", None)
+    if isinstance(detail, dict):
+        retry_after = detail.get("retry_after_seconds")
+        if retry_after is None:
+            return None
+        try:
+            return max(0.0, float(retry_after))
+        except (TypeError, ValueError):
+            return None
+    return None
 
 
 async def call_ml(
@@ -142,9 +155,29 @@ async def call_ml(
             metrics.ml_retries += 1
 
             if getattr(exc, "status_code", None) == 429:
-                delay = max(2.0, RETRY_BASE_DELAY * (2 ** attempt)) + random.uniform(0, 0.5)
+                retry_after_seconds = _retry_after_from_http_exception(exc)
+                limiter_cooldown = max(
+                    float(getattr(settings, "ml_retry_429_cooldown_seconds", 20.0)),
+                    retry_after_seconds or 0.0,
+                )
+                if limiter is not None and hasattr(limiter, "penalize"):
+                    try:
+                        await limiter.penalize(limiter_cooldown)
+                    except Exception:
+                        pass
+
+                delay = min(
+                    max(
+                        float(getattr(settings, "ml_retry_429_min_delay_seconds", 12.0)),
+                        retry_after_seconds or 0.0,
+                    ),
+                    float(getattr(settings, "ml_retry_max_delay_seconds", 60.0)),
+                ) + random.uniform(0, 0.5)
             else:
-                delay = RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.4)
+                delay = min(
+                    RETRY_BASE_DELAY * (2 ** attempt),
+                    float(getattr(settings, "ml_retry_max_delay_seconds", 60.0)),
+                ) + random.uniform(0, 0.4)
 
             await asyncio.sleep(delay)
 
@@ -156,7 +189,10 @@ async def call_ml(
                 raise
 
             metrics.ml_retries += 1
-            delay = RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.4)
+            delay = min(
+                RETRY_BASE_DELAY * (2 ** attempt),
+                float(getattr(settings, "ml_retry_max_delay_seconds", 60.0)),
+            ) + random.uniform(0, 0.4)
             await asyncio.sleep(delay)
 
     if last_exc:
@@ -802,28 +838,41 @@ async def process_rows_for_job(
     job_id: str,
     access_token: str,
     rows: list[dict],
+    *,
+    catalog_cache: CatalogPreloadService | None = None,
+    caches: JobCaches | None = None,
+    metrics: JobMetrics | None = None,
+    manage_job_updates: bool = True,
+    on_progress: ProgressCallback | None = None,
 ) -> dict:
-    caches = JobCaches()
-    metrics = JobMetrics()
-    catalog_cache = CatalogPreloadService(call_ml=call_ml, metrics=metrics)
+    caches = caches or JobCaches()
+    metrics = metrics or JobMetrics()
+    catalog_data = None
 
-    JobStore.update(
-        job_id,
-        progress=3,
-        message="Precargando diccionarios globales desde Mercado Libre...",
-    )
+    if catalog_cache is None:
+        catalog_cache = CatalogPreloadService(call_ml=call_ml, metrics=metrics)
 
-    catalog_data = await catalog_cache.preload_all(access_token)
+        if manage_job_updates:
+            JobStore.update(
+                job_id,
+                progress=3,
+                message="Precargando diccionarios globales desde Mercado Libre...",
+            )
 
-    JobStore.update(
-        job_id,
-        progress=10,
-        message="Diccionarios precargados. Resolviendo product_id por vehículo único...",
-        metrics={
-            **metrics.to_dict(),
-            "catalog_preload": catalog_data.stats() if hasattr(catalog_data, "stats") else {},
-        },
-    )
+        catalog_data = await catalog_cache.preload_all(access_token)
+
+    if manage_job_updates and catalog_data is not None:
+        JobStore.update(
+            job_id,
+            progress=10,
+            message="Diccionarios precargados. Resolviendo product_id por vehículo único...",
+            metrics={
+                **metrics.to_dict(),
+                "catalog_preload": (
+                    catalog_data.stats() if hasattr(catalog_data, "stats") else {}
+                ),
+            },
+        )
 
     total_rows = len(rows)
 
@@ -832,12 +881,13 @@ async def process_rows_for_job(
     duplicated_rows = total_rows - total_unique_rows
 
     if total_unique_rows == 0:
-        JobStore.update(
-            job_id,
-            progress=95,
-            message="No hay filas válidas para procesar",
-            metrics=metrics.to_dict(),
-        )
+        if manage_job_updates:
+            JobStore.update(
+                job_id,
+                progress=95,
+                message="No hay filas válidas para procesar",
+                metrics=metrics.to_dict(),
+            )
         return {
             "results": [],
             "summary": {
@@ -876,7 +926,11 @@ async def process_rows_for_job(
 
             async with progress_lock:
                 completed += 1
-                if completed % PROGRESS_UPDATE_EVERY == 0 or completed == total_unique_rows:
+                should_report = (
+                    completed % PROGRESS_UPDATE_EVERY == 0
+                    or completed == total_unique_rows
+                )
+                if manage_job_updates and should_report:
                     progress = 10 + int((completed / total_unique_rows) * 85)
                     JobStore.update(
                         job_id,
@@ -887,6 +941,12 @@ async def process_rows_for_job(
                             f"para expandir a {total_rows} filas del Excel"
                         ),
                     )
+
+            if on_progress is not None and should_report:
+                try:
+                    await on_progress(completed)
+                except Exception:
+                    pass
 
     await asyncio.gather(*(worker(i, entry) for i, entry in enumerate(unique_entries)))
 
@@ -907,12 +967,21 @@ async def process_rows_for_job(
         original_indices_by_unique_index=original_indices_by_unique_index,
     )
 
-    JobStore.update(
-        job_id,
-        progress=95,
-        message="Consolidando resultados finales...",
-        metrics=metrics.to_dict(),
-    )
+    if manage_job_updates:
+        metrics_payload = metrics.to_dict()
+        if catalog_data is not None:
+            metrics_payload = {
+                **metrics_payload,
+                "catalog_preload": (
+                    catalog_data.stats() if hasattr(catalog_data, "stats") else {}
+                ),
+            }
+        JobStore.update(
+            job_id,
+            progress=95,
+            message="Consolidando resultados finales...",
+            metrics=metrics_payload,
+        )
 
     summary = build_results_summary(
         expanded_results,

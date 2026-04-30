@@ -498,9 +498,10 @@ async def process_compatibility_batches(
     access_token: str,
     user_id: int | str,
     rows: list[dict],
+    metrics: JobMetrics | None = None,
     on_progress: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> dict:
-    metrics = JobMetrics()
+    metrics = metrics or JobMetrics()
     grouped, restriction_data = build_grouped_product_ids(rows)
     batch_size = min(200, max(1, int(getattr(settings, "compat_batch_size", 200))))
     max_concurrency = max(1, int(getattr(settings, "compat_batch_concurrency", 4)))

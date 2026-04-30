@@ -26,6 +26,8 @@ export default function MainSyncJobs() {
   const [queueButtonText, setQueueButtonText] = useState("Ejecutar procesos");
   const [queueMessage, setQueueMessage] = useState("");
   const [queueCurrentProcessRowId, setQueueCurrentProcessRowId] = useState(null);
+  const [jobProcessedRows, setJobProcessedRows] = useState(0);
+  const [jobTotalRows, setJobTotalRows] = useState(0);
 
   const [isConnectingMl, setIsConnectingMl] = useState(false);
   const [isCheckingMl, setIsCheckingMl] = useState(true);
@@ -53,13 +55,14 @@ export default function MainSyncJobs() {
   }, []);
 
   useEffect(() => {
+    const pollMs = isQueueRunning ? 5000 : 30000;
     const interval = setInterval(async () => {
       await loadQueueStatus();
       await loadProcesses();
-    }, 30000);
+    }, pollMs);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isQueueRunning]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -221,6 +224,8 @@ export default function MainSyncJobs() {
       setQueueButtonText(data?.button_text || "Ejecutar procesos");
       setQueueMessage(data?.message || "");
       setQueueCurrentProcessRowId(data?.current_process_row_id || null);
+      setJobProcessedRows(data?.job_processed_rows ?? 0);
+      setJobTotalRows(data?.job_total_rows ?? 0);
       return data;
     } catch (error) {
       console.error("Error consultando estado de cola:", error);
@@ -522,7 +527,6 @@ export default function MainSyncJobs() {
           <table className="process-table">
             <thead>
               <tr>
-                <th>ID</th>
                 <th>Archivo</th>
                 <th>Fecha proceso</th>
                 <th>Generado por</th>
@@ -532,38 +536,60 @@ export default function MainSyncJobs() {
             <tbody>
               {isLoadingTable ? (
                 <tr>
-                  <td colSpan="5" className="main-sync-jobs__empty-row">
+                  <td colSpan="4" className="main-sync-jobs__empty-row">
                     Cargando procesos...
                   </td>
                 </tr>
               ) : processRows.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="main-sync-jobs__empty-row">
+                  <td colSpan="4" className="main-sync-jobs__empty-row">
                     No hay procesos registrados todavía.
                   </td>
                 </tr>
               ) : (
-                processRows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.procesoId || row.id}</td>
-                    <td>{row.archivo}</td>
-                    <td>{row.fecha}</td>
-                    <td>{row.procesadoPor}</td>
-                    <td>
-                      <span
-                        className={getStatusClass(
-                          isQueueRunning && queueCurrentProcessRowId === row.id
-                            ? PROCESS_STATUS.PROCESSING
-                            : row.estado
-                        )}
-                      >
-                        {isQueueRunning && queueCurrentProcessRowId === row.id
-                          ? PROCESS_STATUS.PROCESSING
-                          : row.estado}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                processRows.map((row) => {
+                  const isCurrentlyProcessing =
+                    isQueueRunning && queueCurrentProcessRowId === row.id;
+                  const displayStatus = isCurrentlyProcessing
+                    ? PROCESS_STATUS.PROCESSING
+                    : row.estado;
+                  const showProgressBar =
+                    isCurrentlyProcessing && jobTotalRows > 0;
+                  const progressPercent = showProgressBar
+                    ? Math.min(
+                        100,
+                        Math.round((jobProcessedRows / jobTotalRows) * 100)
+                      )
+                    : 0;
+
+                  return (
+                    <tr key={row.id}>
+                      <td>{row.archivo}</td>
+                      <td>{row.fecha}</td>
+                      <td>{row.procesadoPor}</td>
+                      <td>
+                        <div className="status-cell">
+                          <span className={getStatusClass(displayStatus)}>
+                            {displayStatus}
+                          </span>
+                          {showProgressBar && (
+                            <div className="progress-container">
+                              <div className="progress-bar">
+                                <div
+                                  className="progress-bar__fill"
+                                  style={{ width: `${progressPercent}%` }}
+                                />
+                              </div>
+                              <span className="progress-label">
+                                {jobProcessedRows} / {jobTotalRows}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

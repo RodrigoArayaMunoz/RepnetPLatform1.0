@@ -28,6 +28,7 @@ from services.price_stock_service import (
     process_price_stock_job,
 )
 from services.process_queue_store import process_queue_store
+from services.supabase_meli_connection_store import supabase_meli_connection_store
 from services.supabase_process_store import supabase_process_store
 
 logger = logging.getLogger(__name__)
@@ -141,15 +142,34 @@ def _matches_compatibility_columns(columns: set[str]) -> bool:
 
 def _matches_price_stock_columns(columns: set[str]) -> bool:
     required_groups = [
-        PRICE_STOCK_MLC_ALIASES,
-        PRICE_STOCK_PRECIO_ALIASES,
-        PRICE_STOCK_STOCK_ALIASES,
-        PRICE_STOCK_ESTADO_ALIASES,
+        ("MLC", PRICE_STOCK_MLC_ALIASES),
+        ("PRECIO", PRICE_STOCK_PRECIO_ALIASES),
+        ("STOCK", PRICE_STOCK_STOCK_ALIASES),
+        ("ESTADO", PRICE_STOCK_ESTADO_ALIASES),
     ]
-    if not all(bool(columns & aliases) for aliases in required_groups):
+    for group_name, aliases in required_groups:
+        match = columns & aliases
+        logger.info(
+            "[PROCESS_QUEUE][PRICE_STOCK_CHECK] group=%s aliases=%s match=%s",
+            group_name, sorted(aliases), sorted(match),
+        )
+        if not match:
+            logger.warning(
+                "[PROCESS_QUEUE][PRICE_STOCK_CHECK] group=%s NO MATCH – file columns=%s",
+                group_name, sorted(columns),
+            )
+            return False
+
+    extra_match = columns & PRICE_STOCK_EXTRA_ALIASES
+    logger.info(
+        "[PROCESS_QUEUE][PRICE_STOCK_CHECK] EXTRA aliases=%s match=%s",
+        sorted(PRICE_STOCK_EXTRA_ALIASES), sorted(extra_match),
+    )
+    if len(extra_match) < 1:
+        logger.warning("[PROCESS_QUEUE][PRICE_STOCK_CHECK] EXTRA NO MATCH")
         return False
 
-    return len(columns & PRICE_STOCK_EXTRA_ALIASES) >= 1
+    return True
 
 
 def _matches_no_compat_columns(columns: set[str]) -> bool:
@@ -161,13 +181,22 @@ def detect_process_type(file_path: str) -> str:
 
     logger.info("[PROCESS_QUEUE][DETECT] file_path=%s columns=%s", file_path, sorted(columns))
 
-    if _matches_compatibility_columns(columns):
+    is_compat = _matches_compatibility_columns(columns)
+    logger.info("[PROCESS_QUEUE][DETECT] _matches_compatibility_columns=%s", is_compat)
+    if is_compat:
         return "compatibilities"
 
-    if _matches_price_stock_columns(columns):
+    is_price_stock = _matches_price_stock_columns(columns)
+    logger.info("[PROCESS_QUEUE][DETECT] _matches_price_stock_columns=%s", is_price_stock)
+    if is_price_stock:
         return "price_stock"
 
-    if _matches_no_compat_columns(columns):
+    is_no_compat = _matches_no_compat_columns(columns)
+    logger.info(
+        "[PROCESS_QUEUE][DETECT] _matches_no_compat_columns=%s NO_COMPAT_ALIASES=%s",
+        is_no_compat, sorted(NO_COMPAT_ALIASES),
+    )
+    if is_no_compat:
         return "compatibility_exceptions"
 
     raise ValueError(
@@ -187,6 +216,7 @@ async def _run_compatibilities_job(
     job = JobStore.create(filename)
     job_id = job["id"]
     JobStore.update(job_id, xlsx_path=file_path)
+    process_queue_store.update(current_job_id=job_id)
 
     try:
         rows = load_excel_rows(file_path)
@@ -230,6 +260,7 @@ async def _run_price_stock_job(
     job = JobStore.create(filename)
     job_id = job["id"]
     JobStore.update(job_id, xlsx_path=file_path)
+    process_queue_store.update(current_job_id=job_id)
     outcome = await process_price_stock_job(job_id=job_id, user_id=user_id, file_path=file_path)
     return job_id, outcome.get("summary", {})
 
@@ -243,6 +274,7 @@ async def _run_compatibility_exceptions_job(
     job = JobStore.create(filename)
     job_id = job["id"]
     JobStore.update(job_id, xlsx_path=file_path)
+    process_queue_store.update(current_job_id=job_id)
     outcome = await process_compatibility_exceptions_job(
         job_id=job_id,
         user_id=user_id,
@@ -306,6 +338,7 @@ async def run_process_queue(*, user_id: str) -> None:
     last_error: str | None = None
 
     await ml_client.startup()
+    await supabase_meli_connection_store.restore_token_store()
     try:
         while True:
             pending_rows = await supabase_process_store.list_pending_processes()

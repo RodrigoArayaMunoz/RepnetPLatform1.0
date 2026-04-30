@@ -59,8 +59,11 @@ class Settings(BaseSettings):
     ml_retry_attempts: int = 4
     ml_retry_base_delay: float = 1.0
     ml_requests_per_second: float = 1.5
-    ml_read_requests_per_second: int = 1
-    ml_write_requests_per_second: int = 1
+    ml_read_requests_per_second: float = 0.8
+    ml_write_requests_per_second: float = 0.35
+    ml_retry_max_delay_seconds: float = 60.0
+    ml_retry_429_min_delay_seconds: float = 12.0
+    ml_retry_429_cooldown_seconds: float = 20.0
 
     # Procesamiento
     max_row_concurrency: int = 2
@@ -68,6 +71,8 @@ class Settings(BaseSettings):
 
     compat_batch_size: int = 200
     compat_batch_concurrency: int = 2
+    process_file_chunk_size: int = 100
+    process_file_chunk_pause_seconds: int = 6 * 60
     process_queue_delay_seconds: int = 20 * 60
 
     token_refresh_margin_seconds: int = 600

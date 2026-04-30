@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import random
 import time
 from typing import Any
@@ -10,6 +11,31 @@ from config import settings
 from services.excel_service import normalize_for_compare
 from services.supabase_meli_connection_store import supabase_meli_connection_store
 from services.token_store import require_ml_env, token_store
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_retry_after_seconds(response: httpx.Response) -> float | None:
+    retry_after = response.headers.get("retry-after")
+    if retry_after:
+        try:
+            return max(0.0, float(retry_after))
+        except ValueError:
+            return None
+
+    for header_name in ("x-ratelimit-reset", "x-rate-limit-reset"):
+        header_value = response.headers.get(header_name)
+        if not header_value:
+            continue
+        try:
+            reset_at = float(header_value)
+            now = time.time()
+            if reset_at > now:
+                return max(0.0, reset_at - now)
+        except ValueError:
+            continue
+
+    return None
 
 
 class MercadoLibreClient:
@@ -109,25 +135,59 @@ class MercadoLibreClient:
                     )
 
                 if response.status_code in retryable_status:
+                    retry_after_seconds = _parse_retry_after_seconds(response)
+                    response_payload = {
+                        "message": f"ML API error {response.status_code}: {response.text}",
+                        "status_code": response.status_code,
+                        "retry_after_seconds": retry_after_seconds,
+                    }
+
+                    logger.warning(
+                        "[ML_CLIENT][RETRYABLE] method=%s url=%s status=%s attempt=%s/%s retry_after=%s",
+                        method,
+                        url,
+                        response.status_code,
+                        attempt,
+                        settings.ml_retry_attempts,
+                        retry_after_seconds,
+                    )
+
                     if attempt == settings.ml_retry_attempts:
                         raise HTTPException(
                             status_code=response.status_code,
-                            detail=f"ML API error {response.status_code}: {response.text}",
+                            detail=response_payload,
                         )
 
+                    if response.status_code == 429:
+                        base_delay = max(
+                            float(getattr(settings, "ml_retry_429_min_delay_seconds", 12.0)),
+                            retry_after_seconds or 0.0,
+                        )
+                    else:
+                        base_delay = settings.ml_retry_base_delay * (2 ** (attempt - 1))
+
                     delay = min(
-                        settings.ml_retry_base_delay * (2 ** (attempt - 1)),
-                        8,
-                    ) + random.uniform(0, 0.3)
+                        base_delay,
+                        float(getattr(settings, "ml_retry_max_delay_seconds", 60.0)),
+                    ) + random.uniform(0, 0.5)
                     await asyncio.sleep(delay)
                     continue
 
                 if response.status_code >= 400:
-                    print(f"[DEBUG ML_CLIENT] ERROR {response.status_code} for {method} {url}")
-                    print(f"[DEBUG ML_CLIENT] RESPONSE BODY: {response.text}")
+                    logger.warning(
+                        "[ML_CLIENT][ERROR] method=%s url=%s status=%s body=%s",
+                        method,
+                        url,
+                        response.status_code,
+                        response.text,
+                    )
                     raise HTTPException(
                         status_code=response.status_code,
-                        detail=f"ML API error {response.status_code}: {response.text}",
+                        detail={
+                            "message": f"ML API error {response.status_code}: {response.text}",
+                            "status_code": response.status_code,
+                            "retry_after_seconds": _parse_retry_after_seconds(response),
+                        },
                     )
 
                 if not response.content:
