@@ -26,6 +26,7 @@ const navItems = [
     key: "compatibilidades",
     label: "COMPATIBILIDADES",
     icon: Boxes,
+    hidden: true,
     children: [
       {
         to: "/compatibilidades/carga-masiva",
@@ -43,6 +44,7 @@ const navItems = [
     key: "actualizaciones",
     label: "ACTUALIZACIONES",
     icon: BadgeDollarSign,
+    hidden: true,
     children: [
       {
         to: "/actualizaciones/precios-stock",
@@ -338,7 +340,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
         </div>
 
         <nav className="sidebar__nav">
-          {navItems.map((group) => {
+          {navItems
+            .filter((group) => !group.hidden)
+            .map((group) => {
             const GroupIcon = group.icon;
             const groupOpen = openMenus[group.key];
             const groupActive = isGroupActive(group.children);
