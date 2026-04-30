@@ -18,7 +18,7 @@ from services.process_chunking_service import (
     chunk_sequence,
     count_chunks,
     format_pause_minutes,
-    get_process_file_chunk_pause_seconds,
+    get_compatibility_chunk_pause_seconds,
     get_process_file_chunk_size,
 )
 
@@ -49,7 +49,7 @@ async def process_excel_compatibilities_end_to_end(
 ) -> dict:
     total_rows = len(rows)
     chunk_size = get_process_file_chunk_size()
-    pause_seconds = get_process_file_chunk_pause_seconds()
+    pause_seconds = get_compatibility_chunk_pause_seconds()
     total_chunks = count_chunks(total_rows, chunk_size)
     unique_entries, _ = build_vehicle_resolution_plan(rows)
     total_unique_rows = len(unique_entries)

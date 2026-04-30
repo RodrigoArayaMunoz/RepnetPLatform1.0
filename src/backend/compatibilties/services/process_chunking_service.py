@@ -14,6 +14,45 @@ def get_process_file_chunk_pause_seconds() -> int:
     return max(0, int(getattr(settings, "process_file_chunk_pause_seconds", 18 * 60)))
 
 
+def get_compatibility_chunk_pause_seconds() -> int:
+    return max(
+        0,
+        int(
+            getattr(
+                settings,
+                "compatibility_chunk_pause_seconds",
+                get_process_file_chunk_pause_seconds(),
+            )
+        ),
+    )
+
+
+def get_compatibility_exception_chunk_pause_seconds() -> int:
+    return max(
+        0,
+        int(
+            getattr(
+                settings,
+                "compatibility_exception_chunk_pause_seconds",
+                get_process_file_chunk_pause_seconds(),
+            )
+        ),
+    )
+
+
+def get_price_stock_chunk_pause_seconds() -> int:
+    return max(
+        0,
+        int(
+            getattr(
+                settings,
+                "price_stock_chunk_pause_seconds",
+                get_process_file_chunk_pause_seconds(),
+            )
+        ),
+    )
+
+
 def chunk_sequence(
     items: Sequence[T],
     chunk_size: int | None = None,

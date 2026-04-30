@@ -95,11 +95,34 @@ READ_RATE_LIMITER = RedisWindowRateLimiter(
     requests_per_second=float(_settings_value("ml_read_requests_per_second", 0.8)),
 )
 
-WRITE_RATE_LIMITER = RedisWindowRateLimiter(
+COMPATIBILITY_WRITE_RATE_LIMITER = RedisWindowRateLimiter(
     redis_url=settings.redis_url,
-    namespace="ml:write_compat",
-    requests_per_second=float(_settings_value("ml_write_requests_per_second", 0.35)),
+    namespace="ml:write:compatibilities",
+    requests_per_second=float(
+        _settings_value("ml_compatibility_write_requests_per_second", 0.25)
+    ),
 )
+
+COMPATIBILITY_EXCEPTION_WRITE_RATE_LIMITER = RedisWindowRateLimiter(
+    redis_url=settings.redis_url,
+    namespace="ml:write:compatibility_exceptions",
+    requests_per_second=float(
+        _settings_value(
+            "ml_compatibility_exception_write_requests_per_second",
+            0.15,
+        )
+    ),
+)
+
+PRICE_STOCK_WRITE_RATE_LIMITER = RedisWindowRateLimiter(
+    redis_url=settings.redis_url,
+    namespace="ml:write:price_stock",
+    requests_per_second=float(
+        _settings_value("ml_price_stock_write_requests_per_second", 0.35)
+    ),
+)
+
+WRITE_RATE_LIMITER = COMPATIBILITY_WRITE_RATE_LIMITER
 
 RETRY_ATTEMPTS = int(_settings_value("ml_retry_attempts", 4))
 RETRY_BASE_DELAY = float(_settings_value("ml_retry_base_delay", 1.0))

@@ -7,7 +7,11 @@ import pandas as pd
 from fastapi import HTTPException
 
 from config import settings
-from services.compatibility_service import JobMetrics, WRITE_RATE_LIMITER, call_ml
+from services.compatibility_service import (
+    JobMetrics,
+    PRICE_STOCK_WRITE_RATE_LIMITER,
+    call_ml,
+)
 from services.excel_service import extract_item_id, normalize_text
 from services.job_store import JobStore
 from services.ml_client import ml_client
@@ -15,7 +19,7 @@ from services.process_chunking_service import (
     chunk_sequence,
     count_chunks,
     format_pause_minutes,
-    get_process_file_chunk_pause_seconds,
+    get_price_stock_chunk_pause_seconds,
     get_process_file_chunk_size,
 )
 
@@ -292,7 +296,7 @@ async def _process_price_stock_row(
             status=estado,
             user_id=user_id,
             metrics=metrics,
-            limiter=WRITE_RATE_LIMITER,
+            limiter=PRICE_STOCK_WRITE_RATE_LIMITER,
         )
 
         return {
@@ -364,7 +368,7 @@ async def process_price_stock_job(
     total_rows = len(rows)
     metrics = JobMetrics()
     chunk_size = get_process_file_chunk_size()
-    pause_seconds = get_process_file_chunk_pause_seconds()
+    pause_seconds = get_price_stock_chunk_pause_seconds()
     total_chunks = count_chunks(total_rows, chunk_size)
 
     JobStore.update(

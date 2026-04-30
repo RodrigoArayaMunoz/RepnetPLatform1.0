@@ -7,7 +7,11 @@ import pandas as pd
 from fastapi import HTTPException
 
 from config import settings
-from services.compatibility_service import JobMetrics, WRITE_RATE_LIMITER, call_ml
+from services.compatibility_service import (
+    COMPATIBILITY_EXCEPTION_WRITE_RATE_LIMITER,
+    JobMetrics,
+    call_ml,
+)
 from services.excel_service import extract_item_id, normalize_text
 from services.job_store import JobStore
 from services.ml_client import ml_client
@@ -15,7 +19,7 @@ from services.process_chunking_service import (
     chunk_sequence,
     count_chunks,
     format_pause_minutes,
-    get_process_file_chunk_pause_seconds,
+    get_compatibility_exception_chunk_pause_seconds,
     get_process_file_chunk_size,
 )
 
@@ -149,7 +153,7 @@ async def _process_exception_row(
             comment,
             user_id=user_id,
             metrics=metrics,
-            limiter=WRITE_RATE_LIMITER,
+            limiter=COMPATIBILITY_EXCEPTION_WRITE_RATE_LIMITER,
         )
         return {
             "ok": True,
@@ -221,7 +225,7 @@ async def process_compatibility_exceptions_job(
     comment = settings.ml_compatibility_exception_comment
     metrics = JobMetrics()
     chunk_size = get_process_file_chunk_size()
-    pause_seconds = get_process_file_chunk_pause_seconds()
+    pause_seconds = get_compatibility_exception_chunk_pause_seconds()
     total_chunks = count_chunks(total_rows, chunk_size)
 
     JobStore.update(
