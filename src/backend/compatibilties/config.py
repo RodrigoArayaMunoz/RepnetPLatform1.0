@@ -44,6 +44,7 @@ class Settings(BaseSettings):
         ),
     )
     supabase_meli_connection_table: str = "meli_global_connection"
+    supabase_process_table: str = "procesos"
 
     ml_compatibility_exception_comment: str = (
         "No aparecen detalles técnicos del modelo correspondiente."
@@ -67,6 +68,7 @@ class Settings(BaseSettings):
 
     compat_batch_size: int = 200
     compat_batch_concurrency: int = 2
+    process_queue_delay_seconds: int = 20 * 60
 
     token_refresh_margin_seconds: int = 600
 

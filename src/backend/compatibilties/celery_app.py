@@ -11,6 +11,7 @@ celery_app = Celery(
         "tasks.compatibility_batch_tasks",
         "tasks.compatibility_exception_tasks",
         "tasks.price_stock_tasks",
+        "tasks.process_queue_tasks",
     ],
 )
 
@@ -30,5 +31,15 @@ celery_app.conf.update(
         "tasks.add_compatibilities_batch_job": {"queue": "compat_chunks"},
         "tasks.process_compatibility_exceptions_job": {"queue": "compat_chunks"},
         "tasks.process_price_stock_job": {"queue": "compat_dispatch"},
+        "tasks.run_process_queue_job": {"queue": "compat_dispatch"},
     },
 )
+
+# Import explicito para asegurar el registro de tareas cuando el worker inicia.
+# Celery no recarga automaticamente tareas nuevas en workers ya levantados.
+import tasks.import_tasks  # noqa: E402,F401
+import tasks.product_resolution_tasks  # noqa: E402,F401
+import tasks.compatibility_batch_tasks  # noqa: E402,F401
+import tasks.compatibility_exception_tasks  # noqa: E402,F401
+import tasks.price_stock_tasks  # noqa: E402,F401
+import tasks.process_queue_tasks  # noqa: E402,F401

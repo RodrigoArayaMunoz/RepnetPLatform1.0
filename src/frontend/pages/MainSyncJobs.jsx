@@ -4,6 +4,13 @@ import "../styles/MainSyncJobs.css";
 import { supabase } from "../../lib/supabase.js";
 
 const SYNC_ROUTE = "/procesos/sincronizacion-procesos";
+const PROCESS_BUCKET = "excel-procesos";
+const PROCESS_STATUS = {
+  PENDING: "Pendiente",
+  PROCESSING: "Procesando",
+  PROCESSED: "Procesado",
+  ERROR: "Error",
+};
 
 export default function MainSyncJobs() {
   const fileInputRef = useRef(null);
@@ -15,6 +22,10 @@ export default function MainSyncJobs() {
   const [isLoadingTable, setIsLoadingTable] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState("info");
+  const [isQueueRunning, setIsQueueRunning] = useState(false);
+  const [queueButtonText, setQueueButtonText] = useState("Ejecutar procesos");
+  const [queueMessage, setQueueMessage] = useState("");
+  const [queueCurrentProcessRowId, setQueueCurrentProcessRowId] = useState(null);
 
   const [isConnectingMl, setIsConnectingMl] = useState(false);
   const [isCheckingMl, setIsCheckingMl] = useState(true);
@@ -38,6 +49,16 @@ export default function MainSyncJobs() {
   useEffect(() => {
     loadProcesses();
     checkMercadoLibreConnection();
+    loadQueueStatus();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      await loadQueueStatus();
+      await loadProcesses();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -183,6 +204,30 @@ export default function MainSyncJobs() {
     }
   };
 
+  const loadQueueStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/process-queue/status`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        return null;
+      }
+
+      setIsQueueRunning(Boolean(data?.running));
+      setQueueButtonText(data?.button_text || "Ejecutar procesos");
+      setQueueMessage(data?.message || "");
+      setQueueCurrentProcessRowId(data?.current_process_row_id || null);
+      return data;
+    } catch (error) {
+      console.error("Error consultando estado de cola:", error);
+      return null;
+    }
+  };
+
   const handleConnectMercadoLibre = () => {
     if (isCheckingMl || isMercadoLibreConnected) return;
 
@@ -227,7 +272,7 @@ export default function MainSyncJobs() {
       const safeFileName = selectedFile.name.replace(/\s+/g, "_");
       const uniqueFileName = `${Date.now()}_${safeFileName}`;
       const storagePath = `${user.id}/${uniqueFileName}`;
-      const bucketName = "excel-procesos";
+      const bucketName = PROCESS_BUCKET;
 
       const { error: uploadError } = await supabase.storage
         .from(bucketName)
@@ -247,7 +292,7 @@ export default function MainSyncJobs() {
         fecha_proceso: sqlDate,
         hora_proceso: sqlTime,
         generado: user.email,
-        estado: "Pendiente",
+        estado: PROCESS_STATUS.PENDING,
         storage_bucket: bucketName,
         storage_path: storagePath,
       };
@@ -267,7 +312,7 @@ export default function MainSyncJobs() {
 
       setProcessRows((prev) => [mapProcessRow(data), ...prev]);
       setSelectedFile(null);
-      alert("Proceso guardado correctamente.");
+      setStatusMessage("Proceso guardado correctamente.");
       setStatusType("success");
 
       if (fileInputRef.current) {
@@ -282,29 +327,85 @@ export default function MainSyncJobs() {
     }
   };
 
-  const handleGenerateProcesses = () => {
+  const handleGenerateProcesses = async () => {
     if (!isMercadoLibreConnected) {
       setStatusMessage("Primero debes conectar Mercado Libre.");
       setStatusType("error");
       return;
     }
 
-    setStatusMessage("La generación de procesos quedó lista para continuar.");
-    setStatusType("success");
+    if (!mlUserId) {
+      setStatusMessage("No se encontró user_id asociado a la conexión de Mercado Libre.");
+      setStatusType("error");
+      return;
+    }
+
+    if (isQueueRunning) {
+      setStatusMessage("Ya existe una cola de procesos en ejecución.");
+      setStatusType("info");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/process-queue/start`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          user_id: String(mlUserId),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 409) {
+        await loadQueueStatus();
+        setStatusMessage(data?.detail || "Ya existe una cola de procesos en ejecución.");
+        setStatusType("info");
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "No se pudo iniciar la cola de procesos."
+        );
+      }
+
+      await loadQueueStatus();
+      await loadProcesses();
+      setStatusMessage("Cola de procesos iniciada correctamente.");
+      setStatusType("success");
+    } catch (error) {
+      setStatusMessage(
+        error?.message || "Ocurrió un error al iniciar la cola de procesos."
+      );
+      setStatusType("error");
+    }
   };
 
   const getStatusClass = (status) => {
     const normalized = String(status || "").toLowerCase();
 
-    if (normalized === "procesado" || normalized === "completado") {
+    if (
+      normalized === PROCESS_STATUS.PROCESSED.toLowerCase() ||
+      normalized === "completado"
+    ) {
       return "status-badge status-badge--success";
     }
 
-    if (normalized === "pendiente") {
+    if (normalized === PROCESS_STATUS.PROCESSING.toLowerCase()) {
+      return "status-badge status-badge--info";
+    }
+
+    if (normalized === PROCESS_STATUS.PENDING.toLowerCase()) {
       return "status-badge status-badge--warning";
     }
 
-    if (normalized === "error") {
+    if (normalized === PROCESS_STATUS.ERROR.toLowerCase()) {
       return "status-badge status-badge--danger";
     }
 
@@ -319,7 +420,6 @@ export default function MainSyncJobs() {
 
   return (
     <section className="main-sync-jobs">
-
       <div className="main-sync-jobs__card">
         {!isMercadoLibreConnected && (
           <div className="main-sync-jobs__topbar">
@@ -398,10 +498,17 @@ export default function MainSyncJobs() {
             type="button"
             className="main-sync-jobs__generate-button"
             onClick={handleGenerateProcesses}
+            disabled={isQueueRunning || !isMercadoLibreConnected}
           >
-            Generar procesos
+            {isQueueRunning
+              ? queueButtonText || "Procesos en ejecución"
+              : "Ejecutar procesos"}
           </button>
         </div>
+
+        {queueMessage && (
+          <p className="main-sync-jobs__queue-message">{queueMessage}</p>
+        )}
       </div>
 
       <div className="main-sync-jobs__table-card">
@@ -443,8 +550,16 @@ export default function MainSyncJobs() {
                     <td>{row.fecha}</td>
                     <td>{row.procesadoPor}</td>
                     <td>
-                      <span className={getStatusClass(row.estado)}>
-                        {row.estado}
+                      <span
+                        className={getStatusClass(
+                          isQueueRunning && queueCurrentProcessRowId === row.id
+                            ? PROCESS_STATUS.PROCESSING
+                            : row.estado
+                        )}
+                      >
+                        {isQueueRunning && queueCurrentProcessRowId === row.id
+                          ? PROCESS_STATUS.PROCESSING
+                          : row.estado}
                       </span>
                     </td>
                   </tr>
@@ -454,7 +569,6 @@ export default function MainSyncJobs() {
           </table>
         </div>
       </div>
-
     </section>
   );
 }

@@ -181,6 +181,13 @@
   color: #1d4ed8;
 }
 
+.main-sync-jobs__queue-message {
+  margin: 14px 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #475569;
+}
+
 .main-sync-jobs__save-button {
   min-width: 180px;
   height: 48px;
@@ -285,6 +292,11 @@
   color: #b45309;
 }
 
+.status-badge--info {
+  background: rgba(59, 130, 246, 0.14);
+  color: #1d4ed8;
+}
+
 .status-badge--danger {
   background: rgba(239, 68, 68, 0.14);
   color: #b91c1c;
@@ -312,6 +324,14 @@
 
 .main-sync-jobs__generate-button:active {
   transform: translateY(0);
+}
+
+.main-sync-jobs__generate-button:disabled,
+.main-sync-jobs__save-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 @media (max-width: 992px) {
