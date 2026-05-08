@@ -80,11 +80,20 @@ async def ml_status():
         return {"connected": False}
 
     row = rows[0]
-    connected = bool(row.get("is_active") and row.get("ml_user_id"))
+    user_id = row.get("ml_user_id")
+    connected = bool(row.get("is_active") and user_id)
+
+    if connected:
+        try:
+            # Verifica la sesion real contra ML y fuerza refresh si el access token
+            # ya expiro o fue invalidado.
+            await ml_client.request("GET", "/users/me", user_id=user_id)
+        except HTTPException:
+            connected = False
 
     return {
         "connected": connected,
-        "user_id": str(row.get("ml_user_id")) if connected else None,
+        "user_id": str(user_id) if connected else None,
     }
 
 
