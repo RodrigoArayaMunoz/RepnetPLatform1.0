@@ -531,7 +531,7 @@ export default function MainSyncJobs() {
     const normalized = String(status || "").toLowerCase();
 
     if (normalized === PROCESS_STATUS.PROCESSED_WITH_ERRORS.toLowerCase()) {
-      return "status-badge status-badge--partial";
+      return "status-badge status-badge--success";
     }
 
     if (
