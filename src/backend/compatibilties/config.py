@@ -62,8 +62,8 @@ class Settings(BaseSettings):
     ml_read_requests_per_second: float = 0.8
     ml_write_requests_per_second: float = 0.35
     ml_compatibility_write_requests_per_second: float = 0.25
-    ml_compatibility_exception_write_requests_per_second: float = 80 / 60
-    ml_price_stock_write_requests_per_second: float = 80 / 60
+    ml_compatibility_exception_write_requests_per_second: float = 70 / 60
+    ml_price_stock_write_requests_per_second: float = 70 / 60
     ml_compatibility_exception_max_requests_per_window: int = 100
     ml_compatibility_exception_window_seconds: int = 60
     ml_compatibility_exception_cooldown_seconds: float = 150.0
