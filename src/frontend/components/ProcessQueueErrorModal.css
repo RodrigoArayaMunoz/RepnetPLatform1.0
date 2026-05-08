@@ -1,0 +1,146 @@
+.pq-error-modal__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(3px);
+}
+
+.pq-error-modal {
+  width: min(720px, 100%);
+  max-height: min(88vh, 920px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+}
+
+.pq-error-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 28px 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.pq-error-modal__eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b91c1c;
+}
+
+.pq-error-modal__header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.pq-error-modal__close {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pq-error-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 28px 28px;
+  overflow-y: auto;
+}
+
+.pq-error-modal__state {
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.pq-error-modal__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.pq-error-modal__panel--danger {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.pq-error-modal__panel-label {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.pq-error-modal__panel p {
+  margin: 0;
+  line-height: 1.5;
+  color: #1f2937;
+  white-space: pre-wrap;
+}
+
+.pq-error-modal__message-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #334155;
+}
+
+.pq-error-modal__traceback {
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #f8fafc;
+  padding: 16px 18px;
+}
+
+.pq-error-modal__traceback summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: #334155;
+}
+
+.pq-error-modal__traceback pre {
+  margin: 14px 0 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: #0f172a;
+  color: #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+  .pq-error-modal__overlay {
+    padding: 16px;
+  }
+
+  .pq-error-modal__header,
+  .pq-error-modal__body {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}

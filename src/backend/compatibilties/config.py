@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     compatibility_chunk_pause_seconds: int = 18 * 60
     compatibility_exception_chunk_pause_seconds: int = 18 * 60
     price_stock_chunk_pause_seconds: int = 6 * 60
-    process_queue_delay_seconds: int = 20 * 60
+    process_queue_delay_seconds: int = 15 * 60
 
     token_refresh_margin_seconds: int = 600
 

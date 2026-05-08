@@ -231,7 +231,7 @@
 
 .process-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 820px;
   border-collapse: collapse;
   background: #ffffff;
 }
@@ -255,6 +255,63 @@
   color: #334155;
   border-bottom: 1px solid #edf1f5;
   vertical-align: middle;
+}
+
+.process-table__action-header,
+.process-table__action-cell {
+  width: 68px;
+  min-width: 68px;
+  text-align: center;
+}
+
+.process-table__file-name {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-table__error-button,
+.process-table__error-placeholder {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.process-table__error-button {
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #e2535d;
+  cursor: pointer;
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.process-table__error-button:hover {
+  transform: translateY(-1px);
+  filter: drop-shadow(0 6px 12px rgba(226, 83, 93, 0.22));
+}
+
+.process-table__error-icon {
+  width: 30px;
+  height: 30px;
+  overflow: visible;
+}
+
+.process-table__error-icon-ring {
+  fill: #eef4ff;
+  stroke: currentColor;
+  stroke-width: 2.25;
+}
+
+.process-table__error-icon-cross {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.35;
+  stroke-linecap: round;
 }
 
 .process-table tbody tr:nth-child(even) {
@@ -368,10 +425,11 @@
 
 .main-sync-jobs__generate-button:disabled,
 .main-sync-jobs__save-button:disabled {
-  opacity: 0.7;
+  opacity: 0.55;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+  filter: grayscale(0.18);
 }
 
 @media (max-width: 992px) {

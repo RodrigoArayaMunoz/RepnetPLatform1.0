@@ -91,6 +91,28 @@ class ProcessQueueStore:
         )
 
     @classmethod
+    def reset(
+        cls,
+        *,
+        message: str | None = None,
+        last_error: str | None = None,
+    ) -> None:
+        state = cls._default_state()
+        state.update(
+            {
+                "completed_at": time.time(),
+                "message": message or state["message"],
+                "last_error": last_error,
+            }
+        )
+        cls._client.set(
+            cls._state_key,
+            json.dumps(state, ensure_ascii=False),
+            ex=cls._state_ttl_seconds,
+        )
+        cls._client.delete(cls._lock_key)
+
+    @classmethod
     def finish(cls, *, message: str, last_error: str | None = None) -> None:
         state = cls.get_state()
         state.update(

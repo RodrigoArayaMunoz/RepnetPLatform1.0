@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import ProcessQueueErrorModal from "../components/ProcessQueueErrorModal.jsx";
 import "../styles/MainSyncJobs.css";
 import { supabase } from "../../lib/supabase.js";
 
@@ -28,6 +29,10 @@ export default function MainSyncJobs() {
   const [queueCurrentProcessRowId, setQueueCurrentProcessRowId] = useState(null);
   const [jobProcessedRows, setJobProcessedRows] = useState(0);
   const [jobTotalRows, setJobTotalRows] = useState(0);
+  const [selectedErrorRow, setSelectedErrorRow] = useState(null);
+  const [selectedErrorDetails, setSelectedErrorDetails] = useState(null);
+  const [isLoadingErrorDetails, setIsLoadingErrorDetails] = useState(false);
+  const [errorDetailsLoadMessage, setErrorDetailsLoadMessage] = useState("");
 
   const [isConnectingMl, setIsConnectingMl] = useState(false);
   const [isCheckingMl, setIsCheckingMl] = useState(true);
@@ -116,6 +121,30 @@ export default function MainSyncJobs() {
     const seconds = String(now.getSeconds()).padStart(2, "0");
     return `${hours}:${minutes}:${seconds}`;
   }, [now]);
+
+  const pendingProcessCount = useMemo(() => {
+    return processRows.filter(
+      (row) =>
+        String(row.estado || "").toLowerCase() ===
+        PROCESS_STATUS.PENDING.toLowerCase()
+    ).length;
+  }, [processRows]);
+
+  const hasPendingProcesses = pendingProcessCount > 0;
+
+  const visibleQueueMessage = useMemo(() => {
+    if (isQueueRunning) {
+      return queueMessage;
+    }
+
+    if (hasPendingProcesses) {
+      return pendingProcessCount === 1
+        ? "Hay 1 proceso pendiente listo para ejecutar."
+        : `Hay ${pendingProcessCount} procesos pendientes listos para ejecutar.`;
+    }
+
+    return queueMessage;
+  }, [hasPendingProcesses, isQueueRunning, pendingProcessCount, queueMessage]);
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0] || null;
@@ -351,6 +380,12 @@ export default function MainSyncJobs() {
       return;
     }
 
+    if (!hasPendingProcesses) {
+      setStatusMessage("No hay procesos pendientes para ejecutar.");
+      setStatusType("info");
+      return;
+    }
+
     try {
       const res = await fetch(`${API_BASE}/process-queue/start`, {
         method: "POST",
@@ -390,6 +425,46 @@ export default function MainSyncJobs() {
       );
       setStatusType("error");
     }
+  };
+
+  const handleOpenErrorModal = async (row) => {
+    setSelectedErrorRow(row);
+    setSelectedErrorDetails(null);
+    setErrorDetailsLoadMessage("");
+    setIsLoadingErrorDetails(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/process-queue/errors/${row.id}`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "No se pudieron obtener los detalles del error."
+        );
+      }
+
+      setSelectedErrorDetails(data);
+    } catch (error) {
+      setErrorDetailsLoadMessage(
+        error?.message ||
+          "No se pudieron obtener los detalles del error."
+      );
+    } finally {
+      setIsLoadingErrorDetails(false);
+    }
+  };
+
+  const handleCloseErrorModal = () => {
+    setSelectedErrorRow(null);
+    setSelectedErrorDetails(null);
+    setIsLoadingErrorDetails(false);
+    setErrorDetailsLoadMessage("");
   };
 
   const getStatusClass = (status) => {
@@ -494,7 +569,7 @@ export default function MainSyncJobs() {
             type="button"
             className="main-sync-jobs__save-button"
             onClick={handleSaveProcess}
-            disabled={isSaving}
+            disabled={isSaving || !selectedFile}
           >
             {isSaving ? "Guardando..." : "Guardar proceso"}
           </button>
@@ -503,7 +578,9 @@ export default function MainSyncJobs() {
             type="button"
             className="main-sync-jobs__generate-button"
             onClick={handleGenerateProcesses}
-            disabled={isQueueRunning || !isMercadoLibreConnected}
+            disabled={
+              isQueueRunning || !isMercadoLibreConnected || !hasPendingProcesses
+            }
           >
             {isQueueRunning
               ? queueButtonText || "Procesos en ejecución"
@@ -511,8 +588,8 @@ export default function MainSyncJobs() {
           </button>
         </div>
 
-        {queueMessage && (
-          <p className="main-sync-jobs__queue-message">{queueMessage}</p>
+        {visibleQueueMessage && (
+          <p className="main-sync-jobs__queue-message">{visibleQueueMessage}</p>
         )}
       </div>
 
@@ -527,6 +604,7 @@ export default function MainSyncJobs() {
           <table className="process-table">
             <thead>
               <tr>
+                <th className="process-table__action-header" aria-label="Error" />
                 <th>Archivo</th>
                 <th>Fecha proceso</th>
                 <th>Generado por</th>
@@ -536,13 +614,13 @@ export default function MainSyncJobs() {
             <tbody>
               {isLoadingTable ? (
                 <tr>
-                  <td colSpan="4" className="main-sync-jobs__empty-row">
+                  <td colSpan="5" className="main-sync-jobs__empty-row">
                     Cargando procesos...
                   </td>
                 </tr>
               ) : processRows.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="main-sync-jobs__empty-row">
+                  <td colSpan="5" className="main-sync-jobs__empty-row">
                     No hay procesos registrados todavía.
                   </td>
                 </tr>
@@ -553,6 +631,9 @@ export default function MainSyncJobs() {
                   const displayStatus = isCurrentlyProcessing
                     ? PROCESS_STATUS.PROCESSING
                     : row.estado;
+                  const hasProcessError =
+                    String(row.estado || "").toLowerCase() ===
+                    PROCESS_STATUS.ERROR.toLowerCase();
                   const showProgressBar =
                     isCurrentlyProcessing && jobTotalRows > 0;
                   const progressPercent = showProgressBar
@@ -564,7 +645,48 @@ export default function MainSyncJobs() {
 
                   return (
                     <tr key={row.id}>
-                      <td>{row.archivo}</td>
+                      <td className="process-table__action-cell">
+                        {hasProcessError ? (
+                          <button
+                            type="button"
+                            className="process-table__error-button"
+                            onClick={() => handleOpenErrorModal(row)}
+                            aria-label={`Ver error del proceso ${row.archivo}`}
+                            title="Ver error del proceso"
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              aria-hidden="true"
+                              className="process-table__error-icon"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                r="9"
+                                className="process-table__error-icon-ring"
+                              />
+                              <path
+                                d="M8.5 8.5 15.5 15.5"
+                                className="process-table__error-icon-cross"
+                              />
+                              <path
+                                d="M15.5 8.5 8.5 15.5"
+                                className="process-table__error-icon-cross"
+                              />
+                            </svg>
+                          </button>
+                        ) : (
+                          <span
+                            className="process-table__error-placeholder"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </td>
+                      <td>
+                        <span className="process-table__file-name">
+                          {row.archivo}
+                        </span>
+                      </td>
                       <td>{row.fecha}</td>
                       <td>{row.procesadoPor}</td>
                       <td>
@@ -595,6 +717,14 @@ export default function MainSyncJobs() {
           </table>
         </div>
       </div>
+
+      <ProcessQueueErrorModal
+        row={selectedErrorRow}
+        errorData={selectedErrorDetails}
+        isLoading={isLoadingErrorDetails}
+        loadError={errorDetailsLoadMessage}
+        onClose={handleCloseErrorModal}
+      />
     </section>
   );
 }

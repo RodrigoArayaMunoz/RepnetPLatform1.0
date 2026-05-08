@@ -78,41 +78,52 @@ class CatalogPreloadService:
         self.metrics = metrics
         self.data = GlobalCatalogDictionaries()
 
-    async def preload_all(self, access_token: str) -> GlobalCatalogDictionaries:
+    async def preload_all(
+        self,
+        access_token: str,
+        *,
+        user_id: int | str | None = None,
+    ) -> GlobalCatalogDictionaries:
         brand_values = await self.call_ml(
             ml_client.get_top_values,
             access_token,
             "BRAND",
+            user_id=user_id,
             metrics=self.metrics,
         )
         model_values = await self.call_ml(
             ml_client.get_top_values,
             access_token,
             "CAR_AND_VAN_MODEL",
+            user_id=user_id,
             metrics=self.metrics,
         )
         year_values = await self.call_ml(
             ml_client.get_top_values,
             access_token,
             "YEAR",
+            user_id=user_id,
             metrics=self.metrics,
         )
         version_values = await self.call_ml(
             ml_client.get_top_values,
             access_token,
             "CAR_AND_VAN_SUBMODEL",
+            user_id=user_id,
             metrics=self.metrics,
         )
         engine_values = await self.call_ml(
             ml_client.get_top_values,
             access_token,
             "CAR_AND_VAN_ENGINE",
+            user_id=user_id,
             metrics=self.metrics,
         )
         transmission_values = await self.call_ml(
             ml_client.get_top_values,
             access_token,
             "TRANSMISSION_CONTROL_TYPE",
+            user_id=user_id,
             metrics=self.metrics,
         )
 

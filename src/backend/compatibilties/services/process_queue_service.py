@@ -3,6 +3,8 @@ import json
 import logging
 import os
 import time
+import traceback
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
@@ -28,6 +30,7 @@ from services.price_stock_service import (
     process_price_stock_job,
 )
 from services.process_queue_store import process_queue_store
+from services.process_queue_error_store import process_queue_error_store
 from services.supabase_meli_connection_store import supabase_meli_connection_store
 from services.supabase_process_store import supabase_process_store
 
@@ -58,12 +61,84 @@ NO_COMPAT_QUEUE_REQUIRED_COLUMNS = [
 ]
 
 
+def _format_queue_delay_message(delay_seconds: int) -> str:
+    minutes = delay_seconds // 60
+    if delay_seconds > 0 and delay_seconds % 60 == 0 and minutes > 0:
+        return f"Esperando {minutes} minutos para ejecutar el siguiente proceso"
+
+    return f"Esperando {delay_seconds} segundos para ejecutar el siguiente proceso"
+
+
 def _save_json(path: str, data: Any) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     temp_path = f"{path}.tmp"
     with open(temp_path, "w", encoding="utf-8") as file_handle:
         json.dump(data, file_handle, ensure_ascii=False, indent=2)
     os.replace(temp_path, path)
+
+
+def _collect_error_messages(detail: Any) -> list[str]:
+    messages: list[str] = []
+
+    if detail is None:
+        return messages
+
+    if isinstance(detail, str):
+        normalized = detail.strip()
+        if normalized:
+            messages.append(normalized)
+        return messages
+
+    if isinstance(detail, list):
+        for item in detail:
+            messages.extend(_collect_error_messages(item))
+        return messages
+
+    if isinstance(detail, dict):
+        preferred_keys = ("message", "detail", "reason", "error", "error_message", "msg")
+        for key in preferred_keys:
+            if key in detail:
+                messages.extend(_collect_error_messages(detail.get(key)))
+
+        if not messages:
+            for value in detail.values():
+                messages.extend(_collect_error_messages(value))
+
+        return messages
+
+    normalized = str(detail).strip()
+    if normalized:
+        messages.append(normalized)
+    return messages
+
+
+def _build_process_error_payload(
+    *,
+    exc: Exception,
+    process_row_id: int | str | None,
+    process_id: str,
+    filename: str,
+    process_type: str | None,
+) -> dict[str, Any]:
+    detail = getattr(exc, "detail", None)
+    messages = _collect_error_messages(detail)
+    fallback_message = str(exc).strip() or "Ocurrió un error no especificado"
+
+    if fallback_message and fallback_message not in messages:
+        messages.insert(0, fallback_message)
+
+    return {
+        "process_row_id": process_row_id,
+        "process_id": process_id,
+        "filename": filename,
+        "process_type": process_type,
+        "error_type": exc.__class__.__name__,
+        "message": messages[0] if messages else fallback_message,
+        "messages": messages,
+        "detail": detail,
+        "traceback": traceback.format_exc(),
+        "occurred_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def _display_process_id(process_row: dict[str, Any]) -> str:
@@ -374,6 +449,8 @@ async def run_process_queue(*, user_id: str) -> None:
                     user_id=user_id,
                 )
                 await supabase_process_store.update_process_status(current_row_id, "Procesado")
+                if current_row_id is not None:
+                    process_queue_error_store.clear(current_row_id)
                 completed_count += 1
                 last_error = None
 
@@ -394,17 +471,26 @@ async def run_process_queue(*, user_id: str) -> None:
                 )
             except Exception as exc:
                 completed_count += 1
-                last_error = str(exc)
+                error_payload = _build_process_error_payload(
+                    exc=exc,
+                    process_row_id=current_row_id,
+                    process_id=current_process_id,
+                    filename=current_filename,
+                    process_type=process_queue_store.get_state().get("current_process_type"),
+                )
+                last_error = error_payload["message"]
                 logger.exception(
                     "[PROCESS_QUEUE][ERROR] row_id=%s proceso_id=%s",
                     current_row_id,
                     current_process_id,
                 )
                 await supabase_process_store.update_process_status(current_row_id, "Error")
+                if current_row_id is not None:
+                    process_queue_error_store.save(current_row_id, error_payload)
                 process_queue_store.update(
                     processed_count=completed_count,
-                    message=f"Error procesando {current_filename}: {str(exc)}",
-                    last_error=str(exc),
+                    message=f"Error procesando {current_filename}: {error_payload['message']}",
+                    last_error=error_payload["message"],
                 )
 
             remaining_rows = await supabase_process_store.list_pending_processes()
@@ -423,7 +509,7 @@ async def run_process_queue(*, user_id: str) -> None:
                 current_filename=None,
                 current_process_type=None,
                 next_run_at=next_run_at,
-                message="Esperando 20 minutos para ejecutar el siguiente proceso",
+                message=_format_queue_delay_message(delay_seconds),
             )
             await asyncio.sleep(delay_seconds)
     except Exception as exc:

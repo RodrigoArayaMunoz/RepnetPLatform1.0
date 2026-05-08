@@ -145,7 +145,10 @@ async def _dispatch_excel_job(job_id: str, user_id: str) -> None:
                 call_ml=call_ml,
                 metrics=catalog_metrics,
             )
-            catalog_data = await catalog_cache.preload_all(access_token)
+            catalog_data = await catalog_cache.preload_all(
+                access_token,
+                user_id=user_id,
+            )
             catalog_snapshot = catalog_cache.to_snapshot()
             catalog_metrics_payload = catalog_metrics.to_dict()
         finally:
@@ -313,6 +316,7 @@ async def _process_excel_chunk(
 
             outcome = await process_unique_rows_chunk(
                 access_token=access_token,
+                user_id=user_id,
                 unique_entries=chunk_entries,
                 catalog_cache=catalog_cache,
                 on_progress=progress_callback,

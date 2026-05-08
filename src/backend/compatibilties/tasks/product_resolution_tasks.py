@@ -46,7 +46,10 @@ async def _resolve_products_job(job_id: str, user_id: str, site_id: str) -> None
 
             metrics = JobMetrics()
             catalog_cache = CatalogPreloadService(call_ml=call_ml, metrics=metrics)
-            await catalog_cache.preload_all(access_token)
+            await catalog_cache.preload_all(
+                access_token,
+                user_id=user_id,
+            )
 
             JobStore.update(job_id, progress=10, message="Resolviendo product_id...")
 

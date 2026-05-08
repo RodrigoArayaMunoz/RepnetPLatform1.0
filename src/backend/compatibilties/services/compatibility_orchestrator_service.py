@@ -96,7 +96,10 @@ async def process_excel_compatibilities_end_to_end(
         progress=3,
         message="Precargando diccionarios globales desde Mercado Libre...",
     )
-    catalog_data = await catalog_cache.preload_all(access_token)
+    catalog_data = await catalog_cache.preload_all(
+        access_token,
+        user_id=user_id,
+    )
     JobStore.update(
         job_id,
         progress=8,
@@ -136,6 +139,7 @@ async def process_excel_compatibilities_end_to_end(
         chunk_resolution = await process_rows_for_job(
             job_id=job_id,
             access_token=access_token,
+            user_id=user_id,
             rows=chunk_rows,
             catalog_cache=catalog_cache,
             caches=caches,

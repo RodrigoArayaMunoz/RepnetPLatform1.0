@@ -233,6 +233,7 @@ def _cache_get(cache: dict, key: Any, metrics: JobMetrics) -> Any:
 
 async def search_vehicle_product_id(
     access_token: str,
+    user_id: int | str | None,
     brand_id: str | None,
     model_id: str | None,
     year_id: str | None,
@@ -250,6 +251,7 @@ async def search_vehicle_product_id(
     results = await call_ml(
         ml_client.search_vehicle_products,
         access_token=access_token,
+        user_id=user_id,
         brand_id=brand_id,
         model_id=model_id,
         year_id=year_id,
@@ -267,6 +269,7 @@ async def search_vehicle_product_id(
 
 async def get_item_detail_cached(
     access_token: str,
+    user_id: int | str | None,
     item_id: str,
     caches: JobCaches,
     metrics: JobMetrics,
@@ -279,6 +282,7 @@ async def get_item_detail_cached(
         ml_client.get_item_detail,
         access_token,
         item_id,
+        user_id=user_id,
         metrics=metrics,
         limiter=READ_RATE_LIMITER,
     )
@@ -486,6 +490,7 @@ def _build_error_result(
 
 async def resolve_vehicle_product_row(
     access_token: str,
+    user_id: int | str | None,
     row: dict,
     catalog_cache: CatalogPreloadService,
     caches: JobCaches,
@@ -619,6 +624,7 @@ async def resolve_vehicle_product_row(
 
         product_id = await search_vehicle_product_id(
             access_token=access_token,
+            user_id=user_id,
             brand_id=brand_id,
             model_id=model_id,
             year_id=year_id,
@@ -763,6 +769,7 @@ def expand_resolved_rows_to_originals(
 
 async def process_unique_rows_chunk(
     access_token: str,
+    user_id: int | str | None,
     unique_entries: list[dict],
     catalog_cache: CatalogPreloadService,
     on_progress: Callable[[int], Awaitable[None]] | None = None,
@@ -800,6 +807,7 @@ async def process_unique_rows_chunk(
         async with semaphore:
             result = await resolve_vehicle_product_row(
                 access_token=access_token,
+                user_id=user_id,
                 row=entry["row"],
                 catalog_cache=catalog_cache,
                 caches=caches,
@@ -860,6 +868,7 @@ async def process_unique_rows_chunk(
 async def process_rows_for_job(
     job_id: str,
     access_token: str,
+    user_id: int | str | None,
     rows: list[dict],
     *,
     catalog_cache: CatalogPreloadService | None = None,
@@ -882,7 +891,10 @@ async def process_rows_for_job(
                 message="Precargando diccionarios globales desde Mercado Libre...",
             )
 
-        catalog_data = await catalog_cache.preload_all(access_token)
+        catalog_data = await catalog_cache.preload_all(
+            access_token,
+            user_id=user_id,
+        )
 
     if manage_job_updates and catalog_data is not None:
         JobStore.update(
@@ -940,6 +952,7 @@ async def process_rows_for_job(
         async with semaphore:
             result = await resolve_vehicle_product_row(
                 access_token=access_token,
+                user_id=user_id,
                 row=entry["row"],
                 catalog_cache=catalog_cache,
                 caches=caches,

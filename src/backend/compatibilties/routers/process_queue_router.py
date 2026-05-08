@@ -1,19 +1,60 @@
+import time
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from celery.states import READY_STATES
+from celery_app import celery_app
 from services.job_store import JobStore
+from services.process_queue_error_store import process_queue_error_store
 from services.process_queue_store import process_queue_store
 from tasks.process_queue_tasks import run_process_queue_task
 
 router = APIRouter(prefix="/process-queue", tags=["process-queue"])
+
+STALE_QUEUE_TASK_GRACE_SECONDS = 5 * 60
 
 
 class StartProcessQueueRequest(BaseModel):
     user_id: str
 
 
+def _should_reset_stale_queue(state: dict) -> bool:
+    if not state.get("running"):
+        return True
+
+    task_id = state.get("task_id")
+    started_at = state.get("started_at")
+    age_seconds = None
+
+    if isinstance(started_at, (int, float)):
+        age_seconds = max(0, time.time() - float(started_at))
+
+    if not task_id:
+        return bool(
+            age_seconds is not None and age_seconds >= STALE_QUEUE_TASK_GRACE_SECONDS
+        )
+
+    task_state = celery_app.AsyncResult(str(task_id)).state
+    if task_state in READY_STATES:
+        return True
+
+    if task_state == "PENDING":
+        return bool(
+            age_seconds is not None and age_seconds >= STALE_QUEUE_TASK_GRACE_SECONDS
+        )
+
+    return False
+
+
 @router.post("/start")
 async def start_process_queue(payload: StartProcessQueueRequest):
+    current_state = process_queue_store.get_state()
+    if _should_reset_stale_queue(current_state):
+        process_queue_store.reset(
+            message="Cola reiniciada para retomar procesos pendientes",
+        )
+
     started = process_queue_store.try_start(user_id=payload.user_id)
     if not started:
         raise HTTPException(
@@ -64,3 +105,15 @@ async def get_process_queue_status():
         state["job_progress"] = 0
 
     return state
+
+
+@router.get("/errors/{row_id}")
+async def get_process_queue_error(row_id: str):
+    error_payload = process_queue_error_store.get(row_id)
+    if not error_payload:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontraron detalles de error para ese proceso.",
+        )
+
+    return error_payload

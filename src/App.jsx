@@ -43,7 +43,9 @@ export default function App() {
         return;
       }
 
-      setSession(data?.session ?? null);
+      const restoredSession = data?.session ?? null;
+      setSession(restoredSession);
+      setHasAuthenticatedInApp(Boolean(restoredSession));
       setAuthLoading(false);
     });
 
@@ -55,6 +57,10 @@ export default function App() {
       }
 
       setSession(nextSession);
+
+      if (event === "INITIAL_SESSION") {
+        setHasAuthenticatedInApp(Boolean(nextSession));
+      }
 
       if (event === "SIGNED_IN") {
         setHasAuthenticatedInApp(true);

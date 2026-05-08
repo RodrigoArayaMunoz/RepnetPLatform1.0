@@ -96,7 +96,9 @@ class MercadoLibreClient:
         last_error: Exception | None = None
         refreshed_after_401 = False
 
-        if not access_token and user_id is not None:
+        # Cuando tenemos user_id, siempre resolvemos el token vigente usando
+        # el margen preventivo configurado antes de cada request.
+        if user_id is not None:
             access_token = await self.get_valid_token(user_id)
 
         if not access_token:
