@@ -112,6 +112,15 @@ COMPATIBILITY_EXCEPTION_WRITE_RATE_LIMITER = RedisWindowRateLimiter(
             0.15,
         )
     ),
+    max_requests_per_window=int(
+        _settings_value("ml_compatibility_exception_max_requests_per_window", 100)
+    ),
+    window_seconds=int(
+        _settings_value("ml_compatibility_exception_window_seconds", 60)
+    ),
+    cooldown_seconds=float(
+        _settings_value("ml_compatibility_exception_cooldown_seconds", 150.0)
+    ),
 )
 
 PRICE_STOCK_WRITE_RATE_LIMITER = RedisWindowRateLimiter(
@@ -119,6 +128,15 @@ PRICE_STOCK_WRITE_RATE_LIMITER = RedisWindowRateLimiter(
     namespace="ml:write:price_stock",
     requests_per_second=float(
         _settings_value("ml_price_stock_write_requests_per_second", 0.35)
+    ),
+    max_requests_per_window=int(
+        _settings_value("ml_price_stock_max_requests_per_window", 100)
+    ),
+    window_seconds=int(
+        _settings_value("ml_price_stock_window_seconds", 60)
+    ),
+    cooldown_seconds=float(
+        _settings_value("ml_price_stock_cooldown_seconds", 150.0)
     ),
 )
 

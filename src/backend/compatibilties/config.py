@@ -62,8 +62,14 @@ class Settings(BaseSettings):
     ml_read_requests_per_second: float = 0.8
     ml_write_requests_per_second: float = 0.35
     ml_compatibility_write_requests_per_second: float = 0.25
-    ml_compatibility_exception_write_requests_per_second: float = 0.15
-    ml_price_stock_write_requests_per_second: float = 0.35
+    ml_compatibility_exception_write_requests_per_second: float = 80 / 60
+    ml_price_stock_write_requests_per_second: float = 80 / 60
+    ml_compatibility_exception_max_requests_per_window: int = 100
+    ml_compatibility_exception_window_seconds: int = 60
+    ml_compatibility_exception_cooldown_seconds: float = 150.0
+    ml_price_stock_max_requests_per_window: int = 100
+    ml_price_stock_window_seconds: int = 60
+    ml_price_stock_cooldown_seconds: float = 150.0
     ml_retry_max_delay_seconds: float = 60.0
     ml_retry_429_min_delay_seconds: float = 12.0
     ml_retry_429_cooldown_seconds: float = 30.0
@@ -76,8 +82,8 @@ class Settings(BaseSettings):
     compat_batch_concurrency: int = 2
     process_file_chunk_size: int = 100
     compatibility_chunk_pause_seconds: int = 18 * 60
-    compatibility_exception_chunk_pause_seconds: int = 18 * 60
-    price_stock_chunk_pause_seconds: int = 6 * 60
+    compatibility_exception_chunk_pause_seconds: int = 0
+    price_stock_chunk_pause_seconds: int = 0
     process_queue_delay_seconds: int = 15 * 60
 
     token_refresh_margin_seconds: int = 600

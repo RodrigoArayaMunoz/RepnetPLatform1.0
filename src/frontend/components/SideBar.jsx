@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   X,
   Boxes,
@@ -8,7 +8,6 @@ import {
   BadgeDollarSign,
   User,
   PlugZap,
-  LogOut,
   FileSpreadsheet,
   Ban,
   FolderSync,
@@ -70,13 +69,9 @@ const navItems = [
 
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const location = useLocation();
-  const navigate = useNavigate();
-  const API_BASE =
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
   const [userEmail, setUserEmail] = useState("");
   const [authLoading, setAuthLoading] = useState(true);
-  const [signingOut, setSigningOut] = useState(false);
   const [isMlConnected, setIsMlConnected] = useState(false);
   const [mlStatusLoading, setMlStatusLoading] = useState(true);
   const [mlStatusMessage, setMlStatusMessage] = useState(ML_VERIFYING_MESSAGE);
@@ -227,43 +222,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const isGroupActive = (children) =>
     children.some((child) => location.pathname === child.to);
 
-  const handleSignOut = async () => {
-    if (signingOut) {
-      return;
-    }
-
-    try {
-      setSigningOut(true);
-
-      const connection = await readMlConnectionStatus();
-
-      if (connection.userId) {
-        await fetch(
-          `${API_BASE}/auth/logout?user_id=${encodeURIComponent(connection.userId)}`,
-          {
-            method: "POST",
-            credentials: "include",
-          }
-        );
-      }
-
-      if (supabase) {
-        const { error } = await supabase.auth.signOut();
-
-        if (error) {
-          throw error;
-        }
-      }
-
-      setSidebarOpen(false);
-      navigate("/", { replace: true });
-    } catch (error) {
-      console.error("Error al cerrar sesion:", error);
-    } finally {
-      setSigningOut(false);
-    }
-  };
-
   const mlStatusLabel = useMemo(() => {
     if (!supabase) {
       return "Sin configuracion";
@@ -405,18 +363,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
             );
           })}
         </nav>
-
-        <div className="sidebar__footer">
-          <button
-            type="button"
-            className="sidebar__logout-button"
-            onClick={handleSignOut}
-            disabled={signingOut}
-          >
-            <LogOut size={18} />
-            <span>{signingOut ? "Cerrando sesion..." : "Cerrar sesion"}</span>
-          </button>
-        </div>
       </aside>
     </>
   );
