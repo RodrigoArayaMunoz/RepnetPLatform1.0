@@ -492,12 +492,26 @@ async def process_price_stock_job(
     success_count = sum(1 for row in final_results if row.get("ok"))
     error_count = total_rows - success_count
     unique_items = len({row.get("item_id") for row in final_results if row.get("item_id")})
+    failed_item_ids: list[str] = []
+    seen_failed_item_ids: set[str] = set()
+
+    for row in final_results:
+        if row.get("ok"):
+            continue
+
+        item_id = str(row.get("item_id") or "").strip()
+        if not item_id or item_id in seen_failed_item_ids:
+            continue
+
+        seen_failed_item_ids.add(item_id)
+        failed_item_ids.append(item_id)
 
     summary = {
         "processed_rows": total_rows,
         "unique_rows": unique_items,
         "success_count": success_count,
         "error_count": error_count,
+        "failed_item_ids": failed_item_ids,
         "compatibilities_total": total_rows,
         "compatibilities_ok": success_count,
         "compatibilities_error": error_count,

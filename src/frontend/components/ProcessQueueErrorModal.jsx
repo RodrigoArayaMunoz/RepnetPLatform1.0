@@ -9,9 +9,14 @@ export default function ProcessQueueErrorModal({
 }) {
   if (!row) return null;
 
+  const failedItems = Array.isArray(errorData?.failed_items)
+    ? errorData.failed_items.filter(Boolean)
+    : [];
   const messages = Array.isArray(errorData?.messages)
     ? errorData.messages.filter(Boolean)
     : [];
+  const isPartialProcess = failedItems.length > 0;
+  const successCount = Number(errorData?.success_count || 0);
   const primaryMessage =
     errorData?.message ||
     loadError ||
@@ -32,7 +37,13 @@ export default function ProcessQueueErrorModal({
       >
         <div className="pq-error-modal__header">
           <div>
-            <p className="pq-error-modal__eyebrow">Proceso con error</p>
+            <p
+              className={`pq-error-modal__eyebrow ${
+                isPartialProcess ? "pq-error-modal__eyebrow--warning" : ""
+              }`}
+            >
+              {isPartialProcess ? "Proceso con errores" : "Proceso con error"}
+            </p>
             <h2 id="pq-error-modal-title">Detalle del procesamiento</h2>
           </div>
 
@@ -53,14 +64,38 @@ export default function ProcessQueueErrorModal({
             </div>
           ) : (
             <>
-              <section className="pq-error-modal__panel pq-error-modal__panel--danger">
+              <section
+                className={`pq-error-modal__panel ${
+                  isPartialProcess
+                    ? "pq-error-modal__panel--warning"
+                    : "pq-error-modal__panel--danger"
+                }`}
+              >
                 <span className="pq-error-modal__panel-label">
-                  Mensaje principal
+                  {isPartialProcess ? "Resumen" : "Mensaje principal"}
                 </span>
                 <p>{primaryMessage}</p>
+                {isPartialProcess && successCount > 0 && (
+                  <p className="pq-error-modal__summary-success">
+                    {`Se han actualizado correctamente ${successCount} MLC.`}
+                  </p>
+                )}
               </section>
 
-              {messages.length > 1 && (
+              {isPartialProcess ? (
+                <section className="pq-error-modal__panel">
+                  <span className="pq-error-modal__panel-label">
+                    MLC con error
+                  </span>
+                  <ul className="pq-error-modal__mlc-list">
+                    {failedItems.map((itemId) => (
+                      <li key={itemId} className="pq-error-modal__mlc-pill">
+                        {itemId}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : messages.length > 1 ? (
                 <section className="pq-error-modal__panel">
                   <span className="pq-error-modal__panel-label">
                     Mensajes detectados
@@ -71,9 +106,9 @@ export default function ProcessQueueErrorModal({
                     ))}
                   </ul>
                 </section>
-              )}
+              ) : null}
 
-              {errorData?.traceback && (
+              {!isPartialProcess && errorData?.traceback && (
                 <details className="pq-error-modal__traceback">
                   <summary>Ver detalle técnico</summary>
                   <pre>{errorData.traceback}</pre>

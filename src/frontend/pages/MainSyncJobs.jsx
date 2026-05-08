@@ -10,6 +10,7 @@ const PROCESS_STATUS = {
   PENDING: "Pendiente",
   PROCESSING: "Procesando",
   PROCESSED: "Procesado",
+  PROCESSED_WITH_ERRORS: "Procesado con Errores",
   ERROR: "Error",
 };
 
@@ -169,7 +170,44 @@ export default function MainSyncJobs() {
     fecha: formatTableDateTime(row.fecha_proceso, row.hora_proceso),
     procesadoPor: row.generado,
     estado: row.estado,
+    displayEstado: row.estado,
+    hasErrorDetails:
+      String(row.estado || "").toLowerCase() ===
+      PROCESS_STATUS.ERROR.toLowerCase(),
+    isPartialProcess: false,
   });
+
+  const loadProcessErrorSummaries = async (rows) => {
+    const rowIds = rows
+      .map((row) => String(row?.id || "").trim())
+      .filter(Boolean);
+
+    if (rowIds.length === 0) {
+      return {};
+    }
+
+    const res = await fetch(`${API_BASE}/process-queue/errors/summaries`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        row_ids: rowIds,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(
+        data?.detail ||
+          data?.message ||
+          "No se pudieron obtener los resúmenes de error."
+      );
+    }
+
+    return data?.items && typeof data.items === "object" ? data.items : {};
+  };
 
   const loadProcesses = async () => {
     if (!supabase) {
@@ -196,7 +234,29 @@ export default function MainSyncJobs() {
         return;
       }
 
-      setProcessRows((data || []).map(mapProcessRow));
+      const mappedRows = (data || []).map(mapProcessRow);
+
+      try {
+        const errorSummaries = await loadProcessErrorSummaries(mappedRows);
+        const enrichedRows = mappedRows.map((row) => {
+          const summary = errorSummaries[String(row.id)] || null;
+          if (!summary) {
+            return row;
+          }
+
+          return {
+            ...row,
+            displayEstado: summary.display_status || row.estado,
+            hasErrorDetails: Boolean(summary.has_error_details),
+            isPartialProcess: Boolean(summary.is_partial),
+          };
+        });
+
+        setProcessRows(enrichedRows);
+      } catch (summaryError) {
+        console.error("Error cargando resúmenes de error:", summaryError);
+        setProcessRows(mappedRows);
+      }
     } catch (err) {
       console.error("Error inesperado al cargar procesos:", err);
       setStatusMessage("Ocurrió un error inesperado al cargar procesos.");
@@ -470,6 +530,10 @@ export default function MainSyncJobs() {
   const getStatusClass = (status) => {
     const normalized = String(status || "").toLowerCase();
 
+    if (normalized === PROCESS_STATUS.PROCESSED_WITH_ERRORS.toLowerCase()) {
+      return "status-badge status-badge--partial";
+    }
+
     if (
       normalized === PROCESS_STATUS.PROCESSED.toLowerCase() ||
       normalized === "completado"
@@ -630,10 +694,9 @@ export default function MainSyncJobs() {
                     isQueueRunning && queueCurrentProcessRowId === row.id;
                   const displayStatus = isCurrentlyProcessing
                     ? PROCESS_STATUS.PROCESSING
-                    : row.estado;
-                  const hasProcessError =
-                    String(row.estado || "").toLowerCase() ===
-                    PROCESS_STATUS.ERROR.toLowerCase();
+                    : row.displayEstado || row.estado;
+                  const hasProcessError = Boolean(row.hasErrorDetails);
+                  const isPartialProcess = Boolean(row.isPartialProcess);
                   const showProgressBar =
                     isCurrentlyProcessing && jobTotalRows > 0;
                   const progressPercent = showProgressBar
@@ -649,10 +712,14 @@ export default function MainSyncJobs() {
                         {hasProcessError ? (
                           <button
                             type="button"
-                            className="process-table__error-button"
+                            className={`process-table__error-button ${
+                              isPartialProcess
+                                ? "process-table__error-button--partial"
+                                : ""
+                            }`}
                             onClick={() => handleOpenErrorModal(row)}
-                            aria-label={`Ver error del proceso ${row.archivo}`}
-                            title="Ver error del proceso"
+                            aria-label={`Ver detalle del proceso ${row.archivo}`}
+                            title="Ver detalle del proceso"
                           >
                             <svg
                               viewBox="0 0 24 24"

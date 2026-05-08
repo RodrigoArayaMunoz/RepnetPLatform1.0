@@ -141,6 +141,47 @@ def _build_process_error_payload(
     }
 
 
+def _build_partial_process_error_payload(
+    *,
+    process_row_id: int | str | None,
+    process_id: str,
+    filename: str,
+    process_type: str | None,
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    failed_items = [
+        str(item_id).strip()
+        for item_id in (summary.get("failed_item_ids") or [])
+        if str(item_id).strip()
+    ]
+    failed_count = len(failed_items)
+    success_count = int(summary.get("success_count") or 0)
+    message = (
+        f"El proceso terminó con errores en {failed_count} MLC."
+        if failed_count
+        else "El proceso terminó con errores."
+    )
+
+    return {
+        "process_row_id": process_row_id,
+        "process_id": process_id,
+        "filename": filename,
+        "process_type": process_type,
+        "error_type": "PartialProcessError",
+        "message": message,
+        "messages": [],
+        "failed_items": failed_items,
+        "failed_count": failed_count,
+        "success_count": success_count,
+        "detail": {
+            "failed_items": failed_items,
+            "failed_count": failed_count,
+            "success_count": success_count,
+        },
+        "occurred_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def _display_process_id(process_row: dict[str, Any]) -> str:
     return str(process_row.get("proceso_id") or process_row.get("id") or "")
 
@@ -448,9 +489,31 @@ async def run_process_queue(*, user_id: str) -> None:
                     process_row=current_row,
                     user_id=user_id,
                 )
-                await supabase_process_store.update_process_status(current_row_id, "Procesado")
-                if current_row_id is not None:
-                    process_queue_error_store.clear(current_row_id)
+                has_partial_errors = (
+                    process_type == "price_stock"
+                    and int(summary.get("error_count") or 0) > 0
+                )
+
+                if has_partial_errors:
+                    await supabase_process_store.update_process_status(
+                        current_row_id,
+                        "Procesado",
+                    )
+                    if current_row_id is not None:
+                        process_queue_error_store.save(
+                            current_row_id,
+                            _build_partial_process_error_payload(
+                                process_row_id=current_row_id,
+                                process_id=current_process_id,
+                                filename=current_filename,
+                                process_type=process_type,
+                                summary=summary,
+                            ),
+                        )
+                else:
+                    await supabase_process_store.update_process_status(current_row_id, "Procesado")
+                    if current_row_id is not None:
+                        process_queue_error_store.clear(current_row_id)
                 completed_count += 1
                 last_error = None
 
@@ -466,7 +529,11 @@ async def run_process_queue(*, user_id: str) -> None:
                 process_queue_store.update(
                     processed_count=completed_count,
                     current_process_type=process_type,
-                    message=f"Proceso {current_filename} finalizado correctamente",
+                    message=(
+                        f"Proceso {current_filename} finalizado con errores en algunos MLC"
+                        if has_partial_errors
+                        else f"Proceso {current_filename} finalizado correctamente"
+                    ),
                     last_error=None,
                 )
             except Exception as exc:

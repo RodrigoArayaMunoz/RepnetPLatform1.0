@@ -295,6 +295,14 @@
   filter: drop-shadow(0 6px 12px rgba(226, 83, 93, 0.22));
 }
 
+.process-table__error-button--partial {
+  color: #d97706;
+}
+
+.process-table__error-button--partial:hover {
+  filter: drop-shadow(0 6px 12px rgba(217, 119, 6, 0.22));
+}
+
 .process-table__error-icon {
   width: 30px;
   height: 30px;
@@ -342,6 +350,11 @@
 .status-badge--success {
   background: rgba(34, 197, 94, 0.14);
   color: #15803d;
+}
+
+.status-badge--partial {
+  background: rgba(249, 115, 22, 0.16);
+  color: #c2410c;
 }
 
 .status-badge--warning {

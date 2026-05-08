@@ -31,6 +31,16 @@ class ProcessQueueErrorStore:
 
         return data if isinstance(data, dict) else None
 
+    def get_many(self, row_ids: list[int | str]) -> dict[str, dict[str, Any]]:
+        result: dict[str, dict[str, Any]] = {}
+
+        for row_id in row_ids:
+            payload = self.get(row_id)
+            if payload:
+                result[str(row_id)] = payload
+
+        return result
+
     def clear(self, row_id: int | str) -> None:
         path = self._get_path(row_id)
         try:

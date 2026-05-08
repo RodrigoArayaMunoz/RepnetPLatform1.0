@@ -1,4 +1,5 @@
 import time
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -17,6 +18,10 @@ STALE_QUEUE_TASK_GRACE_SECONDS = 5 * 60
 
 class StartProcessQueueRequest(BaseModel):
     user_id: str
+
+
+class ProcessQueueErrorSummaryRequest(BaseModel):
+    row_ids: list[str]
 
 
 def _should_reset_stale_queue(state: dict) -> bool:
@@ -117,3 +122,26 @@ async def get_process_queue_error(row_id: str):
         )
 
     return error_payload
+
+
+@router.post("/errors/summaries")
+async def get_process_queue_error_summaries(
+    payload: ProcessQueueErrorSummaryRequest,
+) -> dict[str, Any]:
+    row_ids = [str(row_id).strip() for row_id in payload.row_ids if str(row_id).strip()]
+    if not row_ids:
+        return {"items": {}}
+
+    error_payloads = process_queue_error_store.get_many(row_ids)
+    items: dict[str, Any] = {}
+
+    for row_id, error_payload in error_payloads.items():
+        failed_items = error_payload.get("failed_items")
+        is_partial = isinstance(failed_items, list) and len(failed_items) > 0
+        items[row_id] = {
+            "has_error_details": True,
+            "is_partial": is_partial,
+            "display_status": "Procesado con Errores" if is_partial else "Error",
+        }
+
+    return {"items": items}
