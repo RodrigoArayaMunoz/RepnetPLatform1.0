@@ -530,6 +530,32 @@ class MercadoLibreClient:
 
         return data if isinstance(data, dict) else {"raw_response": data}
 
+    async def update_item_pictures(
+        self,
+        access_token: str | None,
+        item_id: str,
+        picture_urls: list[str] | None = None,
+        user_id: int | str | None = None,
+    ) -> dict:
+        pictures = [
+            {"source": str(url).strip()}
+            for url in (picture_urls or [])
+            if str(url).strip()
+        ]
+
+        if not pictures:
+            return {"ok": False, "reason": "No hay fotos para actualizar"}
+
+        data = await self.request(
+            "PUT",
+            f"/items/{item_id}",
+            access_token=access_token,
+            json_body={"pictures": pictures},
+            user_id=user_id,
+        )
+
+        return data if isinstance(data, dict) else {"raw_response": data}
+
     async def add_item_compatibility_exception(
         self,
         access_token: str | None,

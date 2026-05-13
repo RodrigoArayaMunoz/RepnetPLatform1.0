@@ -17,6 +17,7 @@ from services.ml_client import ml_client
 from routers.product_resolution_router import router as product_resolution_router
 from routers.compatibility_batch_router import router as compatibility_batch_router
 from routers.compatibility_exception_router import router as compatibility_exception_router
+from routers.item_pictures_router import router as item_pictures_router
 from routers.price_stock_router import router as price_stock_router
 from routers.process_queue_router import router as process_queue_router
 
@@ -35,6 +36,7 @@ app = FastAPI(title="Compatibilidades API", lifespan=lifespan)
 app.include_router(product_resolution_router)
 app.include_router(compatibility_batch_router)
 app.include_router(compatibility_exception_router)
+app.include_router(item_pictures_router)
 app.include_router(price_stock_router)
 app.include_router(process_queue_router)
 

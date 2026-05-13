@@ -19,6 +19,11 @@ from services.compatibility_orchestrator_service import (
     process_excel_compatibilities_end_to_end,
 )
 from services.excel_service import COLUMN_ALIASES, load_excel_rows, normalize_for_compare
+from services.item_pictures_service import (
+    MLC_COLUMN_ALIASES as ITEM_PICTURES_MLC_COLUMN_ALIASES,
+    URLS_COLUMN_ALIASES as ITEM_PICTURES_URLS_COLUMN_ALIASES,
+    process_item_pictures_job,
+)
 from services.job_store import JobStore
 from services.ml_client import ml_client
 from services.price_stock_service import (
@@ -205,6 +210,8 @@ PRICE_STOCK_ESTADO_ALIASES = _normalize_aliases(ESTADO_COLUMN_ALIASES)
 PRICE_STOCK_STOCK_ALIASES = _normalize_aliases(STOCK_COLUMN_ALIASES)
 PRICE_STOCK_PRECIO_ALIASES = _normalize_aliases(PRECIO_COLUMN_ALIASES)
 PRICE_STOCK_EXTRA_ALIASES = _normalize_aliases(PRICE_STOCK_QUEUE_EXTRA_COLUMNS)
+ITEM_PICTURES_MLC_ALIASES = _normalize_aliases(ITEM_PICTURES_MLC_COLUMN_ALIASES)
+ITEM_PICTURES_URLS_ALIASES = _normalize_aliases(ITEM_PICTURES_URLS_COLUMN_ALIASES)
 NO_COMPAT_ALIASES = _normalize_aliases(
     NO_COMPAT_QUEUE_REQUIRED_COLUMNS + EXCEPTION_MLC_COLUMN_ALIASES
 )
@@ -292,6 +299,14 @@ def _matches_no_compat_columns(columns: set[str]) -> bool:
     return bool(columns & NO_COMPAT_ALIASES)
 
 
+def _matches_item_pictures_columns(columns: set[str]) -> bool:
+    required_groups = [
+        ("MLC", ITEM_PICTURES_MLC_ALIASES),
+        ("URLS", ITEM_PICTURES_URLS_ALIASES),
+    ]
+    return all(bool(columns & aliases) for _, aliases in required_groups)
+
+
 def detect_process_type(file_path: str) -> str:
     columns = _load_file_columns(file_path)
 
@@ -307,6 +322,14 @@ def detect_process_type(file_path: str) -> str:
     if is_price_stock:
         return "price_stock"
 
+    is_item_pictures = _matches_item_pictures_columns(columns)
+    logger.info(
+        "[PROCESS_QUEUE][DETECT] _matches_item_pictures_columns=%s",
+        is_item_pictures,
+    )
+    if is_item_pictures:
+        return "item_pictures"
+
     is_no_compat = _matches_no_compat_columns(columns)
     logger.info(
         "[PROCESS_QUEUE][DETECT] _matches_no_compat_columns=%s NO_COMPAT_ALIASES=%s",
@@ -319,6 +342,7 @@ def detect_process_type(file_path: str) -> str:
         "No se pudo identificar el tipo de proceso por columnas. "
         "Compatibilidades requiere columnas de asociacion, vehiculo, familia y posiciones; "
         "precios/stock requiere mlc, precio_nuevo, stock_nuevo y estado_nuevo; "
+        "actualizacion de fotos requiere mlc y urls; "
         "no compatibilidades requiere una columna MLC-NOINFORMADAS o equivalente."
     )
 
@@ -399,6 +423,24 @@ async def _run_compatibility_exceptions_job(
     return job_id, outcome.get("summary", {})
 
 
+async def _run_item_pictures_job(
+    *,
+    user_id: str,
+    file_path: str,
+    filename: str,
+) -> tuple[str, dict[str, Any]]:
+    job = JobStore.create(filename)
+    job_id = job["id"]
+    JobStore.update(job_id, xlsx_path=file_path)
+    process_queue_store.update(current_job_id=job_id)
+    outcome = await process_item_pictures_job(
+        job_id=job_id,
+        user_id=user_id,
+        file_path=file_path,
+    )
+    return job_id, outcome.get("summary", {})
+
+
 async def _execute_process_record(
     *,
     process_row: dict[str, Any],
@@ -424,6 +466,14 @@ async def _execute_process_record(
 
         if process_type == "price_stock":
             job_id, summary = await _run_price_stock_job(
+                user_id=user_id,
+                file_path=local_path,
+                filename=filename,
+            )
+            return process_type, job_id, summary
+
+        if process_type == "item_pictures":
+            job_id, summary = await _run_item_pictures_job(
                 user_id=user_id,
                 file_path=local_path,
                 filename=filename,
@@ -490,7 +540,7 @@ async def run_process_queue(*, user_id: str) -> None:
                     user_id=user_id,
                 )
                 has_partial_errors = (
-                    process_type == "price_stock"
+                    process_type in {"price_stock", "item_pictures"}
                     and int(summary.get("error_count") or 0) > 0
                 )
 
