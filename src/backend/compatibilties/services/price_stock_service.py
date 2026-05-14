@@ -379,7 +379,7 @@ async def process_price_stock_job(
         total_unique_rows=total_rows,
         total_chunks=total_chunks,
         completed_chunks=0,
-        message="Archivo leído correctamente. Preparando actualización de precios/stock...",
+        message="Preparando archivo para actualizar precios y stock...",
     )
 
     if total_rows == 0:
@@ -425,10 +425,7 @@ async def process_price_stock_job(
                 progress=min(progress, 95),
                 processed_rows=completed,
                 processed_unique_rows=completed,
-                message=(
-                    f"Chunk {chunk_number}/{total_chunks_count} - "
-                    f"actualizando precios/stock {completed}/{total_rows}"
-                ),
+                message=f"Procesando archivo: {completed}/{total_rows} filas actualizadas",
             )
 
     for chunk_number, (_, chunk_entries) in enumerate(
@@ -437,10 +434,7 @@ async def process_price_stock_job(
     ):
         JobStore.update(
             job_id,
-            message=(
-                f"Iniciando chunk {chunk_number}/{total_chunks} "
-                f"de precios/stock con {len(chunk_entries)} filas"
-            ),
+            message=f"Procesando bloque {chunk_number}/{total_chunks}...",
         )
 
         semaphore = asyncio.Semaphore(max_concurrency)
@@ -461,16 +455,15 @@ async def process_price_stock_job(
         JobStore.update(
             job_id,
             completed_chunks=chunk_number,
-            message=f"Chunk {chunk_number}/{total_chunks} de precios/stock finalizado",
+            message=f"Bloque {chunk_number}/{total_chunks} completado",
         )
 
         if chunk_number < total_chunks and pause_seconds > 0:
             JobStore.update(
                 job_id,
                 message=(
-                    f"Chunk {chunk_number}/{total_chunks} finalizado. "
-                    f"Esperando {format_pause_minutes(pause_seconds)} para continuar "
-                    f"con el siguiente bloque."
+                    f"Bloque {chunk_number}/{total_chunks} completado. "
+                    f"Esperando {format_pause_minutes(pause_seconds)} para continuar."
                 ),
             )
             await asyncio.sleep(pause_seconds)

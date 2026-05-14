@@ -158,6 +158,11 @@
   font-weight: 600;
 }
 
+.pq-error-modal__support-note {
+  color: #475569;
+  font-size: 0.9rem;
+}
+
 .pq-error-modal__summary-success {
   color: #166534;
   font-weight: 700;
@@ -185,31 +190,6 @@
   background: #fff7ed;
   color: #9a3412;
   font-weight: 700;
-}
-
-.pq-error-modal__traceback {
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  background: #f8fafc;
-  padding: 16px 18px;
-}
-
-.pq-error-modal__traceback summary {
-  cursor: pointer;
-  font-weight: 800;
-  color: #334155;
-}
-
-.pq-error-modal__traceback pre {
-  margin: 14px 0 0;
-  padding: 14px;
-  border-radius: 14px;
-  background: #0f172a;
-  color: #e2e8f0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 0.82rem;
-  line-height: 1.45;
 }
 
 @media (max-width: 720px) {

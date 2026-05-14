@@ -165,10 +165,10 @@ async def get_item_compact_cached(
 ) -> dict:
     cached = ProductCacheService.get_item_compact(item_id)
     if cached:
-        logger.info("[BATCH][CACHE_HIT] item_id=%s", item_id)
+        logger.debug("[BATCH][CACHE_HIT] item_id=%s", item_id)
         return cached
 
-    logger.info("[BATCH][CACHE_MISS] item_id=%s -> consultando item detail", item_id)
+    logger.debug("[BATCH][CACHE_MISS] item_id=%s", item_id)
     item_detail = await call_ml(
         ml_client.get_item_detail,
         access_token,
@@ -253,7 +253,7 @@ async def post_compatibilities_batch(
                 "response": None,
             }
 
-        logger.info(
+        logger.debug(
             "[BATCH][PUT] item_id=%s user_product_id=%s products_sent=%s restrictions=%s",
             item_id,
             user_product_id,
@@ -273,7 +273,7 @@ async def post_compatibilities_batch(
             limiter=WRITE_RATE_LIMITER,
         )
 
-        logger.info(
+        logger.debug(
             "[BATCH][OK] item_id=%s user_product_id=%s products_sent=%s",
             item_id,
             user_product_id,
@@ -582,7 +582,7 @@ async def process_compatibility_batches(
                 completed_snapshot = completed
                 should_notify = on_progress is not None
 
-            logger.info(
+            logger.debug(
                 "[BATCH][PROGRESS] completed=%s/%s last_item=%s sent=%s ok=%s",
                 completed_snapshot,
                 len(all_batches),
@@ -629,12 +629,7 @@ async def process_compatibility_batches(
         summary["compatibilities_ok"],
         summary["compatibilities_error"],
     )
-    logger.info(
-        "========================================\n"
-        "  TOTAL COMPATIBILIDADES CREADAS: %s\n"
-        "========================================",
-        total_created,
-    )
+    logger.info("[BATCH][CREATED_TOTAL] compatibilities=%s", total_created)
 
     return {
         "results": final_rows,

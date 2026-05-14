@@ -51,10 +51,10 @@ export default function ProcessQueueErrorModal({
       );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const responseError = await response.json().catch(() => ({}));
         throw new Error(
-          errorData?.detail ||
-            errorData?.message ||
+          responseError?.detail ||
+            responseError?.message ||
             "No se pudo descargar el archivo Excel."
         );
       }
@@ -167,6 +167,12 @@ export default function ProcessQueueErrorModal({
                     {downloadError}
                   </p>
                 )}
+                {!isPartialProcess && errorData?.traceback && (
+                  <p className="pq-error-modal__support-note">
+                    Se registró un detalle técnico interno para revisión del
+                    servidor.
+                  </p>
+                )}
               </section>
 
               {isPartialProcess ? (
@@ -194,13 +200,6 @@ export default function ProcessQueueErrorModal({
                   </ul>
                 </section>
               ) : null}
-
-              {!isPartialProcess && errorData?.traceback && (
-                <details className="pq-error-modal__traceback">
-                  <summary>Ver detalle técnico</summary>
-                  <pre>{errorData.traceback}</pre>
-                </details>
-              )}
             </>
           )}
         </div>

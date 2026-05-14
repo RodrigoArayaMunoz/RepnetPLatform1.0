@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from typing import Any
 from io import BytesIO
@@ -8,6 +9,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 
 from services.ml_client import ml_client
+
+logger = logging.getLogger(__name__)
 
 
 class MlPublicationsService:
@@ -250,7 +253,10 @@ class MlPublicationsService:
             except Exception as exc:
                 self._refresh_status[seller_id]["error"] = repr(exc)
                 self._refresh_status[seller_id]["finished_at"] = time.time()
-                print(f"[ml_publications_service] background refresh error seller={seller_id}: {exc!r}")
+                logger.exception(
+                    "[ML_PUBLICATIONS][REFRESH_ERROR] seller_id=%s",
+                    seller_id,
+                )
             finally:
                 self._refresh_status[seller_id]["in_progress"] = False
                 self._refresh_tasks.pop(seller_id, None)
@@ -320,11 +326,14 @@ class MlPublicationsService:
             "state": "fresh",
         }
 
-        print(
-            f"[ml_publications_service] cache rebuilt seller={seller_id} "
-            f"items={len(final_items)} reused={len(reused_items)} fetched_new={len(missing_ids)} "
-            f"removed={len([k for k in old_by_mlc.keys() if k not in current_mlc_set])} "
-            f"elapsed={round(now - started_at, 2)}s"
+        logger.info(
+            "[ML_PUBLICATIONS][CACHE_REBUILT] seller_id=%s items=%s reused=%s fetched_new=%s removed=%s elapsed=%ss",
+            seller_id,
+            len(final_items),
+            len(reused_items),
+            len(missing_ids),
+            len([k for k in old_by_mlc.keys() if k not in current_mlc_set]),
+            round(now - started_at, 2),
         )
 
         return final_items

@@ -75,20 +75,6 @@ def _settings_value(name: str, default: Any) -> Any:
     return getattr(settings, name, default)
 
 
-DEBUG_COMPAT = False
-
-
-def dlog(*parts):
-    if DEBUG_COMPAT:
-        print(*parts, flush=True)
-
-
-def dsep(title: str = ""):
-    if DEBUG_COMPAT:
-        line = "=" * 25
-        print(f"\n{line} {title} {line}", flush=True)
-
-
 READ_RATE_LIMITER = RedisWindowRateLimiter(
     redis_url=settings.redis_url,
     namespace="ml:read",
@@ -906,7 +892,7 @@ async def process_rows_for_job(
             JobStore.update(
                 job_id,
                 progress=3,
-                message="Precargando diccionarios globales desde Mercado Libre...",
+                message="Preparando catálogo de Mercado Libre...",
             )
 
         catalog_data = await catalog_cache.preload_all(
@@ -918,7 +904,7 @@ async def process_rows_for_job(
         JobStore.update(
             job_id,
             progress=10,
-            message="Diccionarios precargados. Resolviendo product_id por vehículo único...",
+            message="Catálogo preparado. Iniciando resolución de vehículos...",
             metrics={
                 **metrics.to_dict(),
                 "catalog_preload": (
@@ -991,8 +977,8 @@ async def process_rows_for_job(
                         progress=progress,
                         processed_rows=completed,
                         message=(
-                            f"Resolviendo vehículos únicos {completed}/{total_unique_rows} "
-                            f"para expandir a {total_rows} filas del Excel"
+                            f"Procesando archivo: {completed}/{total_unique_rows} "
+                            f"vehículos resueltos"
                         ),
                     )
 
@@ -1033,7 +1019,7 @@ async def process_rows_for_job(
         JobStore.update(
             job_id,
             progress=95,
-            message="Consolidando resultados finales...",
+            message="Preparando resumen final...",
             metrics=metrics_payload,
         )
 

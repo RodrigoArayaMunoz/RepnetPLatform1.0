@@ -65,7 +65,7 @@ async def process_excel_compatibilities_end_to_end(
         completed_chunks=0,
         processed_rows=0,
         processed_unique_rows=0,
-        message="Preparando procesamiento por bloques de compatibilidades...",
+        message="Preparando procesamiento de compatibilidades...",
     )
 
     if total_rows == 0:
@@ -94,7 +94,7 @@ async def process_excel_compatibilities_end_to_end(
     JobStore.update(
         job_id,
         progress=3,
-        message="Precargando diccionarios globales desde Mercado Libre...",
+        message="Preparando catálogo de Mercado Libre...",
     )
     catalog_data = await catalog_cache.preload_all(
         access_token,
@@ -103,10 +103,7 @@ async def process_excel_compatibilities_end_to_end(
     JobStore.update(
         job_id,
         progress=8,
-        message=(
-            f"Diccionarios precargados. Se procesaran {total_chunks} bloques "
-            f"de hasta {chunk_size} filas."
-        ),
+        message=f"Catálogo preparado. Se procesarán {total_chunks} bloques.",
         metrics={
             **metrics.to_dict(),
             "catalog_preload": (
@@ -131,8 +128,8 @@ async def process_excel_compatibilities_end_to_end(
             job_id,
             progress=max(8, 10 + int((completed_rows / max(total_rows, 1)) * 80)),
             message=(
-                f"Chunk {chunk_number}/{total_chunks} - resolviendo vehiculos "
-                f"para filas {chunk_start}-{chunk_end}"
+                f"Procesando bloque {chunk_number}/{total_chunks}: "
+                f"filas {chunk_start}-{chunk_end}"
             ),
         )
 
@@ -184,8 +181,8 @@ async def process_excel_compatibilities_end_to_end(
                 job_id,
                 progress=min(progress, 95),
                 message=(
-                    f"Chunk {chunk_number}/{total_chunks} - agregando "
-                    f"compatibilidades batch {completed_batches}/{total_batches}"
+                    f"Procesando bloque {chunk_number}/{total_chunks}: "
+                    f"{completed_batches}/{total_batches} lotes aplicados"
                 ),
             )
 
@@ -208,7 +205,7 @@ async def process_excel_compatibilities_end_to_end(
             processed_rows=completed_rows,
             processed_unique_rows=min(total_unique_rows, completed_rows),
             completed_chunks=chunk_number,
-            message=f"Chunk {chunk_number}/{total_chunks} de compatibilidades finalizado",
+            message=f"Bloque {chunk_number}/{total_chunks} completado",
         )
 
         if chunk_number < total_chunks and pause_seconds > 0:
@@ -216,9 +213,8 @@ async def process_excel_compatibilities_end_to_end(
                 job_id,
                 progress=min(progress, 95),
                 message=(
-                    f"Chunk {chunk_number}/{total_chunks} finalizado. "
-                    f"Esperando {format_pause_minutes(pause_seconds)} para continuar "
-                    f"con el siguiente bloque."
+                    f"Bloque {chunk_number}/{total_chunks} completado. "
+                    f"Esperando {format_pause_minutes(pause_seconds)} para continuar."
                 ),
             )
             await asyncio.sleep(pause_seconds)
