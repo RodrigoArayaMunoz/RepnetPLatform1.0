@@ -51,13 +51,25 @@
   width: 100%;
 }
 
+.sidebar__brand-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
 .sidebar__brand-logo {
-  width: 180px;
+  width: 230px;
   max-width: 100%;
   height: auto;
   display: block;
   object-fit: contain;
   background-color: #ffffff;
+}
+
+.sidebar__brand-logo--secondary {
+  width: 180px;
 }
 
 .sidebar__close {
@@ -254,6 +266,10 @@
   }
 
   .sidebar__brand-logo {
+    width: 150px;
+  }
+
+  .sidebar__brand-logo--secondary {
     width: 150px;
   }
 }

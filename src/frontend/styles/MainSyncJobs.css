@@ -296,11 +296,11 @@
 }
 
 .process-table__error-button--partial {
-  color: #d97706;
+  color: #dc2626;
 }
 
 .process-table__error-button--partial:hover {
-  filter: drop-shadow(0 6px 12px rgba(217, 119, 6, 0.22));
+  filter: drop-shadow(0 6px 12px rgba(220, 38, 38, 0.24));
 }
 
 .process-table__error-icon {

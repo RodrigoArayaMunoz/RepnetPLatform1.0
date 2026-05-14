@@ -13,12 +13,14 @@ import {
   FolderSync,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
+//import logo from "../../assets/repnetmercadolibre_logo.png";
 import { supabase } from "../../lib/supabase.js";
 import {
   ML_VERIFYING_MESSAGE,
   readMlConnectionStatus,
 } from "../../lib/meliConnection.js";
 import "../styles/SideBar.css";
+import mercadoLibreLogo from "../../assets/mercadolibre_logo.png";
 
 const navItems = [
   {
@@ -244,7 +246,14 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
       <aside className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}>
         <div className="sidebar__header">
           <div className="sidebar__branding">
-            <img src={logo} alt="Repnet" className="sidebar__brand-logo" />
+            <div className="sidebar__brand-stack">
+              <img src={logo} alt="Repnet" className="sidebar__brand-logo" />
+              <img
+                src={mercadoLibreLogo}
+                alt="Mercado Libre"
+                className="sidebar__brand-logo sidebar__brand-logo--secondary"
+              />
+            </div>
           </div>
 
           <button
