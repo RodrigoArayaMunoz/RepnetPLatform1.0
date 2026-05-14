@@ -1,12 +1,23 @@
+import { useEffect, useState } from "react";
+import { FileSpreadsheet } from "lucide-react";
 import "./ProcessQueueErrorModal.css";
 
 export default function ProcessQueueErrorModal({
   row,
+  apiBase,
   errorData,
   isLoading,
   loadError,
   onClose,
 }) {
+  const [isDownloadingExcel, setIsDownloadingExcel] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+
+  useEffect(() => {
+    setIsDownloadingExcel(false);
+    setDownloadError("");
+  }, [row?.id, errorData?.occurred_at]);
+
   if (!row) return null;
 
   const failedItems = Array.isArray(errorData?.failed_items)
@@ -21,6 +32,56 @@ export default function ProcessQueueErrorModal({
     errorData?.message ||
     loadError ||
     "No se encontraron detalles adicionales para este error.";
+
+  const handleDownloadExcel = async () => {
+    if (!row?.id || !apiBase || failedItems.length === 0 || isDownloadingExcel) {
+      return;
+    }
+
+    try {
+      setIsDownloadingExcel(true);
+      setDownloadError("");
+
+      const response = await fetch(
+        `${apiBase}/process-queue/errors/${row.id}/export`,
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData?.detail ||
+            errorData?.message ||
+            "No se pudo descargar el archivo Excel."
+        );
+      }
+
+      const blob = await response.blob();
+      const contentDisposition =
+        response.headers.get("Content-Disposition") || "";
+      const filenameMatch = contentDisposition.match(/filename=\"?([^"]+)\"?/i);
+      const filename =
+        filenameMatch?.[1] || `mlc_con_error_${String(row.id)}.xlsx`;
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      setDownloadError(
+        error?.message || "No se pudo descargar el archivo Excel."
+      );
+    } finally {
+      setIsDownloadingExcel(false);
+    }
+  };
 
   return (
     <div
@@ -74,10 +135,36 @@ export default function ProcessQueueErrorModal({
                 <span className="pq-error-modal__panel-label">
                   {isPartialProcess ? "Resumen" : "Mensaje principal"}
                 </span>
-                <p>{primaryMessage}</p>
+                {isPartialProcess ? (
+                  <div className="pq-error-modal__summary-row">
+                    <p>{primaryMessage}</p>
+                    <button
+                      type="button"
+                      className="pq-error-modal__excel-button"
+                      onClick={handleDownloadExcel}
+                      disabled={isDownloadingExcel}
+                      aria-label="Descargar Excel con MLC con error"
+                      title="Descargar Excel con MLC con error"
+                    >
+                      <FileSpreadsheet size={16} aria-hidden="true" />
+                      <span>
+                        {isDownloadingExcel
+                          ? "Descargando..."
+                          : "Descargar Excel de Errores"}
+                      </span>
+                    </button>
+                  </div>
+                ) : (
+                  <p>{primaryMessage}</p>
+                )}
                 {isPartialProcess && successCount > 0 && (
                   <p className="pq-error-modal__summary-success">
                     {`Se han actualizado correctamente ${successCount} MLC.`}
+                  </p>
+                )}
+                {downloadError && (
+                  <p className="pq-error-modal__download-error">
+                    {downloadError}
                   </p>
                 )}
               </section>

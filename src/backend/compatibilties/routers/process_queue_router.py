@@ -1,8 +1,13 @@
+import re
 import time
+from io import BytesIO
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from openpyxl import Workbook
+from openpyxl.styles import Font
 
 from celery.states import READY_STATES
 from celery_app import celery_app
@@ -22,6 +27,32 @@ class StartProcessQueueRequest(BaseModel):
 
 class ProcessQueueErrorSummaryRequest(BaseModel):
     row_ids: list[str]
+
+
+def _sanitize_export_filename(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip())
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    return cleaned or "errores_mlc"
+
+
+def _build_failed_items_excel(
+    failed_items: list[str],
+) -> BytesIO:
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "MLC con error"
+    worksheet.append(["MLC"])
+    worksheet["A1"].font = Font(bold=True)
+
+    for item_id in failed_items:
+        worksheet.append([item_id])
+
+    worksheet.column_dimensions["A"].width = 24
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return output
 
 
 def _should_reset_stale_queue(state: dict) -> bool:
@@ -122,6 +153,46 @@ async def get_process_queue_error(row_id: str):
         )
 
     return error_payload
+
+
+@router.get("/errors/{row_id}/export")
+async def export_process_queue_error_items(row_id: str):
+    error_payload = process_queue_error_store.get(row_id)
+    if not error_payload:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontraron detalles de error para ese proceso.",
+        )
+
+    failed_items = [
+        str(item_id).strip()
+        for item_id in (error_payload.get("failed_items") or [])
+        if str(item_id).strip()
+    ]
+    if not failed_items:
+        raise HTTPException(
+            status_code=400,
+            detail="Ese proceso no tiene MLC con error para exportar.",
+        )
+
+    file_buffer = _build_failed_items_excel(failed_items)
+    process_id = str(
+        error_payload.get("process_id")
+        or error_payload.get("process_row_id")
+        or row_id
+    )
+    safe_process_id = _sanitize_export_filename(process_id)
+    filename = f"mlc_con_error_{safe_process_id}.xlsx"
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"'
+    }
+
+    return StreamingResponse(
+        file_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
 
 
 @router.post("/errors/summaries")

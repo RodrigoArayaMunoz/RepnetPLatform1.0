@@ -111,6 +111,53 @@
   white-space: pre-wrap;
 }
 
+.pq-error-modal__summary-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.pq-error-modal__summary-row p {
+  max-width: 100%;
+}
+
+.pq-error-modal__excel-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #15803d;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #22c55e 0%, #15803d 100%);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 14px rgba(21, 128, 61, 0.16);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.pq-error-modal__excel-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(21, 128, 61, 0.2);
+}
+
+.pq-error-modal__excel-button:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.pq-error-modal__download-error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .pq-error-modal__summary-success {
   color: #166534;
   font-weight: 700;
@@ -174,5 +221,10 @@
   .pq-error-modal__body {
     padding-left: 20px;
     padding-right: 20px;
+  }
+
+  .pq-error-modal__excel-button {
+    width: 100%;
+    justify-content: center;
   }
 }

@@ -787,6 +787,7 @@ export default function MainSyncJobs() {
 
       <ProcessQueueErrorModal
         row={selectedErrorRow}
+        apiBase={API_BASE}
         errorData={selectedErrorDetails}
         isLoading={isLoadingErrorDetails}
         loadError={errorDetailsLoadMessage}
