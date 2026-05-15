@@ -11,6 +11,7 @@ from services.compatibility_service import (
     JobMetrics,
     build_vehicle_resolution_plan,
     call_ml,
+    get_write_rate_policy,
     process_rows_for_job,
 )
 from services.job_store import JobStore
@@ -90,6 +91,17 @@ async def process_excel_compatibilities_end_to_end(
     metrics = JobMetrics()
     caches = JobCaches()
     catalog_cache = CatalogPreloadService(call_ml=call_ml, metrics=metrics)
+    write_policy = get_write_rate_policy()
+
+    logger.info(
+        "[COMPATIBILITY][POLICY] chunk_size=%s pause_seconds=%s requests_per_second=%.4f max_requests_per_window=%s window_seconds=%s cooldown_seconds=%s",
+        chunk_size,
+        pause_seconds,
+        write_policy["requests_per_second"],
+        write_policy["max_requests_per_window"],
+        write_policy["window_seconds"],
+        write_policy["cooldown_seconds"],
+    )
 
     JobStore.update(
         job_id,

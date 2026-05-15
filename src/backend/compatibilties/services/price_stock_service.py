@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 from typing import Any
 
@@ -11,6 +12,7 @@ from services.compatibility_service import (
     JobMetrics,
     PRICE_STOCK_WRITE_RATE_LIMITER,
     call_ml,
+    get_write_rate_policy,
 )
 from services.excel_service import extract_item_id, normalize_text
 from services.job_store import JobStore
@@ -22,6 +24,8 @@ from services.process_chunking_service import (
     get_price_stock_chunk_pause_seconds,
     get_process_file_chunk_size,
 )
+
+logger = logging.getLogger(__name__)
 
 
 MLC_COLUMN_ALIASES = [
@@ -395,8 +399,20 @@ async def process_price_stock_job(
         }
         return {"results": [], "summary": summary}
 
-
     max_concurrency = max(1, int(getattr(settings, "max_row_concurrency", 2)))
+    write_policy = get_write_rate_policy()
+
+    logger.info(
+        "[PRICE_STOCK][POLICY] chunk_size=%s pause_seconds=%s max_concurrency=%s requests_per_second=%.4f max_requests_per_window=%s window_seconds=%s cooldown_seconds=%s",
+        chunk_size,
+        pause_seconds,
+        max_concurrency,
+        write_policy["requests_per_second"],
+        write_policy["max_requests_per_window"],
+        write_policy["window_seconds"],
+        write_policy["cooldown_seconds"],
+    )
+
     progress_lock = asyncio.Lock()
     results: list[dict[str, Any] | None] = [None] * total_rows
     completed = 0

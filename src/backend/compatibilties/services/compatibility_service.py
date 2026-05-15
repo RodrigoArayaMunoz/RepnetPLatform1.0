@@ -81,58 +81,48 @@ READ_RATE_LIMITER = RedisWindowRateLimiter(
     requests_per_second=float(_settings_value("ml_read_requests_per_second", 0.8)),
 )
 
-COMPATIBILITY_WRITE_RATE_LIMITER = RedisWindowRateLimiter(
+WRITE_RATE_LIMITER = RedisWindowRateLimiter(
     redis_url=settings.redis_url,
-    namespace="ml:write:compatibilities",
+    namespace="ml:write:global",
     requests_per_second=float(
-        _settings_value("ml_compatibility_write_requests_per_second", 0.25)
-    ),
-)
-
-COMPATIBILITY_EXCEPTION_WRITE_RATE_LIMITER = RedisWindowRateLimiter(
-    redis_url=settings.redis_url,
-    namespace="ml:write:compatibility_exceptions",
-    requests_per_second=float(
-        _settings_value(
-            "ml_compatibility_exception_write_requests_per_second",
-            0.15,
-        )
+        _settings_value("ml_write_requests_per_second", 100 / 60)
     ),
     max_requests_per_window=int(
-        _settings_value("ml_compatibility_exception_max_requests_per_window", 100)
+        _settings_value("ml_write_max_requests_per_window", 100)
     ),
     window_seconds=int(
-        _settings_value("ml_compatibility_exception_window_seconds", 60)
+        _settings_value("ml_write_window_seconds", 60)
     ),
     cooldown_seconds=float(
-        _settings_value("ml_compatibility_exception_cooldown_seconds", 150.0)
+        _settings_value("ml_write_cooldown_seconds", 120.0)
     ),
 )
 
-PRICE_STOCK_WRITE_RATE_LIMITER = RedisWindowRateLimiter(
-    redis_url=settings.redis_url,
-    namespace="ml:write:price_stock",
-    requests_per_second=float(
-        _settings_value("ml_price_stock_write_requests_per_second", 0.35)
-    ),
-    max_requests_per_window=int(
-        _settings_value("ml_price_stock_max_requests_per_window", 100)
-    ),
-    window_seconds=int(
-        _settings_value("ml_price_stock_window_seconds", 60)
-    ),
-    cooldown_seconds=float(
-        _settings_value("ml_price_stock_cooldown_seconds", 150.0)
-    ),
-)
-
-WRITE_RATE_LIMITER = COMPATIBILITY_WRITE_RATE_LIMITER
+COMPATIBILITY_WRITE_RATE_LIMITER = WRITE_RATE_LIMITER
+COMPATIBILITY_EXCEPTION_WRITE_RATE_LIMITER = WRITE_RATE_LIMITER
+PRICE_STOCK_WRITE_RATE_LIMITER = WRITE_RATE_LIMITER
+ITEM_PICTURES_WRITE_RATE_LIMITER = WRITE_RATE_LIMITER
 
 RETRY_ATTEMPTS = int(_settings_value("ml_retry_attempts", 4))
 RETRY_BASE_DELAY = float(_settings_value("ml_retry_base_delay", 1.0))
 PROGRESS_UPDATE_EVERY = int(_settings_value("job_progress_update_every", 25))
 
 ProgressCallback: TypeAlias = Callable[[int], Awaitable[None]]
+
+
+def get_write_rate_policy() -> dict[str, float | int]:
+    return {
+        "requests_per_second": float(
+            _settings_value("ml_write_requests_per_second", 100 / 60)
+        ),
+        "max_requests_per_window": int(
+            _settings_value("ml_write_max_requests_per_window", 100)
+        ),
+        "window_seconds": int(_settings_value("ml_write_window_seconds", 60)),
+        "cooldown_seconds": float(
+            _settings_value("ml_write_cooldown_seconds", 120.0)
+        ),
+    }
 
 
 def _is_retryable_http_exception(exc: HTTPException) -> bool:

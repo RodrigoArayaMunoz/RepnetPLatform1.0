@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 from typing import Any
 
@@ -8,9 +9,10 @@ from fastapi import HTTPException
 
 from config import settings
 from services.compatibility_service import (
+    ITEM_PICTURES_WRITE_RATE_LIMITER,
     JobMetrics,
-    PRICE_STOCK_WRITE_RATE_LIMITER,
     call_ml,
+    get_write_rate_policy,
 )
 from services.excel_service import extract_item_id
 from services.job_store import JobStore
@@ -19,9 +21,11 @@ from services.process_chunking_service import (
     chunk_sequence,
     count_chunks,
     format_pause_minutes,
-    get_price_stock_chunk_pause_seconds,
+    get_item_pictures_chunk_pause_seconds,
     get_process_file_chunk_size,
 )
+
+logger = logging.getLogger(__name__)
 
 
 MLC_COLUMN_ALIASES = [
@@ -43,6 +47,32 @@ URLS_COLUMN_ALIASES = [
     "Url",
 ]
 
+FOTO1_COLUMN_ALIASES = [
+    "FOTO1",
+    "Foto1",
+    "foto1",
+    "FOTO 1",
+    "Foto 1",
+    "foto 1",
+]
+
+FOTO2_COLUMN_ALIASES = [
+    "FOTO2",
+    "Foto2",
+    "foto2",
+    "FOTO 2",
+    "Foto 2",
+    "foto 2",
+]
+
+FOTO3_COLUMN_ALIASES = [
+    "FOTO3",
+    "Foto3",
+    "foto3",
+    "FOTO 3",
+    "Foto 3",
+    "foto 3",
+]
 
 def save_json(path: str, data: Any) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -94,6 +124,14 @@ def _resolve_column(df: pd.DataFrame, aliases: list[str], label: str) -> str:
     )
 
 
+def _resolve_optional_column(df: pd.DataFrame, aliases: list[str]) -> str | None:
+    available = {str(column).strip(): str(column).strip() for column in df.columns}
+    for alias in aliases:
+        if alias in available:
+            return available[alias]
+    return None
+
+
 def _cell_to_text(raw_value: Any) -> str:
     if raw_value is None:
         return ""
@@ -115,6 +153,41 @@ def _parse_picture_urls(raw_value: Any) -> list[str]:
     return [part.strip() for part in text.split("|||") if part and part.strip()]
 
 
+def _resolve_picture_columns(df: pd.DataFrame) -> tuple[str | None, list[str]]:
+    urls_column = _resolve_optional_column(df, URLS_COLUMN_ALIASES)
+    photo_columns = [
+        resolved_column
+        for resolved_column in (
+            _resolve_optional_column(df, FOTO1_COLUMN_ALIASES),
+            _resolve_optional_column(df, FOTO2_COLUMN_ALIASES),
+            _resolve_optional_column(df, FOTO3_COLUMN_ALIASES),
+        )
+        if resolved_column
+    ]
+
+    return urls_column, photo_columns
+
+
+def _collect_picture_urls(
+    df: pd.DataFrame,
+    index: int,
+    *,
+    urls_column: str | None,
+    photo_columns: list[str],
+) -> list[str]:
+    picture_urls: list[str] = []
+
+    if urls_column:
+        picture_urls.extend(_parse_picture_urls(df[urls_column].iloc[index]))
+
+    for photo_column in photo_columns:
+        photo_url = _cell_to_text(df[photo_column].iloc[index])
+        if photo_url:
+            picture_urls.append(photo_url)
+
+    return picture_urls
+
+
 def load_item_picture_rows(file_path: str) -> list[dict[str, Any]]:
     df = _load_dataframe(file_path)
 
@@ -122,13 +195,30 @@ def load_item_picture_rows(file_path: str) -> list[dict[str, Any]]:
         raise ValueError("El archivo no tiene filas")
 
     mlc_column = _resolve_column(df, MLC_COLUMN_ALIASES, "MLC")
-    urls_column = _resolve_column(df, URLS_COLUMN_ALIASES, "URLS")
+    urls_column, photo_columns = _resolve_picture_columns(df)
+
+    if not urls_column and not photo_columns:
+        accepted_columns = [
+            *URLS_COLUMN_ALIASES,
+            *FOTO1_COLUMN_ALIASES,
+            *FOTO2_COLUMN_ALIASES,
+            *FOTO3_COLUMN_ALIASES,
+        ]
+        raise ValueError(
+            "No se encontró ninguna columna válida de fotos en el archivo. "
+            f"Columnas aceptadas: {', '.join(accepted_columns)}"
+        )
 
     rows: list[dict[str, Any]] = []
 
     for index in range(len(df)):
         mlc_raw = _cell_to_text(df[mlc_column].iloc[index])
-        picture_urls = _parse_picture_urls(df[urls_column].iloc[index])
+        picture_urls = _collect_picture_urls(
+            df,
+            index,
+            urls_column=urls_column,
+            photo_columns=photo_columns,
+        )
 
         rows.append(
             {
@@ -136,6 +226,10 @@ def load_item_picture_rows(file_path: str) -> list[dict[str, Any]]:
                 "mlc_raw": mlc_raw,
                 "picture_urls": picture_urls,
                 "pictures_count": len(picture_urls),
+                "picture_columns_detected": [
+                    *(["URLS"] if urls_column else []),
+                    *photo_columns,
+                ],
                 "original_row_index": index,
             }
         )
@@ -182,7 +276,7 @@ async def _process_item_picture_row(
             "item_id": item_id,
             "brand_name": "Mercado Libre",
             "model_name": "Actualización de fotos",
-            "reason": "No se encontraron URLs válidas en la columna URLS",
+            "reason": "No se encontraron fotos válidas en las columnas configuradas",
             "error_code": "NO_PICTURES_TO_UPDATE",
             "pictures_count": 0,
             "original_row_index": original_row_index,
@@ -190,7 +284,7 @@ async def _process_item_picture_row(
                 {
                     "ok": False,
                     "item_id": item_id,
-                    "reason": "No se encontraron URLs válidas en la columna URLS",
+                    "reason": "No se encontraron fotos válidas en las columnas configuradas",
                     "error_code": "NO_PICTURES_TO_UPDATE",
                     "original_row_index": original_row_index,
                 }
@@ -205,7 +299,7 @@ async def _process_item_picture_row(
             picture_urls=picture_urls,
             user_id=user_id,
             metrics=metrics,
-            limiter=PRICE_STOCK_WRITE_RATE_LIMITER,
+            limiter=ITEM_PICTURES_WRITE_RATE_LIMITER,
         )
 
         return {
@@ -277,7 +371,7 @@ async def process_item_pictures_job(
     total_rows = len(rows)
     metrics = JobMetrics()
     chunk_size = get_process_file_chunk_size()
-    pause_seconds = get_price_stock_chunk_pause_seconds()
+    pause_seconds = get_item_pictures_chunk_pause_seconds()
     total_chunks = count_chunks(total_rows, chunk_size)
 
     JobStore.update(
@@ -293,11 +387,16 @@ async def process_item_pictures_job(
 
     if total_rows == 0:
         summary = {
+            "process_type": "item_pictures",
             "processed_rows": 0,
             "unique_rows": 0,
             "success_count": 0,
             "error_count": 0,
             "failed_item_ids": [],
+            "items_total": 0,
+            "updated_items": 0,
+            "picture_update_errors": 0,
+            "picture_sources_total": 0,
             "compatibilities_total": 0,
             "compatibilities_ok": 0,
             "compatibilities_error": 0,
@@ -307,6 +406,19 @@ async def process_item_pictures_job(
 
     access_token = await ml_client.get_valid_token(int(user_id))
     max_concurrency = max(1, int(getattr(settings, "max_row_concurrency", 2)))
+    write_policy = get_write_rate_policy()
+
+    logger.info(
+        "[ITEM_PICTURES][POLICY] chunk_size=%s pause_seconds=%s max_concurrency=%s requests_per_second=%.4f max_requests_per_window=%s window_seconds=%s cooldown_seconds=%s",
+        chunk_size,
+        pause_seconds,
+        max_concurrency,
+        write_policy["requests_per_second"],
+        write_policy["max_requests_per_window"],
+        write_policy["window_seconds"],
+        write_policy["cooldown_seconds"],
+    )
+
     progress_lock = asyncio.Lock()
     results: list[dict[str, Any] | None] = [None] * total_rows
     completed = 0
@@ -413,12 +525,19 @@ async def process_item_pictures_job(
         seen_failed_item_ids.add(item_id)
         failed_item_ids.append(item_id)
 
+    total_picture_sources = sum(int(row.get("pictures_count") or 0) for row in final_results)
+
     summary = {
+        "process_type": "item_pictures",
         "processed_rows": total_rows,
         "unique_rows": unique_items,
         "success_count": success_count,
         "error_count": error_count,
         "failed_item_ids": failed_item_ids,
+        "items_total": total_rows,
+        "updated_items": success_count,
+        "picture_update_errors": error_count,
+        "picture_sources_total": total_picture_sources,
         "compatibilities_total": total_rows,
         "compatibilities_ok": success_count,
         "compatibilities_error": error_count,
@@ -437,6 +556,15 @@ async def process_item_pictures_job(
         processed_rows=total_rows,
         processed_unique_rows=total_rows,
         message="Actualización de fotos finalizada",
+    )
+
+    logger.info(
+        "[ITEM_PICTURES][SUMMARY] job_id=%s processed_rows=%s updated_items=%s errors=%s picture_sources=%s",
+        job_id,
+        total_rows,
+        success_count,
+        error_count,
+        total_picture_sources,
     )
 
     return {"results": final_results, "summary": summary}

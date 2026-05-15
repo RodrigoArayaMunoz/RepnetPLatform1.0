@@ -20,6 +20,9 @@ from services.compatibility_orchestrator_service import (
 )
 from services.excel_service import COLUMN_ALIASES, load_excel_rows, normalize_for_compare
 from services.item_pictures_service import (
+    FOTO1_COLUMN_ALIASES as ITEM_PICTURES_FOTO1_COLUMN_ALIASES,
+    FOTO2_COLUMN_ALIASES as ITEM_PICTURES_FOTO2_COLUMN_ALIASES,
+    FOTO3_COLUMN_ALIASES as ITEM_PICTURES_FOTO3_COLUMN_ALIASES,
     MLC_COLUMN_ALIASES as ITEM_PICTURES_MLC_COLUMN_ALIASES,
     URLS_COLUMN_ALIASES as ITEM_PICTURES_URLS_COLUMN_ALIASES,
     process_item_pictures_job,
@@ -195,6 +198,70 @@ def _normalize_aliases(values: list[str]) -> set[str]:
     return {normalize_for_compare(value) for value in values}
 
 
+def _format_summary_for_log(
+    process_type: str | None,
+    summary: dict[str, Any] | None,
+) -> dict[str, Any]:
+    normalized_summary = summary or {}
+    base_summary = {
+        "processed_rows": int(normalized_summary.get("processed_rows") or 0),
+        "success_count": int(normalized_summary.get("success_count") or 0),
+        "error_count": int(normalized_summary.get("error_count") or 0),
+        "failed_items": len(normalized_summary.get("failed_item_ids") or []),
+    }
+
+    metrics = normalized_summary.get("metrics") or {}
+    if metrics:
+        base_summary["metrics"] = {
+            "duration_seconds": metrics.get("duration_seconds"),
+            "ml_requests": metrics.get("ml_requests"),
+            "ml_http_errors": metrics.get("ml_http_errors"),
+        }
+
+    if process_type == "item_pictures":
+        base_summary.update(
+            {
+                "updated_items": int(normalized_summary.get("updated_items") or 0),
+                "picture_sources_total": int(
+                    normalized_summary.get("picture_sources_total") or 0
+                ),
+            }
+        )
+        return base_summary
+
+    if process_type == "price_stock":
+        base_summary.update(
+            {
+                "items_total": int(
+                    normalized_summary.get("items_total")
+                    or normalized_summary.get("compatibilities_total")
+                    or 0
+                ),
+                "updated_items": int(
+                    normalized_summary.get("updated_items")
+                    or normalized_summary.get("compatibilities_ok")
+                    or 0
+                ),
+            }
+        )
+        return base_summary
+
+    base_summary.update(
+        {
+            "compatibilities_total": int(
+                normalized_summary.get("compatibilities_total") or 0
+            ),
+            "compatibilities_ok": int(
+                normalized_summary.get("compatibilities_ok") or 0
+            ),
+            "compatibilities_error": int(
+                normalized_summary.get("compatibilities_error") or 0
+            ),
+        }
+    )
+    return base_summary
+
+
 def _build_compatibility_column_aliases() -> dict[str, set[str]]:
     aliases_by_logical: dict[str, set[str]] = {}
     for logical_name in COMPATIBILITY_QUEUE_REQUIRED_COLUMNS:
@@ -212,6 +279,9 @@ PRICE_STOCK_PRECIO_ALIASES = _normalize_aliases(PRECIO_COLUMN_ALIASES)
 PRICE_STOCK_EXTRA_ALIASES = _normalize_aliases(PRICE_STOCK_QUEUE_EXTRA_COLUMNS)
 ITEM_PICTURES_MLC_ALIASES = _normalize_aliases(ITEM_PICTURES_MLC_COLUMN_ALIASES)
 ITEM_PICTURES_URLS_ALIASES = _normalize_aliases(ITEM_PICTURES_URLS_COLUMN_ALIASES)
+ITEM_PICTURES_FOTO1_ALIASES = _normalize_aliases(ITEM_PICTURES_FOTO1_COLUMN_ALIASES)
+ITEM_PICTURES_FOTO2_ALIASES = _normalize_aliases(ITEM_PICTURES_FOTO2_COLUMN_ALIASES)
+ITEM_PICTURES_FOTO3_ALIASES = _normalize_aliases(ITEM_PICTURES_FOTO3_COLUMN_ALIASES)
 NO_COMPAT_ALIASES = _normalize_aliases(
     NO_COMPAT_QUEUE_REQUIRED_COLUMNS + EXCEPTION_MLC_COLUMN_ALIASES
 )
@@ -273,23 +343,29 @@ def _matches_price_stock_columns(columns: set[str]) -> bool:
     for group_name, aliases in required_groups:
         match = columns & aliases
         logger.info(
-            "[PROCESS_QUEUE][PRICE_STOCK_CHECK] group=%s aliases=%s match=%s",
-            group_name, sorted(aliases), sorted(match),
+            "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] group=%s aliases=%s match=%s",
+            group_name,
+            sorted(aliases),
+            sorted(match),
         )
         if not match:
-            logger.warning(
-                "[PROCESS_QUEUE][PRICE_STOCK_CHECK] group=%s NO MATCH – file columns=%s",
-                group_name, sorted(columns),
+            logger.info(
+                "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] group=%s rejected file_columns=%s",
+                group_name,
+                sorted(columns),
             )
             return False
 
     extra_match = columns & PRICE_STOCK_EXTRA_ALIASES
     logger.info(
-        "[PROCESS_QUEUE][PRICE_STOCK_CHECK] EXTRA aliases=%s match=%s",
-        sorted(PRICE_STOCK_EXTRA_ALIASES), sorted(extra_match),
+        "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] extra_aliases=%s match=%s",
+        sorted(PRICE_STOCK_EXTRA_ALIASES),
+        sorted(extra_match),
     )
     if len(extra_match) < 1:
-        logger.warning("[PROCESS_QUEUE][PRICE_STOCK_CHECK] EXTRA NO MATCH")
+        logger.info(
+            "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] rejected missing extra columns"
+        )
         return False
 
     return True
@@ -300,11 +376,17 @@ def _matches_no_compat_columns(columns: set[str]) -> bool:
 
 
 def _matches_item_pictures_columns(columns: set[str]) -> bool:
-    required_groups = [
-        ("MLC", ITEM_PICTURES_MLC_ALIASES),
-        ("URLS", ITEM_PICTURES_URLS_ALIASES),
-    ]
-    return all(bool(columns & aliases) for _, aliases in required_groups)
+    has_mlc = bool(columns & ITEM_PICTURES_MLC_ALIASES)
+    has_urls = bool(columns & ITEM_PICTURES_URLS_ALIASES)
+    has_photo_columns = any(
+        bool(columns & aliases)
+        for aliases in (
+            ITEM_PICTURES_FOTO1_ALIASES,
+            ITEM_PICTURES_FOTO2_ALIASES,
+            ITEM_PICTURES_FOTO3_ALIASES,
+        )
+    )
+    return has_mlc and (has_urls or has_photo_columns)
 
 
 def detect_process_type(file_path: str) -> str:
@@ -342,7 +424,7 @@ def detect_process_type(file_path: str) -> str:
         "No se pudo identificar el tipo de proceso por columnas. "
         "Compatibilidades requiere columnas de asociacion, vehiculo, familia y posiciones; "
         "precios/stock requiere mlc, precio_nuevo, stock_nuevo y estado_nuevo; "
-        "actualizacion de fotos requiere mlc y urls; "
+        "actualizacion de fotos requiere mlc y urls o columnas foto1/foto2/foto3; "
         "no compatibilidades requiere una columna MLC-NOINFORMADAS o equivalente."
     )
 
@@ -568,12 +650,12 @@ async def run_process_queue(*, user_id: str) -> None:
                 last_error = None
 
                 logger.info(
-                    "[PROCESS_QUEUE][OK] row_id=%s proceso_id=%s type=%s internal_job_id=%s summary=%s",
+                    "[PROCESS_QUEUE][OK] row_id=%s proceso_id=%s type=%s internal_job_id=%s result=%s",
                     current_row_id,
                     current_process_id,
                     process_type,
                     internal_job_id,
-                    summary,
+                    _format_summary_for_log(process_type, summary),
                 )
 
                 process_queue_store.update(

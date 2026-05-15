@@ -11,7 +11,7 @@ def get_process_file_chunk_size() -> int:
 
 
 def get_process_file_chunk_pause_seconds() -> int:
-    return max(0, int(getattr(settings, "process_file_chunk_pause_seconds", 18 * 60)))
+    return max(0, int(getattr(settings, "process_file_chunk_pause_seconds", 2 * 60)))
 
 
 def get_compatibility_chunk_pause_seconds() -> int:
@@ -47,6 +47,19 @@ def get_price_stock_chunk_pause_seconds() -> int:
             getattr(
                 settings,
                 "price_stock_chunk_pause_seconds",
+                get_process_file_chunk_pause_seconds(),
+            )
+        ),
+    )
+
+
+def get_item_pictures_chunk_pause_seconds() -> int:
+    return max(
+        0,
+        int(
+            getattr(
+                settings,
+                "item_pictures_chunk_pause_seconds",
                 get_process_file_chunk_pause_seconds(),
             )
         ),
