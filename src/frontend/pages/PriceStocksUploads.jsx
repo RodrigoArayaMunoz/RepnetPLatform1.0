@@ -310,7 +310,8 @@ function PriceStocksUploads() {
     )}`;
   };
 
-  const acceptText = "Archivo permitido: .xlsx, .xls o .csv con columnas mlc, precio_nuevo, stock_nuevo, estado_nuevo";
+  const acceptText =
+    "Archivo permitido: .xlsx, .xls o .csv con columnas mlc, precio_nuevo y opcionalmente stock_nuevo, estado_nuevo o sku";
   const buttonText =
     status === "processing" ? "Procesando..." : "Procesar Archivo";
 

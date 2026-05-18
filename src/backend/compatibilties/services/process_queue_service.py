@@ -11,7 +11,6 @@ import pandas as pd
 
 from config import settings
 from services.compatibility_exception_service import (
-    MLC_COLUMN_ALIASES as EXCEPTION_MLC_COLUMN_ALIASES,
     load_compatibility_exception_rows,
     process_compatibility_exceptions_job,
 )
@@ -66,6 +65,8 @@ PRICE_STOCK_QUEUE_EXTRA_COLUMNS = [
 
 NO_COMPAT_QUEUE_REQUIRED_COLUMNS = [
     "MLC-NOINFORMADAS",
+    "mlc-noinformadas",
+    "Mlc-NoInformadas",
 ]
 
 
@@ -282,9 +283,7 @@ ITEM_PICTURES_URLS_ALIASES = _normalize_aliases(ITEM_PICTURES_URLS_COLUMN_ALIASE
 ITEM_PICTURES_FOTO1_ALIASES = _normalize_aliases(ITEM_PICTURES_FOTO1_COLUMN_ALIASES)
 ITEM_PICTURES_FOTO2_ALIASES = _normalize_aliases(ITEM_PICTURES_FOTO2_COLUMN_ALIASES)
 ITEM_PICTURES_FOTO3_ALIASES = _normalize_aliases(ITEM_PICTURES_FOTO3_COLUMN_ALIASES)
-NO_COMPAT_ALIASES = _normalize_aliases(
-    NO_COMPAT_QUEUE_REQUIRED_COLUMNS + EXCEPTION_MLC_COLUMN_ALIASES
-)
+NO_COMPAT_ALIASES = _normalize_aliases(NO_COMPAT_QUEUE_REQUIRED_COLUMNS)
 
 
 def _load_file_columns(file_path: str) -> set[str]:
@@ -334,39 +333,39 @@ def _matches_compatibility_columns(columns: set[str]) -> bool:
 
 
 def _matches_price_stock_columns(columns: set[str]) -> bool:
-    required_groups = [
-        ("MLC", PRICE_STOCK_MLC_ALIASES),
-        ("PRECIO", PRICE_STOCK_PRECIO_ALIASES),
-        ("STOCK", PRICE_STOCK_STOCK_ALIASES),
-        ("ESTADO", PRICE_STOCK_ESTADO_ALIASES),
-    ]
-    for group_name, aliases in required_groups:
-        match = columns & aliases
-        logger.info(
-            "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] group=%s aliases=%s match=%s",
-            group_name,
-            sorted(aliases),
-            sorted(match),
-        )
-        if not match:
-            logger.info(
-                "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] group=%s rejected file_columns=%s",
-                group_name,
-                sorted(columns),
-            )
-            return False
-
+    mlc_match = columns & PRICE_STOCK_MLC_ALIASES
+    precio_match = columns & PRICE_STOCK_PRECIO_ALIASES
+    stock_match = columns & PRICE_STOCK_STOCK_ALIASES
+    estado_match = columns & PRICE_STOCK_ESTADO_ALIASES
     extra_match = columns & PRICE_STOCK_EXTRA_ALIASES
+
+    logger.info(
+        "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] mlc=%s precio=%s stock=%s estado=%s extra=%s",
+        sorted(mlc_match),
+        sorted(precio_match),
+        sorted(stock_match),
+        sorted(estado_match),
+        sorted(extra_match),
+    )
+
+    if not mlc_match or not precio_match:
+        logger.info(
+            "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] rejected missing mlc/precio file_columns=%s",
+            sorted(columns),
+        )
+        return False
+
+    if not (stock_match or estado_match or extra_match):
+        logger.info(
+            "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] rejected missing stock/estado/extra columns"
+        )
+        return False
+
     logger.info(
         "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] extra_aliases=%s match=%s",
         sorted(PRICE_STOCK_EXTRA_ALIASES),
         sorted(extra_match),
     )
-    if len(extra_match) < 1:
-        logger.info(
-            "[PROCESS_QUEUE][DETECT][PRICE_STOCK_CANDIDATE] rejected missing extra columns"
-        )
-        return False
 
     return True
 
@@ -423,7 +422,7 @@ def detect_process_type(file_path: str) -> str:
     raise ValueError(
         "No se pudo identificar el tipo de proceso por columnas. "
         "Compatibilidades requiere columnas de asociacion, vehiculo, familia y posiciones; "
-        "precios/stock requiere mlc, precio_nuevo, stock_nuevo y estado_nuevo; "
+        "precios/stock requiere mlc y precio_nuevo, y puede incluir stock_nuevo y/o estado_nuevo; "
         "actualizacion de fotos requiere mlc y urls o columnas foto1/foto2/foto3; "
         "no compatibilidades requiere una columna MLC-NOINFORMADAS o equivalente."
     )
@@ -537,6 +536,14 @@ async def _execute_process_record(
 
     try:
         process_type = detect_process_type(local_path)
+        process_queue_store.update(current_process_type=process_type)
+        logger.info(
+            "[PROCESS_QUEUE][DISPATCH] row_id=%s proceso_id=%s filename=%s detected_type=%s",
+            process_row.get("id"),
+            _display_process_id(process_row),
+            filename,
+            process_type,
+        )
 
         if process_type == "compatibilities":
             job_id, summary = await _run_compatibilities_job(

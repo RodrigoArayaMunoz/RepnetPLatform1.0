@@ -144,6 +144,14 @@ def _resolve_column(df: pd.DataFrame, aliases: list[str], label: str) -> str:
     )
 
 
+def _resolve_optional_column(df: pd.DataFrame, aliases: list[str]) -> str | None:
+    available = {str(col).strip(): str(col).strip() for col in df.columns}
+    for alias in aliases:
+        if alias in available:
+            return available[alias]
+    return None
+
+
 def _parse_estado(raw_value: str) -> str | None:
     if not raw_value:
         return None
@@ -153,7 +161,7 @@ def _parse_estado(raw_value: str) -> str | None:
 
 def _parse_precio(raw_value: Any) -> float | None:
     if raw_value is None or (isinstance(raw_value, float) and pd.isna(raw_value)):
-        return 0
+        return None
     try:
         value = float(raw_value)
         if value < 0:
@@ -182,9 +190,9 @@ def load_price_stock_rows(file_path: str) -> list[dict[str, Any]]:
         raise ValueError("El archivo no tiene filas")
 
     mlc_column = _resolve_column(df, MLC_COLUMN_ALIASES, "MLC")
-    estado_column = _resolve_column(df, ESTADO_COLUMN_ALIASES, "ESTADO")
-    stock_column = _resolve_column(df, STOCK_COLUMN_ALIASES, "STOCK")
     precio_column = _resolve_column(df, PRECIO_COLUMN_ALIASES, "PRECIO")
+    estado_column = _resolve_optional_column(df, ESTADO_COLUMN_ALIASES)
+    stock_column = _resolve_optional_column(df, STOCK_COLUMN_ALIASES)
 
     rows: list[dict[str, Any]] = []
 
@@ -192,10 +200,18 @@ def load_price_stock_rows(file_path: str) -> list[dict[str, Any]]:
         mlc_raw = normalize_text(df[mlc_column].iloc[index])
         item_id = extract_item_id(mlc_raw)
 
-        estado_raw = normalize_text(df[estado_column].iloc[index])
+        estado_raw = (
+            normalize_text(df[estado_column].iloc[index])
+            if estado_column is not None
+            else ""
+        )
         estado = _parse_estado(estado_raw)
 
-        stock = _parse_stock(df[stock_column].iloc[index])
+        stock = (
+            _parse_stock(df[stock_column].iloc[index])
+            if stock_column is not None
+            else None
+        )
         precio = _parse_precio(df[precio_column].iloc[index])
 
         rows.append(
@@ -256,7 +272,7 @@ async def _process_price_stock_row(
             "original_row_index": original_row_index,
             "precio": precio,
             "stock": stock,
-            "estado": None,
+            "estado": estado,
             "results": [
                 {
                     "ok": False,
@@ -275,9 +291,9 @@ async def _process_price_stock_row(
             "reason": "No hay datos válidos de PRECIO, STOCK ni ESTADO para actualizar",
             "error_code": "NO_DATA_TO_UPDATE",
             "original_row_index": original_row_index,
-            "precio": None,
-            "stock": None,
-            "estado": None,
+            "precio": precio,
+            "stock": stock,
+            "estado": estado,
             "results": [
                 {
                     "ok": False,
