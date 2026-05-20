@@ -36,8 +36,13 @@ from services.price_stock_service import (
     load_price_stock_rows,
     process_price_stock_job,
 )
-from services.process_queue_store import process_queue_store
 from services.process_queue_error_store import process_queue_error_store
+from services.process_queue_result_store import process_queue_result_store
+from services.process_queue_store import process_queue_store
+from services.sku_description_service import (
+    SKU_LOOKUP_COLUMN_ALIASES as SKU_DESCRIPTION_COLUMN_ALIASES,
+    process_sku_description_job,
+)
 from services.supabase_meli_connection_store import supabase_meli_connection_store
 from services.supabase_process_store import supabase_process_store
 
@@ -195,6 +200,58 @@ def _display_process_id(process_row: dict[str, Any]) -> str:
     return str(process_row.get("proceso_id") or process_row.get("id") or "")
 
 
+def _build_extended_partial_process_error_payload(
+    *,
+    process_row_id: int | str | None,
+    process_id: str,
+    filename: str,
+    process_type: str | None,
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    failed_items = [
+        str(item_id).strip()
+        for item_id in (summary.get("failed_item_ids") or [])
+        if str(item_id).strip()
+    ]
+    failed_skus = [
+        str(item_sku).strip()
+        for item_sku in (summary.get("failed_skus") or [])
+        if str(item_sku).strip()
+    ]
+    failed_count = len(failed_items)
+    success_count = int(summary.get("success_count") or 0)
+
+    if failed_count:
+        message = f"El proceso terminó con errores en {failed_count} MLC."
+    elif failed_skus:
+        message = f"El proceso terminó con errores en {len(failed_skus)} SKU."
+    else:
+        message = "El proceso terminó con errores."
+
+    return {
+        "process_row_id": process_row_id,
+        "process_id": process_id,
+        "filename": filename,
+        "process_type": process_type,
+        "error_type": "PartialProcessError",
+        "message": message,
+        "messages": [],
+        "failed_items": failed_items,
+        "failed_skus": failed_skus,
+        "failed_count": failed_count,
+        "success_count": success_count,
+        "is_partial": True,
+        "display_status": "Procesado con Errores",
+        "detail": {
+            "failed_items": failed_items,
+            "failed_skus": failed_skus,
+            "failed_count": failed_count,
+            "success_count": success_count,
+        },
+        "occurred_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def _normalize_aliases(values: list[str]) -> set[str]:
     return {normalize_for_compare(value) for value in values}
 
@@ -247,6 +304,23 @@ def _format_summary_for_log(
         )
         return base_summary
 
+    if process_type == "sku_descriptions":
+        base_summary.update(
+            {
+                "sku_total": int(normalized_summary.get("sku_total") or 0),
+                "matched_items_total": int(
+                    normalized_summary.get("matched_items_total") or 0
+                ),
+                "exported_rows_total": int(
+                    normalized_summary.get("exported_rows_total") or 0
+                ),
+                "description_errors": int(
+                    normalized_summary.get("description_errors") or 0
+                ),
+            }
+        )
+        return base_summary
+
     base_summary.update(
         {
             "compatibilities_total": int(
@@ -278,6 +352,7 @@ PRICE_STOCK_ESTADO_ALIASES = _normalize_aliases(ESTADO_COLUMN_ALIASES)
 PRICE_STOCK_STOCK_ALIASES = _normalize_aliases(STOCK_COLUMN_ALIASES)
 PRICE_STOCK_PRECIO_ALIASES = _normalize_aliases(PRECIO_COLUMN_ALIASES)
 PRICE_STOCK_EXTRA_ALIASES = _normalize_aliases(PRICE_STOCK_QUEUE_EXTRA_COLUMNS)
+SKU_DESCRIPTION_ALIASES = _normalize_aliases(SKU_DESCRIPTION_COLUMN_ALIASES)
 ITEM_PICTURES_MLC_ALIASES = _normalize_aliases(ITEM_PICTURES_MLC_COLUMN_ALIASES)
 ITEM_PICTURES_URLS_ALIASES = _normalize_aliases(ITEM_PICTURES_URLS_COLUMN_ALIASES)
 ITEM_PICTURES_FOTO1_ALIASES = _normalize_aliases(ITEM_PICTURES_FOTO1_COLUMN_ALIASES)
@@ -374,6 +449,10 @@ def _matches_no_compat_columns(columns: set[str]) -> bool:
     return bool(columns & NO_COMPAT_ALIASES)
 
 
+def _matches_sku_description_columns(columns: set[str]) -> bool:
+    return bool(columns & SKU_DESCRIPTION_ALIASES)
+
+
 def _matches_item_pictures_columns(columns: set[str]) -> bool:
     has_mlc = bool(columns & ITEM_PICTURES_MLC_ALIASES)
     has_urls = bool(columns & ITEM_PICTURES_URLS_ALIASES)
@@ -403,6 +482,14 @@ def detect_process_type(file_path: str) -> str:
     if is_price_stock:
         return "price_stock"
 
+    is_sku_descriptions = _matches_sku_description_columns(columns)
+    logger.info(
+        "[PROCESS_QUEUE][DETECT] _matches_sku_description_columns=%s",
+        is_sku_descriptions,
+    )
+    if is_sku_descriptions:
+        return "sku_descriptions"
+
     is_item_pictures = _matches_item_pictures_columns(columns)
     logger.info(
         "[PROCESS_QUEUE][DETECT] _matches_item_pictures_columns=%s",
@@ -423,6 +510,7 @@ def detect_process_type(file_path: str) -> str:
         "No se pudo identificar el tipo de proceso por columnas. "
         "Compatibilidades requiere columnas de asociacion, vehiculo, familia y posiciones; "
         "precios/stock requiere mlc y precio_nuevo, y puede incluir stock_nuevo y/o estado_nuevo; "
+        "descripciones por SKU requiere una columna SKU-BUSQUEDA o equivalente; "
         "actualizacion de fotos requiere mlc y urls o columnas foto1/foto2/foto3; "
         "no compatibilidades requiere una columna MLC-NOINFORMADAS o equivalente."
     )
@@ -504,6 +592,24 @@ async def _run_compatibility_exceptions_job(
     return job_id, outcome.get("summary", {})
 
 
+async def _run_sku_descriptions_job(
+    *,
+    user_id: str,
+    file_path: str,
+    filename: str,
+) -> tuple[str, dict[str, Any]]:
+    job = JobStore.create(filename)
+    job_id = job["id"]
+    JobStore.update(job_id, xlsx_path=file_path)
+    process_queue_store.update(current_job_id=job_id)
+    outcome = await process_sku_description_job(
+        job_id=job_id,
+        user_id=user_id,
+        file_path=file_path,
+    )
+    return job_id, outcome.get("summary", {})
+
+
 async def _run_item_pictures_job(
     *,
     user_id: str,
@@ -569,6 +675,14 @@ async def _execute_process_record(
             )
             return process_type, job_id, summary
 
+        if process_type == "sku_descriptions":
+            job_id, summary = await _run_sku_descriptions_job(
+                user_id=user_id,
+                file_path=local_path,
+                filename=filename,
+            )
+            return process_type, job_id, summary
+
         job_id, summary = await _run_compatibility_exceptions_job(
             user_id=user_id,
             file_path=local_path,
@@ -612,6 +726,8 @@ async def run_process_queue(*, user_id: str) -> None:
                 or "proceso.xlsx"
             )
             current_process_id = _display_process_id(current_row)
+            if current_row_id is not None:
+                process_queue_result_store.clear(current_row_id)
 
             process_queue_store.update(
                 pending_count=len(pending_rows),
@@ -629,8 +745,16 @@ async def run_process_queue(*, user_id: str) -> None:
                     user_id=user_id,
                 )
                 has_partial_errors = (
-                    process_type in {"price_stock", "item_pictures"}
+                    process_type in {"price_stock", "item_pictures", "sku_descriptions"}
                     and int(summary.get("error_count") or 0) > 0
+                )
+                job_data = JobStore.get(internal_job_id) or {}
+                result_path = str(job_data.get("result_path") or "").strip()
+                has_export_result = (
+                    process_type == "sku_descriptions"
+                    and bool(result_path)
+                    and os.path.exists(result_path)
+                    and int(summary.get("exported_rows_total") or 0) > 0
                 )
 
                 if has_partial_errors:
@@ -641,7 +765,7 @@ async def run_process_queue(*, user_id: str) -> None:
                     if current_row_id is not None:
                         process_queue_error_store.save(
                             current_row_id,
-                            _build_partial_process_error_payload(
+                            _build_extended_partial_process_error_payload(
                                 process_row_id=current_row_id,
                                 process_id=current_process_id,
                                 filename=current_filename,
@@ -653,6 +777,27 @@ async def run_process_queue(*, user_id: str) -> None:
                     await supabase_process_store.update_process_status(current_row_id, "Procesado")
                     if current_row_id is not None:
                         process_queue_error_store.clear(current_row_id)
+                if current_row_id is not None:
+                    if has_export_result:
+                        process_queue_result_store.save(
+                            current_row_id,
+                            {
+                                "process_row_id": current_row_id,
+                                "process_id": current_process_id,
+                                "filename": current_filename,
+                                "process_type": process_type,
+                                "result_path": result_path,
+                                "has_export_result": True,
+                                "export_kind": "sku_descriptions",
+                                "export_label": "Descargar descripciones",
+                                "exported_rows_total": int(
+                                    summary.get("exported_rows_total") or 0
+                                ),
+                                "created_at": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
+                    else:
+                        process_queue_result_store.clear(current_row_id)
                 completed_count += 1
                 last_error = None
 
@@ -693,6 +838,7 @@ async def run_process_queue(*, user_id: str) -> None:
                 await supabase_process_store.update_process_status(current_row_id, "Error")
                 if current_row_id is not None:
                     process_queue_error_store.save(current_row_id, error_payload)
+                    process_queue_result_store.clear(current_row_id)
                 process_queue_store.update(
                     processed_count=completed_count,
                     message=f"Error procesando {current_filename}: {error_payload['message']}",

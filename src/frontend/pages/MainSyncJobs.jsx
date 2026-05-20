@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Download } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ProcessQueueErrorModal from "../components/ProcessQueueErrorModal.jsx";
 import "../styles/MainSyncJobs.css";
@@ -34,6 +35,7 @@ export default function MainSyncJobs() {
   const [selectedErrorDetails, setSelectedErrorDetails] = useState(null);
   const [isLoadingErrorDetails, setIsLoadingErrorDetails] = useState(false);
   const [errorDetailsLoadMessage, setErrorDetailsLoadMessage] = useState("");
+  const [exportingRowId, setExportingRowId] = useState(null);
 
   const [isConnectingMl, setIsConnectingMl] = useState(false);
   const [isCheckingMl, setIsCheckingMl] = useState(true);
@@ -175,6 +177,9 @@ export default function MainSyncJobs() {
       String(row.estado || "").toLowerCase() ===
       PROCESS_STATUS.ERROR.toLowerCase(),
     isPartialProcess: false,
+    hasExportResult: false,
+    exportKind: null,
+    exportLabel: "Descargar resultado",
   });
 
   const loadProcessErrorSummaries = async (rows) => {
@@ -249,6 +254,9 @@ export default function MainSyncJobs() {
             displayEstado: summary.display_status || row.estado,
             hasErrorDetails: Boolean(summary.has_error_details),
             isPartialProcess: Boolean(summary.is_partial),
+            hasExportResult: Boolean(summary.has_export_result),
+            exportKind: summary.export_kind || null,
+            exportLabel: summary.export_label || row.exportLabel,
           };
         });
 
@@ -527,6 +535,57 @@ export default function MainSyncJobs() {
     setErrorDetailsLoadMessage("");
   };
 
+  const handleDownloadProcessResult = async (row) => {
+    if (!row?.id || exportingRowId === row.id) {
+      return;
+    }
+
+    try {
+      setExportingRowId(row.id);
+      setStatusMessage("");
+
+      const response = await fetch(
+        `${API_BASE}/process-queue/results/${row.id}/export`,
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        const responseError = await response.json().catch(() => ({}));
+        throw new Error(
+          responseError?.detail ||
+            responseError?.message ||
+            "No se pudo descargar el archivo de resultado."
+        );
+      }
+
+      const blob = await response.blob();
+      const contentDisposition =
+        response.headers.get("Content-Disposition") || "";
+      const filenameMatch = contentDisposition.match(/filename=\"?([^\"]+)\"?/i);
+      const filename =
+        filenameMatch?.[1] || `resultado_proceso_${String(row.id)}.xlsx`;
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      setStatusMessage(
+        error?.message || "No se pudo descargar el archivo de resultado."
+      );
+      setStatusType("error");
+    } finally {
+      setExportingRowId(null);
+    }
+  };
+
   const getStatusClass = (status) => {
     const normalized = String(status || "").toLowerCase();
 
@@ -697,6 +756,8 @@ export default function MainSyncJobs() {
                     : row.displayEstado || row.estado;
                   const hasProcessError = Boolean(row.hasErrorDetails);
                   const isPartialProcess = Boolean(row.isPartialProcess);
+                  const hasExportResult = Boolean(row.hasExportResult);
+                  const isExportingCurrentRow = exportingRowId === row.id;
                   const showProgressBar =
                     isCurrentlyProcessing && jobTotalRows > 0;
                   const progressPercent = showProgressBar
@@ -709,39 +770,55 @@ export default function MainSyncJobs() {
                   return (
                     <tr key={row.id}>
                       <td className="process-table__action-cell">
-                        {hasProcessError ? (
-                          <button
-                            type="button"
-                            className={`process-table__error-button ${
-                              isPartialProcess
-                                ? "process-table__error-button--partial"
-                                : ""
-                            }`}
-                            onClick={() => handleOpenErrorModal(row)}
-                            aria-label={`Ver detalle del proceso ${row.archivo}`}
-                            title="Ver detalle del proceso"
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              aria-hidden="true"
-                              className="process-table__error-icon"
-                            >
-                              <circle
-                                cx="12"
-                                cy="12"
-                                r="9"
-                                className="process-table__error-icon-ring"
-                              />
-                              <path
-                                d="M8.5 8.5 15.5 15.5"
-                                className="process-table__error-icon-cross"
-                              />
-                              <path
-                                d="M15.5 8.5 8.5 15.5"
-                                className="process-table__error-icon-cross"
-                              />
-                            </svg>
-                          </button>
+                        {hasProcessError || hasExportResult ? (
+                          <div className="process-table__action-group">
+                            {hasProcessError ? (
+                              <button
+                                type="button"
+                                className={`process-table__error-button ${
+                                  isPartialProcess
+                                    ? "process-table__error-button--partial"
+                                    : ""
+                                }`}
+                                onClick={() => handleOpenErrorModal(row)}
+                                aria-label={`Ver detalle del proceso ${row.archivo}`}
+                                title="Ver detalle del proceso"
+                              >
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  aria-hidden="true"
+                                  className="process-table__error-icon"
+                                >
+                                  <circle
+                                    cx="12"
+                                    cy="12"
+                                    r="9"
+                                    className="process-table__error-icon-ring"
+                                  />
+                                  <path
+                                    d="M8.5 8.5 15.5 15.5"
+                                    className="process-table__error-icon-cross"
+                                  />
+                                  <path
+                                    d="M15.5 8.5 8.5 15.5"
+                                    className="process-table__error-icon-cross"
+                                  />
+                                </svg>
+                              </button>
+                            ) : null}
+                            {hasExportResult ? (
+                              <button
+                                type="button"
+                                className="process-table__download-button"
+                                onClick={() => handleDownloadProcessResult(row)}
+                                aria-label={row.exportLabel || "Descargar resultado"}
+                                title={row.exportLabel || "Descargar resultado"}
+                                disabled={isExportingCurrentRow}
+                              >
+                                <Download size={16} aria-hidden="true" />
+                              </button>
+                            ) : null}
+                          </div>
                         ) : (
                           <span
                             className="process-table__error-placeholder"

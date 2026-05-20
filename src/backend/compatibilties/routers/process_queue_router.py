@@ -1,3 +1,5 @@
+import json
+import os
 import re
 import time
 from io import BytesIO
@@ -13,7 +15,9 @@ from celery.states import READY_STATES
 from celery_app import celery_app
 from services.job_store import JobStore
 from services.process_queue_error_store import process_queue_error_store
+from services.process_queue_result_store import process_queue_result_store
 from services.process_queue_store import process_queue_store
+from services.sku_description_service import build_sku_description_excel
 from tasks.process_queue_tasks import run_process_queue_task
 
 router = APIRouter(prefix="/process-queue", tags=["process-queue"])
@@ -53,6 +57,11 @@ def _build_failed_items_excel(
     workbook.save(output)
     output.seek(0)
     return output
+
+
+def _load_json_file(path: str) -> Any:
+    with open(path, "r", encoding="utf-8") as file_handle:
+        return json.load(file_handle)
 
 
 def _should_reset_stale_queue(state: dict) -> bool:
@@ -204,15 +213,96 @@ async def get_process_queue_error_summaries(
         return {"items": {}}
 
     error_payloads = process_queue_error_store.get_many(row_ids)
+    result_payloads = process_queue_result_store.get_many(row_ids)
     items: dict[str, Any] = {}
 
-    for row_id, error_payload in error_payloads.items():
-        failed_items = error_payload.get("failed_items")
-        is_partial = isinstance(failed_items, list) and len(failed_items) > 0
-        items[row_id] = {
-            "has_error_details": True,
-            "is_partial": is_partial,
-            "display_status": "Procesado con Errores" if is_partial else "Error",
-        }
+    for row_id in row_ids:
+        item_summary: dict[str, Any] = {}
+
+        error_payload = error_payloads.get(row_id)
+        if error_payload:
+            failed_items = error_payload.get("failed_items")
+            failed_skus = error_payload.get("failed_skus")
+            is_partial = bool(error_payload.get("is_partial")) or (
+                isinstance(failed_items, list) and len(failed_items) > 0
+            ) or (
+                isinstance(failed_skus, list) and len(failed_skus) > 0
+            )
+            item_summary.update(
+                {
+                    "has_error_details": True,
+                    "is_partial": is_partial,
+                    "display_status": error_payload.get("display_status")
+                    or ("Procesado con Errores" if is_partial else "Error"),
+                }
+            )
+
+        result_payload = result_payloads.get(row_id)
+        if result_payload:
+            item_summary.update(
+                {
+                    "has_export_result": bool(result_payload.get("has_export_result")),
+                    "export_kind": result_payload.get("export_kind"),
+                    "export_label": result_payload.get("export_label"),
+                }
+            )
+
+        if item_summary:
+            items[row_id] = item_summary
 
     return {"items": items}
+
+
+@router.get("/results/{row_id}/export")
+async def export_process_queue_result(row_id: str):
+    result_payload = process_queue_result_store.get(row_id)
+    if not result_payload:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró un resultado exportable para ese proceso.",
+        )
+
+    result_path = str(result_payload.get("result_path") or "").strip()
+    if not result_path:
+        raise HTTPException(
+            status_code=404,
+            detail="El proceso no tiene archivo de resultado exportable.",
+        )
+    if not os.path.exists(result_path):
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró el archivo de resultado exportable.",
+        )
+
+    process_type = str(result_payload.get("process_type") or "").strip()
+    if process_type != "sku_descriptions":
+        raise HTTPException(
+            status_code=400,
+            detail="Ese proceso no soporta exportación de resultados.",
+        )
+
+    result_data = _load_json_file(result_path)
+    if not isinstance(result_data, list):
+        raise HTTPException(
+            status_code=500,
+            detail="El archivo de resultado tiene un formato inválido.",
+        )
+
+    file_buffer = build_sku_description_excel(result_data)
+    process_id = str(
+        result_payload.get("process_id")
+        or result_payload.get("process_row_id")
+        or row_id
+    )
+    safe_process_id = _sanitize_export_filename(process_id)
+    filename = f"sku_mlc_descripciones_{safe_process_id}.xlsx"
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"'
+    }
+
+    return StreamingResponse(
+        file_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )

@@ -23,15 +23,23 @@ export default function ProcessQueueErrorModal({
   const failedItems = Array.isArray(errorData?.failed_items)
     ? errorData.failed_items.filter(Boolean)
     : [];
+  const failedSkus = Array.isArray(errorData?.failed_skus)
+    ? errorData.failed_skus.filter(Boolean)
+    : [];
   const messages = Array.isArray(errorData?.messages)
     ? errorData.messages.filter(Boolean)
     : [];
-  const isPartialProcess = failedItems.length > 0;
+  const isPartialProcess =
+    Boolean(errorData?.is_partial) ||
+    failedItems.length > 0 ||
+    failedSkus.length > 0;
   const successCount = Number(errorData?.success_count || 0);
   const primaryMessage =
     errorData?.message ||
     loadError ||
     "No se encontraron detalles adicionales para este error.";
+  const detailItems = failedItems.length > 0 ? failedItems : failedSkus;
+  const detailLabel = failedItems.length > 0 ? "MLC con error" : "SKU con error";
 
   const handleDownloadExcel = async () => {
     if (!row?.id || !apiBase || failedItems.length === 0 || isDownloadingExcel) {
@@ -175,13 +183,11 @@ export default function ProcessQueueErrorModal({
                 )}
               </section>
 
-              {isPartialProcess ? (
+              {isPartialProcess && detailItems.length > 0 ? (
                 <section className="pq-error-modal__panel">
-                  <span className="pq-error-modal__panel-label">
-                    MLC con error
-                  </span>
+                  <span className="pq-error-modal__panel-label">{detailLabel}</span>
                   <ul className="pq-error-modal__mlc-list">
-                    {failedItems.map((itemId) => (
+                    {detailItems.map((itemId) => (
                       <li key={itemId} className="pq-error-modal__mlc-pill">
                         {itemId}
                       </li>

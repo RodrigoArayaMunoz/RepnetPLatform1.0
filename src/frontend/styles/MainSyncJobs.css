@@ -259,8 +259,8 @@
 
 .process-table__action-header,
 .process-table__action-cell {
-  width: 68px;
-  min-width: 68px;
+  width: 108px;
+  min-width: 108px;
   text-align: center;
 }
 
@@ -279,6 +279,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.process-table__action-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .process-table__error-button {
@@ -320,6 +327,30 @@
   stroke: currentColor;
   stroke-width: 2.35;
   stroke-linecap: round;
+}
+
+.process-table__download-button {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.process-table__download-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 14px rgba(37, 99, 235, 0.16);
+}
+
+.process-table__download-button:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 
 .process-table tbody tr:nth-child(even) {

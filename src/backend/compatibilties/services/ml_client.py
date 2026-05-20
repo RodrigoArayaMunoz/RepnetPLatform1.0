@@ -336,6 +336,46 @@ class MercadoLibreClient:
             )
         return data
 
+    async def search_items_by_seller_sku(
+        self,
+        access_token: str | None,
+        seller_user_id: int | str,
+        seller_sku: str,
+        user_id: int | str | None = None,
+    ) -> dict:
+        data = await self.request(
+            "GET",
+            f"/users/{seller_user_id}/items/search",
+            access_token=access_token,
+            params={"seller_sku": seller_sku},
+            user_id=user_id,
+        )
+        if not isinstance(data, dict):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Respuesta inválida buscando publicaciones para seller_sku {seller_sku}",
+            )
+        return data
+
+    async def get_item_description(
+        self,
+        access_token: str | None,
+        item_id: str,
+        user_id: int | str | None = None,
+    ) -> dict:
+        data = await self.request(
+            "GET",
+            f"/items/{item_id}/description",
+            access_token=access_token,
+            user_id=user_id,
+        )
+        if not isinstance(data, dict):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Respuesta inválida para descripción de item {item_id}",
+            )
+        return data
+
     async def get_top_values(
         self,
         access_token: str | None,

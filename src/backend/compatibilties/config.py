@@ -92,6 +92,7 @@ class Settings(BaseSettings):
     compatibility_exception_chunk_pause_seconds: int = 2 * 60
     price_stock_chunk_pause_seconds: int = 2 * 60
     item_pictures_chunk_pause_seconds: int = 2 * 60
+    sku_description_chunk_pause_seconds: int = 2 * 60
     process_queue_delay_seconds: int = 15 * 60
 
     token_refresh_margin_seconds: int = 600

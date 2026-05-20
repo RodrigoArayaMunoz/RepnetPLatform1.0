@@ -66,6 +66,19 @@ def get_item_pictures_chunk_pause_seconds() -> int:
     )
 
 
+def get_sku_description_chunk_pause_seconds() -> int:
+    return max(
+        0,
+        int(
+            getattr(
+                settings,
+                "sku_description_chunk_pause_seconds",
+                get_process_file_chunk_pause_seconds(),
+            )
+        ),
+    )
+
+
 def chunk_sequence(
     items: Sequence[T],
     chunk_size: int | None = None,
