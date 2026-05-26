@@ -54,6 +54,12 @@ FOTO1_COLUMN_ALIASES = [
     "FOTO 1",
     "Foto 1",
     "foto 1",
+    "LINK1",
+    "Link1",
+    "link1",
+    "LINK 1",
+    "Link 1",
+    "link 1",
 ]
 
 FOTO2_COLUMN_ALIASES = [
@@ -63,6 +69,12 @@ FOTO2_COLUMN_ALIASES = [
     "FOTO 2",
     "Foto 2",
     "foto 2",
+    "LINK2",
+    "Link2",
+    "link2",
+    "LINK 2",
+    "Link 2",
+    "link 2",
 ]
 
 FOTO3_COLUMN_ALIASES = [
@@ -72,6 +84,12 @@ FOTO3_COLUMN_ALIASES = [
     "FOTO 3",
     "Foto 3",
     "foto 3",
+    "LINK3",
+    "Link3",
+    "link3",
+    "LINK 3",
+    "Link 3",
+    "link 3",
 ]
 
 def save_json(path: str, data: Any) -> None:
