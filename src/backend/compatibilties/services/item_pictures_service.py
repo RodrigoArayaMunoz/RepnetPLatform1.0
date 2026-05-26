@@ -422,6 +422,7 @@ async def process_item_pictures_job(
     progress_lock = asyncio.Lock()
     results: list[dict[str, Any] | None] = [None] * total_rows
     completed = 0
+    successful_updates = 0
     indexed_rows = list(enumerate(rows))
 
     async def worker(
@@ -431,7 +432,7 @@ async def process_item_pictures_job(
         chunk_number: int,
         total_chunks_count: int,
     ) -> None:
-        nonlocal completed
+        nonlocal completed, successful_updates
         result = await _process_item_picture_row(
             access_token=access_token,
             row=row,
@@ -442,6 +443,16 @@ async def process_item_pictures_job(
 
         async with progress_lock:
             completed += 1
+            if result.get("ok"):
+                successful_updates += 1
+                if successful_updates % 100 == 0:
+                    logger.info(
+                        "[ITEM_PICTURES][SUCCESS_COUNTER] job_id=%s updated_items=%s processed_rows=%s total_rows=%s",
+                        job_id,
+                        successful_updates,
+                        completed,
+                        total_rows,
+                    )
             progress = 10 + int((completed / max(total_rows, 1)) * 85)
             JobStore.update(
                 job_id,
