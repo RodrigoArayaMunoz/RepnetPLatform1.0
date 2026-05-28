@@ -14,7 +14,7 @@ from services.compatibility_service import (
     call_ml,
     get_write_rate_policy,
 )
-from services.excel_service import extract_item_id
+from services.excel_service import extract_item_id, normalize_for_compare
 from services.job_store import JobStore
 from services.ml_client import ml_client
 from services.process_chunking_service import (
@@ -32,6 +32,12 @@ MLC_COLUMN_ALIASES = [
     "MLC",
     "mlc",
     "Mlc",
+    "MLC SKU",
+    "Mlc Sku",
+    "mlc sku",
+    "MLC_SKU",
+    "Mlc_Sku",
+    "mlc_sku",
     "ITEM_ID",
     "item_id",
     "Item ID",
@@ -132,10 +138,14 @@ def _load_dataframe(file_path: str) -> pd.DataFrame:
 
 
 def _resolve_column(df: pd.DataFrame, aliases: list[str], label: str) -> str:
-    available = {str(column).strip(): str(column).strip() for column in df.columns}
+    available = {
+        normalize_for_compare(str(column).strip()): str(column).strip()
+        for column in df.columns
+    }
     for alias in aliases:
-        if alias in available:
-            return available[alias]
+        normalized_alias = normalize_for_compare(alias)
+        if normalized_alias in available:
+            return available[normalized_alias]
     raise ValueError(
         f"No se encontró la columna {label} en el archivo. "
         f"Columnas aceptadas: {', '.join(aliases)}"
@@ -143,10 +153,14 @@ def _resolve_column(df: pd.DataFrame, aliases: list[str], label: str) -> str:
 
 
 def _resolve_optional_column(df: pd.DataFrame, aliases: list[str]) -> str | None:
-    available = {str(column).strip(): str(column).strip() for column in df.columns}
+    available = {
+        normalize_for_compare(str(column).strip()): str(column).strip()
+        for column in df.columns
+    }
     for alias in aliases:
-        if alias in available:
-            return available[alias]
+        normalized_alias = normalize_for_compare(alias)
+        if normalized_alias in available:
+            return available[normalized_alias]
     return None
 
 
