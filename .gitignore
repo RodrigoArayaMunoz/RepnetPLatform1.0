@@ -34,6 +34,7 @@ node_modules/
 
 # Uploads (tu carpeta de archivos)
 src/backend/compatibilities/uploads/
+src/backend/compatibilties/uploads/
 **/uploads/
 *.xlsx
 *.csv

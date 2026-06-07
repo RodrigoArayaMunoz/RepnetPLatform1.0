@@ -1,11 +1,3 @@
-.venv
-__pycache__
-*.pyc
-node_modules
-dist
-build
-.git
-.vscode
 .env
 *.env
 .env.*
@@ -14,3 +6,11 @@ uploads
 **/uploads
 *.xlsx
 *.csv
+__pycache__
+*.pyc
+.venv
+node_modules
+dist
+build
+.git
+.vscode
