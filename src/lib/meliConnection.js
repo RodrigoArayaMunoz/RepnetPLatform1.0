@@ -1,3 +1,5 @@
+import { authFetch } from "./apiClient.js";
+
 export const ML_VERIFYING_MESSAGE =
   "Verificando conexion con Mercado Libre...";
 export const ML_CONNECTED_MESSAGE = "Conectado exitosamente";
@@ -9,7 +11,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 export async function readMlConnectionStatus() {
   try {
-    const response = await fetch(`${API_BASE}/ml/status`, {
+    const response = await authFetch(`${API_BASE}/ml/status`, {
       method: "GET",
       credentials: "include",
     });

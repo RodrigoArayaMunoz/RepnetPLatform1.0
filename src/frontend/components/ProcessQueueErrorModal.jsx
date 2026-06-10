@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { FileSpreadsheet } from "lucide-react";
 import "./ProcessQueueErrorModal.css";
+import { authFetch } from "../../lib/apiClient.js";
 
 export default function ProcessQueueErrorModal({
   row,
@@ -50,7 +51,7 @@ export default function ProcessQueueErrorModal({
       setIsDownloadingExcel(true);
       setDownloadError("");
 
-      const response = await fetch(
+      const response = await authFetch(
         `${apiBase}/process-queue/errors/${row.id}/export`,
         {
           method: "GET",

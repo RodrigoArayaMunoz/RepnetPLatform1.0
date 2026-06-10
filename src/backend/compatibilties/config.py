@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     )
     supabase_meli_connection_table: str = "meli_global_connection"
     supabase_process_table: str = "procesos"
+    backend_auth_enabled: bool = True
+    backend_auth_cache_ttl_seconds: int = 60
 
     ml_compatibility_exception_comment: str = (
         "No aparecen detalles técnicos del modelo correspondiente."

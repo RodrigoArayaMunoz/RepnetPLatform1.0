@@ -2,6 +2,7 @@ import "../styles/PriceStocksUploads.css";
 import { useEffect, useState, useRef } from "react";
 import ResultModal from "../components/ResultModal";
 import PublicationsWithoutCompatibilityModal from "../components/PublicationsWithoutCompatibilityModal";
+import { authFetch, startMercadoLibreLogin } from "../../lib/apiClient.js";
 
 function ProcessingOverlay({ visible, progress = 0, message = "" }) {
   if (!visible) return null;
@@ -81,7 +82,7 @@ function PriceStocksUploads() {
       setMlUserId(null);
       setMlStatusMessage("Verificando conexión con Mercado Libre...");
 
-      const res = await fetch(`${API_BASE}/ml/status`, {
+      const res = await authFetch(`${API_BASE}/ml/status`, {
         method: "GET",
         credentials: "include",
       });
@@ -159,7 +160,7 @@ function PriceStocksUploads() {
     const formData = new FormData();
     formData.append("file", fileToUpload);
 
-    const res = await fetch(
+    const res = await authFetch(
       `${API_BASE}/imports/price-stock?user_id=${encodeURIComponent(mlUserId)}`,
       {
         method: "POST",
@@ -186,7 +187,7 @@ function PriceStocksUploads() {
   };
 
   const fetchJobResult = async (currentJobId) => {
-    const res = await fetch(`${API_BASE}/imports/${currentJobId}/result`, {
+    const res = await authFetch(`${API_BASE}/imports/${currentJobId}/result`, {
       method: "GET",
       credentials: "include",
     });
@@ -209,7 +210,7 @@ function PriceStocksUploads() {
     let finished = false;
 
     while (!finished) {
-      const response = await fetch(`${API_BASE}/imports/${currentJobId}`, {
+      const response = await authFetch(`${API_BASE}/imports/${currentJobId}`, {
         credentials: "include",
       });
 
@@ -302,12 +303,17 @@ function PriceStocksUploads() {
     }
   };
 
-  const handleConnectMercadoLibre = () => {
+  const handleConnectMercadoLibre = async () => {
     if (checkingConnection || mlVerified) return;
     const redirectTo = `${window.location.pathname}${window.location.search}`;
-    window.location.href = `${API_BASE}/auth/login?redirect_to=${encodeURIComponent(
-      redirectTo
-    )}`;
+    try {
+      await startMercadoLibreLogin(API_BASE, redirectTo);
+    } catch (error) {
+      setStatus("error");
+      setMessage(
+        error?.message || "No se pudo iniciar la conexion con Mercado Libre."
+      );
+    }
   };
 
   const acceptText =

@@ -6,6 +6,7 @@ import {
   ML_VERIFYING_MESSAGE,
   readMlConnectionStatus,
 } from "../../lib/meliConnection.js";
+import { authFetch, startMercadoLibreLogin } from "../../lib/apiClient.js";
 
 function ProcessingOverlay({ visible, progress = 0, message = "" }) {
   if (!visible) return null;
@@ -160,7 +161,7 @@ function CompatibilitiesUpload() {
     const formData = new FormData();
     formData.append("file", fileToUpload);
 
-    const res = await fetch(
+    const res = await authFetch(
       `${API_BASE}/imports/resolve-products?user_id=${encodeURIComponent(mlUserId)}`,
       {
         method: "POST",
@@ -189,7 +190,7 @@ function CompatibilitiesUpload() {
       throw new Error("No se encontró user_id de Mercado Libre conectado.");
     }
 
-    const res = await fetch(`${API_BASE}/imports/add-compatibilities-batch`, {
+    const res = await authFetch(`${API_BASE}/imports/add-compatibilities-batch`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -217,7 +218,7 @@ function CompatibilitiesUpload() {
   };
 
   const fetchJobResult = async (currentJobId) => {
-    const res = await fetch(`${API_BASE}/imports/${currentJobId}/result`, {
+    const res = await authFetch(`${API_BASE}/imports/${currentJobId}/result`, {
       method: "GET",
       credentials: "include",
     });
@@ -248,7 +249,7 @@ function CompatibilitiesUpload() {
 
     while (!finished) {
       try {
-        const r = await fetch(`${API_BASE}/imports/${currentJobId}`, {
+        const r = await authFetch(`${API_BASE}/imports/${currentJobId}`, {
           credentials: "include",
         });
 
@@ -364,12 +365,17 @@ function CompatibilitiesUpload() {
     }
   };
 
-  const handleConnectMercadoLibre = () => {
+  const handleConnectMercadoLibre = async () => {
     if (checkingConnection || mlVerified) return;
     const redirectTo = `${window.location.pathname}${window.location.search}`;
-    window.location.href = `${API_BASE}/auth/login?redirect_to=${encodeURIComponent(
-      redirectTo
-    )}`;
+    try {
+      await startMercadoLibreLogin(API_BASE, redirectTo);
+    } catch (error) {
+      setStatus("error");
+      setMessage(
+        error?.message || "No se pudo iniciar la conexion con Mercado Libre."
+      );
+    }
   };
 
   const acceptText = "Archivo permitido: .xlsx o .csv";

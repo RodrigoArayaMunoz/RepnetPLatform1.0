@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import ProcessQueueErrorModal from "../components/ProcessQueueErrorModal.jsx";
 import "../styles/MainSyncJobs.css";
 import { supabase } from "../../lib/supabase.js";
+import { authFetch, startMercadoLibreLogin } from "../../lib/apiClient.js";
 
 const SYNC_ROUTE = "/procesos/sincronizacion-procesos";
 const PROCESS_BUCKET = "excel-procesos";
@@ -191,7 +192,7 @@ export default function MainSyncJobs() {
       return {};
     }
 
-    const res = await fetch(`${API_BASE}/process-queue/errors/summaries`, {
+    const res = await authFetch(`${API_BASE}/process-queue/errors/summaries`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -280,7 +281,7 @@ export default function MainSyncJobs() {
       setIsMercadoLibreConnected(false);
       setMlUserId(null);
 
-      const res = await fetch(`${API_BASE}/ml/status`, {
+      const res = await authFetch(`${API_BASE}/ml/status`, {
         method: "GET",
         credentials: "include",
       });
@@ -306,7 +307,7 @@ export default function MainSyncJobs() {
 
   const loadQueueStatus = async () => {
     try {
-      const res = await fetch(`${API_BASE}/process-queue/status`, {
+      const res = await authFetch(`${API_BASE}/process-queue/status`, {
         method: "GET",
         credentials: "include",
       });
@@ -330,11 +331,20 @@ export default function MainSyncJobs() {
     }
   };
 
-  const handleConnectMercadoLibre = () => {
+  const handleConnectMercadoLibre = async () => {
     if (isCheckingMl || isMercadoLibreConnected) return;
 
     setIsConnectingMl(true);
-    window.location.href = `${API_BASE}/meli/oauth/start`;
+    const redirectTo = `${window.location.pathname}${window.location.search}`;
+    try {
+      await startMercadoLibreLogin(API_BASE, redirectTo);
+    } catch (error) {
+      setIsConnectingMl(false);
+      setStatusMessage(
+        error?.message || "No se pudo iniciar la conexion con Mercado Libre."
+      );
+      setStatusType("error");
+    }
   };
 
   const handleSaveProcess = async () => {
@@ -455,7 +465,7 @@ export default function MainSyncJobs() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/process-queue/start`, {
+      const res = await authFetch(`${API_BASE}/process-queue/start`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -502,7 +512,7 @@ export default function MainSyncJobs() {
     setIsLoadingErrorDetails(true);
 
     try {
-      const res = await fetch(`${API_BASE}/process-queue/errors/${row.id}`, {
+      const res = await authFetch(`${API_BASE}/process-queue/errors/${row.id}`, {
         method: "GET",
         credentials: "include",
       });
@@ -544,7 +554,7 @@ export default function MainSyncJobs() {
       setExportingRowId(row.id);
       setStatusMessage("");
 
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE}/process-queue/results/${row.id}/export`,
         {
           method: "GET",

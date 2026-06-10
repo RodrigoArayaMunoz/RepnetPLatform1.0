@@ -1,14 +1,18 @@
+import base64
+import hmac
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 from urllib.parse import urlencode, urlparse
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from config import settings
 from schemas import JobResponse
+from services.auth_guard import is_public_path, verify_supabase_request
 from services.ml_publicationswithout_service import ml_publications_service
 from services.supabase_meli_connection_store import supabase_meli_connection_store
 from services.token_store import token_store, require_ml_env
@@ -52,6 +56,26 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def require_supabase_auth(request: Request, call_next):
+    if (
+        not settings.backend_auth_enabled
+        or request.method == "OPTIONS"
+        or is_public_path(request.url.path)
+    ):
+        return await call_next(request)
+
+    try:
+        request.state.supabase_user = await verify_supabase_request(request)
+    except HTTPException as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+
+    return await call_next(request)
+
+
 def build_safe_frontend_redirect(redirect_to: str | None = None) -> str:
     base_frontend_url = settings.frontend_url.rstrip("/")
 
@@ -73,6 +97,76 @@ def build_safe_frontend_redirect(redirect_to: str | None = None) -> str:
     query = f"?{parsed.query}" if parsed.query else ""
     fragment = f"#{parsed.fragment}" if parsed.fragment else ""
     return f"{base_frontend_url}{normalized_path}{query}{fragment}"
+
+
+def _base64_urlsafe_encode(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _base64_urlsafe_decode(raw: str) -> bytes:
+    padding = "=" * (-len(raw) % 4)
+    return base64.urlsafe_b64decode(f"{raw}{padding}".encode("ascii"))
+
+
+def _oauth_state_secret() -> bytes:
+    secret = (
+        settings.supabase_service_role_key
+        or settings.ml_client_secret
+        or settings.supabase_anon_key
+    )
+    if not secret:
+        raise HTTPException(
+            status_code=503,
+            detail="No hay secreto configurado para firmar OAuth state",
+        )
+    return secret.encode("utf-8")
+
+
+def build_oauth_state(redirect_to: str | None = None) -> str:
+    payload = {
+        "redirect_to": redirect_to or "/",
+        "exp": int(time.time()) + 10 * 60,
+    }
+    payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    signature = hmac.digest(_oauth_state_secret(), payload_bytes, "sha256")
+    return f"{_base64_urlsafe_encode(payload_bytes)}.{_base64_urlsafe_encode(signature)}"
+
+
+def read_oauth_state_redirect(state: str | None) -> str | None:
+    if not state:
+        if settings.backend_auth_enabled:
+            raise HTTPException(status_code=401, detail="Falta OAuth state")
+        return None
+
+    try:
+        payload_part, signature_part = state.split(".", 1)
+        payload_bytes = _base64_urlsafe_decode(payload_part)
+        expected_signature = hmac.digest(_oauth_state_secret(), payload_bytes, "sha256")
+        received_signature = _base64_urlsafe_decode(signature_part)
+    except Exception:
+        if settings.backend_auth_enabled:
+            raise HTTPException(status_code=401, detail="OAuth state invalido")
+        return state
+
+    if not hmac.compare_digest(expected_signature, received_signature):
+        raise HTTPException(status_code=401, detail="OAuth state invalido")
+
+    payload = json.loads(payload_bytes)
+    if int(payload.get("exp", 0)) < int(time.time()):
+        raise HTTPException(status_code=401, detail="OAuth state expirado")
+
+    return str(payload.get("redirect_to") or "/")
+
+
+def build_ml_authorization_url(redirect_to: str | None = None) -> str:
+    require_ml_env()
+    params = {
+        "response_type": "code",
+        "client_id": settings.ml_client_id,
+        "redirect_uri": settings.ml_redirect_uri,
+        "state": build_oauth_state(redirect_to),
+    }
+    return f"{settings.ml_auth_url}?{urlencode(params)}"
 
 
 @app.get("/ml/status")
@@ -108,23 +202,19 @@ async def ml_me(user_id: int):
 
 @app.get("/auth/login")
 def ml_auth_login(redirect_to: str | None = None, state: str | None = None):
-    require_ml_env()
-    params = {
-        "response_type": "code",
-        "client_id": settings.ml_client_id,
-        "redirect_uri": settings.ml_redirect_uri,
-    }
     redirect_state = redirect_to or state
-    if redirect_state:
-        params["state"] = redirect_state
+    return RedirectResponse(url=build_ml_authorization_url(redirect_state))
 
-    url = f"{settings.ml_auth_url}?{urlencode(params)}"
-    return RedirectResponse(url=url)
+
+@app.get("/auth/login-url")
+def ml_auth_login_url(redirect_to: str | None = None):
+    return {"url": build_ml_authorization_url(redirect_to)}
 
 
 @app.get("/auth/callback")
 async def ml_auth_callback(code: str = Query(...), state: str | None = None):
     require_ml_env()
+    redirect_to = read_oauth_state_redirect(state)
 
     payload = {
         "grant_type": "authorization_code",
@@ -165,7 +255,7 @@ async def ml_auth_callback(code: str = Query(...), state: str | None = None):
             detail="No se pudo guardar la conexion de Mercado Libre en Supabase",
         )
 
-    return RedirectResponse(url=build_safe_frontend_redirect(state))
+    return RedirectResponse(url=build_safe_frontend_redirect(redirect_to))
 
 
 @app.post("/auth/refresh")

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./PublicationsWithoutCompatibilityModal.css";
+import { authFetch } from "../../lib/apiClient.js";
 
 function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
   const [items, setItems] = useState([]);
@@ -56,7 +57,7 @@ function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
           params.append("q", debouncedSearchText);
         }
 
-        const res = await fetch(
+        const res = await authFetch(
           `${apiBase}/publications/without-compatibilities?${params.toString()}`,
           {
             method: "GET",
@@ -112,7 +113,7 @@ function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
       setRefreshing(true);
       setRefreshMessage("Actualizando índice...");
 
-      const res = await fetch(
+      const res = await authFetch(
         `${apiBase}/publications/without-compatibilities/refresh`,
         {
           method: "POST",
@@ -132,7 +133,7 @@ function PublicationsWithoutCompatibilityModal({ open, onClose, apiBase }) {
         let done = false;
 
         while (!done) {
-          const statusRes = await fetch(
+          const statusRes = await authFetch(
             `${apiBase}/publications/without-compatibilities/refresh-status`,
             {
               method: "GET",
@@ -194,7 +195,7 @@ const handleExportToExcel = async () => {
       params.toString() ? `?${params.toString()}` : ""
     }`;
 
-    const res = await fetch(url, {
+    const res = await authFetch(url, {
       method: "GET",
       credentials: "include",
     });
