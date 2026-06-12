@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Package, RefreshCw, Truck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "../styles/Login.css";
 import loginVisual from "../../../src/assets/repnetmercadolibre_logo.png";
@@ -48,6 +49,12 @@ const LockIcon = () => (
     />
   </svg>
 );
+
+const brandFeatures = [
+  { label: "Logistica", Icon: Truck },
+  { label: "Sincronizacion", Icon: RefreshCw },
+  { label: "Inventario", Icon: Package },
+];
 
 export default function Login({
   supabaseConfigured,
@@ -151,54 +158,79 @@ export default function Login({
                 className="brand-visual"
               />
             </div>
+
+            <div className="brand-feature-row" aria-label="Funciones principales">
+              {brandFeatures.map(({ label, Icon }) => (
+                <div className="brand-feature" key={label}>
+                  <Icon className="brand-feature-icon" aria-hidden="true" />
+                  <span>{label}</span>
+                </div>
+              ))}
+            </div>
           </section>
 
           <section className="login-right">
-            <div className="login-card">
-              <div className="login-card-content">
-                <form className="login-form" onSubmit={handleSubmit}>
-                  <div className="input-group">
-                    <span className="icon-wrapper">
-                      <MailIcon />
-                    </span>
-                    <input
-                      type="email"
-                      name="email"
-                      placeholder="Usuario"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+            <div className="login-panel">
+              <h1 className="login-welcome">Bienvenido</h1>
+
+              <div className="login-card">
+                <div className="login-card-content">
+                  <form className="login-form" onSubmit={handleSubmit}>
+                    <div className="form-field">
+                      <label className="input-label" htmlFor="email">
+                        Correo Electronico
+                      </label>
+                      <div className="input-group">
+                        <span className="icon-wrapper">
+                          <MailIcon />
+                        </span>
+                        <input
+                          id="email"
+                          type="email"
+                          name="email"
+                          placeholder="nombre@empresa.cl"
+                          autoComplete="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          disabled={loading || !supabaseConfigured}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-field">
+                      <label className="input-label" htmlFor="password">
+                        Contraseña
+                      </label>
+                      <div className="input-group">
+                        <span className="icon-wrapper">
+                          <LockIcon />
+                        </span>
+                        <input
+                          id="password"
+                          type="password"
+                          name="password"
+                          placeholder="Password"
+                          autoComplete="current-password"
+                          required
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          disabled={loading || !supabaseConfigured}
+                        />
+                      </div>
+                    </div>
+
+                    {errorMsg && <p className="auth-message error">{errorMsg}</p>}
+
+                    <button
+                      type="submit"
+                      className="login-btn"
                       disabled={loading || !supabaseConfigured}
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <span className="icon-wrapper">
-                      <LockIcon />
-                    </span>
-                    <input
-                      type="password"
-                      name="password"
-                      placeholder="Password"
-                      autoComplete="current-password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={loading || !supabaseConfigured}
-                    />
-                  </div>
-
-                  {errorMsg && <p className="auth-message error">{errorMsg}</p>}
-
-                  <button
-                    type="submit"
-                    className="login-btn"
-                    disabled={loading || !supabaseConfigured}
-                  >
-                    Ingresar
-                  </button>
-                </form>
+                    >
+                      Ingresar
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
 

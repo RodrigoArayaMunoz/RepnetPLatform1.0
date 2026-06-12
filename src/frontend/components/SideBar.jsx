@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   Ban,
   FolderSync,
+  FolderTree,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
 //import logo from "../../assets/repnetmercadolibre_logo.png";
@@ -64,6 +65,11 @@ const navItems = [
         to: "/procesos/sincronizacion-procesos",
         label: "Sincronización de Procesos",
         icon: FileSpreadsheet,
+      },
+      {
+        to: "/procesos/carga-familias-compatibilidades",
+        label: "Carga de Familias-Compatibilidades",
+        icon: FolderTree,
       },
     ],
   },
@@ -266,46 +272,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
           </button>
         </div>
 
-        <div className="sidebar__card sidebar__card--user">
-          <div className="sidebar__user-row">
-            <span className="sidebar__user-icon">
-              <User size={16} />
-            </span>
-
-            <div className="sidebar__user-content">
-              <span className="sidebar__user-title">Usuario:</span>
-              <span className="sidebar__user-value">
-                {authLoading
-                  ? "Cargando..."
-                  : userEmail || "No se encontro usuario autenticado"}
-              </span>
-            </div>
-          </div>
-
-          <div className="sidebar__user-row">
-            <span className="sidebar__user-icon">
-              <PlugZap size={16} />
-            </span>
-
-            <div className="sidebar__user-content">
-              <span className="sidebar__user-title">
-                Estado Mercado Libre:
-              </span>
-              <span
-                className={`sidebar__status-badge ${
-                  mlStatusLoading
-                    ? "sidebar__status-badge--pending"
-                    : isMlConnected
-                    ? "sidebar__status-badge--success"
-                    : "sidebar__status-badge--danger"
-                }`}
-              >
-                {mlStatusLabel}
-              </span>
-            </div>
-          </div>
-        </div>
-
         <nav className="sidebar__nav">
           {navItems
             .filter((group) => !group.hidden)
@@ -372,6 +338,46 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
             );
           })}
         </nav>
+
+        <div className="sidebar__card sidebar__card--user">
+          <div className="sidebar__user-row">
+            <span className="sidebar__user-icon">
+              <User size={16} />
+            </span>
+
+            <div className="sidebar__user-content">
+              <span className="sidebar__user-title">Usuario:</span>
+              <span className="sidebar__user-value">
+                {authLoading
+                  ? "Cargando..."
+                  : userEmail || "No se encontro usuario autenticado"}
+              </span>
+            </div>
+          </div>
+
+          <div className="sidebar__user-row">
+            <span className="sidebar__user-icon">
+              <PlugZap size={16} />
+            </span>
+
+            <div className="sidebar__user-content">
+              <span className="sidebar__user-title">
+                Estado Mercado Libre:
+              </span>
+              <span
+                className={`sidebar__status-badge ${
+                  mlStatusLoading
+                    ? "sidebar__status-badge--pending"
+                    : isMlConnected
+                    ? "sidebar__status-badge--success"
+                    : "sidebar__status-badge--danger"
+                }`}
+              >
+                {mlStatusLabel}
+              </span>
+            </div>
+          </div>
+        </div>
       </aside>
     </>
   );

@@ -156,7 +156,21 @@ export default function App() {
           <Route index element={<PreciosStock />} />
         </Route>
 
-      <Route
+        <Route
+          path="/procesos/carga-familias-compatibilidades"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<Compatibilidades />} />
+        </Route>
+
+        <Route
           path="/procesos/sincronizacion-procesos"
           element={
             <RequireAuth
