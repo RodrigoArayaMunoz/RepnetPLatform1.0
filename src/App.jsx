@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import MainLayout from "./frontend/layouts/MainLayout";
 import Home from "./frontend/pages/Home";
-import Compatibilidades from "./frontend/pages/CompatibilitiesUpload";
+import UploadFamily from "./frontend/pages/CompatibilitiesUpload";
 import PreciosStock from "./frontend/pages/PriceStocksUploads";
 import NoCompatibilidades from "./frontend/pages/NoCompatibilities";
 import Login from "./frontend/pages/Login";
@@ -125,7 +125,7 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<Compatibilidades />} />
+          <Route index element={<UploadFamily />} />
         </Route>
 
         <Route
@@ -167,7 +167,7 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<Compatibilidades />} />
+          <Route index element={<UploadFamily />} />
         </Route>
 
         <Route
