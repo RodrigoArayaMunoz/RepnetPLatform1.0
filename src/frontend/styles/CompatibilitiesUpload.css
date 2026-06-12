@@ -191,18 +191,23 @@
   cursor: not-allowed;
 }
 
-.execute-family-button {
+.upload-family-layout .execute-family-button {
   background: #fff159;
-  color: #3483fa;
+  color: #003087;
+  border: 1px solid #fff159;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
 }
 
-.execute-family-button:hover:not(:disabled) {
+.upload-family-layout .execute-family-button:hover:not(:disabled) {
   background: #ffe600;
+  border-color: #ffe600;
+  color: #002c77;
 }
 
-.execute-family-button:disabled {
+.upload-family-layout .execute-family-button:disabled {
   background: #fff8b8;
-  color: #8aaeed;
+  border-color: #fff8b8;
+  color: #6b7fa8;
   opacity: 0.75;
 }
 
