@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download } from "lucide-react";
+import { BarChart3, Download, Save, Zap } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ProcessQueueErrorModal from "../components/ProcessQueueErrorModal.jsx";
 import "../styles/MainSyncJobs.css";
@@ -15,6 +15,7 @@ const PROCESS_STATUS = {
   PROCESSED_WITH_ERRORS: "Procesado con Errores",
   ERROR: "Error",
 };
+const PROCESS_ROWS_PER_PAGE = 4;
 
 export default function MainSyncJobs() {
   const fileInputRef = useRef(null);
@@ -37,6 +38,7 @@ export default function MainSyncJobs() {
   const [isLoadingErrorDetails, setIsLoadingErrorDetails] = useState(false);
   const [errorDetailsLoadMessage, setErrorDetailsLoadMessage] = useState("");
   const [exportingRowId, setExportingRowId] = useState(null);
+  const [processPage, setProcessPage] = useState(1);
 
   const [isConnectingMl, setIsConnectingMl] = useState(false);
   const [isCheckingMl, setIsCheckingMl] = useState(true);
@@ -149,6 +151,42 @@ export default function MainSyncJobs() {
 
     return queueMessage;
   }, [hasPendingProcesses, isQueueRunning, pendingProcessCount, queueMessage]);
+
+  const totalProcessPages = Math.max(
+    1,
+    Math.ceil(processRows.length / PROCESS_ROWS_PER_PAGE)
+  );
+  const safeProcessPage = Math.min(processPage, totalProcessPages);
+  const processPageStartIndex = (safeProcessPage - 1) * PROCESS_ROWS_PER_PAGE;
+  const paginatedProcessRows = processRows.slice(
+    processPageStartIndex,
+    processPageStartIndex + PROCESS_ROWS_PER_PAGE
+  );
+  const processPageFirstItem =
+    processRows.length === 0 ? 0 : processPageStartIndex + 1;
+  const processPageLastItem = Math.min(
+    processPageStartIndex + PROCESS_ROWS_PER_PAGE,
+    processRows.length
+  );
+  const processPageNumbers = useMemo(() => {
+    const maxVisiblePages = 5;
+    const startPage = Math.max(
+      1,
+      Math.min(
+        safeProcessPage - 2,
+        totalProcessPages - maxVisiblePages + 1
+      )
+    );
+    const endPage = Math.min(
+      totalProcessPages,
+      startPage + maxVisiblePages - 1
+    );
+
+    return Array.from(
+      { length: endPage - startPage + 1 },
+      (_, index) => startPage + index
+    );
+  }, [safeProcessPage, totalProcessPages]);
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0] || null;
@@ -423,6 +461,7 @@ export default function MainSyncJobs() {
       }
 
       setProcessRows((prev) => [mapProcessRow(data), ...prev]);
+      setProcessPage(1);
       setSelectedFile(null);
       setStatusMessage("Proceso guardado correctamente.");
       setStatusType("success");
@@ -657,73 +696,99 @@ export default function MainSyncJobs() {
           </div>
         )}
 
-        <div className="main-sync-jobs__row">
-          <div className="main-sync-jobs__field main-sync-jobs__field--file">
-            <span className="main-sync-jobs__label">Archivo del proceso</span>
+        <div className="main-sync-jobs__workspace">
+          <div className="main-sync-jobs__process-panel">
+            <div className="main-sync-jobs__row">
+              <div className="main-sync-jobs__field main-sync-jobs__field--file">
+                <span className="main-sync-jobs__label">Archivo del proceso</span>
 
-            <label className="main-sync-jobs__file-box">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                className="main-sync-jobs__file-input"
-                onChange={handleFileChange}
-              />
-              <span className="main-sync-jobs__file-button">
-                Seleccionar archivo
-              </span>
-              <span className="main-sync-jobs__file-name">
-                {selectedFile?.name || "No hay archivo seleccionado"}
-              </span>
-            </label>
+                <label className="main-sync-jobs__file-box">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="main-sync-jobs__file-input"
+                    onChange={handleFileChange}
+                  />
+                  <span className="main-sync-jobs__file-button">
+                    Seleccionar archivo
+                  </span>
+                  <span className="main-sync-jobs__file-name">
+                    {selectedFile?.name || "No hay archivo seleccionado"}
+                  </span>
+                </label>
+              </div>
+
+              <div className="main-sync-jobs__field">
+                <span className="main-sync-jobs__label">Fecha</span>
+                <div className="main-sync-jobs__info-box">{formattedDate}</div>
+              </div>
+
+              <div className="main-sync-jobs__field">
+                <span className="main-sync-jobs__label">Hora</span>
+                <div className="main-sync-jobs__info-box">{formattedTime}</div>
+              </div>
+            </div>
           </div>
 
-          <div className="main-sync-jobs__field">
-            <span className="main-sync-jobs__label">Fecha</span>
-            <div className="main-sync-jobs__info-box">{formattedDate}</div>
-          </div>
+          <div className="main-sync-jobs__quick-card">
+            <div className="main-sync-jobs__quick-title">
+              <Zap size={22} aria-hidden="true" />
+              <span>ACCIONES RÁPIDAS</span>
+            </div>
 
-          <div className="main-sync-jobs__field">
-            <span className="main-sync-jobs__label">Hora</span>
-            <div className="main-sync-jobs__info-box">{formattedTime}</div>
+            <button
+              type="button"
+              className="main-sync-jobs__quick-button main-sync-jobs__quick-button--save"
+              onClick={handleSaveProcess}
+              disabled={isSaving || !selectedFile}
+            >
+              <Save size={22} aria-hidden="true" />
+              <span>{isSaving ? "Guardando..." : "Guardar proceso"}</span>
+            </button>
+
+            <button
+              type="button"
+              className="main-sync-jobs__quick-button main-sync-jobs__quick-button--queue"
+              onClick={handleGenerateProcesses}
+              disabled={
+                isQueueRunning || !isMercadoLibreConnected || !hasPendingProcesses
+              }
+            >
+              <BarChart3 size={22} aria-hidden="true" />
+              <span>
+                {isQueueRunning
+                  ? queueButtonText || "Procesos en ejecución"
+                  : "Ejecutar procesos"}
+              </span>
+            </button>
+
+            {(statusMessage || visibleQueueMessage) && (
+              <div className="main-sync-jobs__quick-feedback">
+                {statusMessage && (
+                  <p
+                    className={`main-sync-jobs__message main-sync-jobs__message--${statusType}`}
+                  >
+                    {statusMessage}
+                  </p>
+                )}
+
+                {visibleQueueMessage && (
+                  <p className="main-sync-jobs__queue-message">
+                    {visibleQueueMessage}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="main-sync-jobs__quick-divider" />
+
+            <div className="main-sync-jobs__quick-uptime">
+              <span>Uptime del Motor</span>
+              <strong>99.98%</strong>
+            </div>
           </div>
         </div>
-
-        {statusMessage && (
-          <p
-            className={`main-sync-jobs__message main-sync-jobs__message--${statusType}`}
-          >
-            {statusMessage}
-          </p>
-        )}
-
-        <div className="main-sync-jobs__actions">
-          <button
-            type="button"
-            className="main-sync-jobs__save-button"
-            onClick={handleSaveProcess}
-            disabled={isSaving || !selectedFile}
-          >
-            {isSaving ? "Guardando..." : "Guardar proceso"}
-          </button>
-
-          <button
-            type="button"
-            className="main-sync-jobs__generate-button"
-            onClick={handleGenerateProcesses}
-            disabled={
-              isQueueRunning || !isMercadoLibreConnected || !hasPendingProcesses
-            }
-          >
-            {isQueueRunning
-              ? queueButtonText || "Procesos en ejecución"
-              : "Ejecutar procesos"}
-          </button>
-        </div>
-
-        {visibleQueueMessage && (
-          <p className="main-sync-jobs__queue-message">{visibleQueueMessage}</p>
-        )}
       </div>
 
       <div className="main-sync-jobs__table-card">
@@ -758,7 +823,7 @@ export default function MainSyncJobs() {
                   </td>
                 </tr>
               ) : (
-                processRows.map((row) => {
+                paginatedProcessRows.map((row) => {
                   const isCurrentlyProcessing =
                     isQueueRunning && queueCurrentProcessRowId === row.id;
                   const displayStatus = isCurrentlyProcessing
@@ -870,6 +935,56 @@ export default function MainSyncJobs() {
             </tbody>
           </table>
         </div>
+
+        {!isLoadingTable && processRows.length > 0 && (
+          <div className="main-sync-jobs__pagination">
+            <span className="main-sync-jobs__pagination-summary">
+              Mostrando {processPageFirstItem}-{processPageLastItem} de{" "}
+              {processRows.length}
+            </span>
+
+            <div className="main-sync-jobs__pagination-controls">
+              <button
+                type="button"
+                className="main-sync-jobs__pagination-button"
+                onClick={() =>
+                  setProcessPage(Math.max(1, safeProcessPage - 1))
+                }
+                disabled={safeProcessPage === 1}
+              >
+                Anterior
+              </button>
+
+              {processPageNumbers.map((pageNumber) => (
+                <button
+                  key={pageNumber}
+                  type="button"
+                  className={`main-sync-jobs__pagination-button ${
+                    pageNumber === safeProcessPage
+                      ? "main-sync-jobs__pagination-button--active"
+                      : ""
+                  }`}
+                  onClick={() => setProcessPage(pageNumber)}
+                >
+                  {pageNumber}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                className="main-sync-jobs__pagination-button"
+                onClick={() =>
+                  setProcessPage(
+                    Math.min(totalProcessPages, safeProcessPage + 1)
+                  )
+                }
+                disabled={safeProcessPage === totalProcessPages}
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <ProcessQueueErrorModal
