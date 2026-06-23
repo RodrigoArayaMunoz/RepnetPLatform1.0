@@ -28,6 +28,10 @@ const FAMILY_OPTIONS = [
     code: "MLC-VEHICLE_BRAKE_DRUMS",
   },
   {
+    label: "Patines de Freno",
+    code: "MLC-VEHICLE_DRUM_BRAKE_SHOES",
+  },
+  {
     label: "BANDEJAS",
     code: "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS",
   },
