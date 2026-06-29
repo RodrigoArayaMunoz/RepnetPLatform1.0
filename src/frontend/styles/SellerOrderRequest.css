@@ -1,0 +1,30 @@
+.seller-order-page {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.seller-order-page__layout {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: flex-start;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.seller-order-page__title {
+  margin: 0;
+  color: #25324a;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+@media (max-width: 767px) {
+  .seller-order-page__layout {
+    padding: 16px;
+  }
+}

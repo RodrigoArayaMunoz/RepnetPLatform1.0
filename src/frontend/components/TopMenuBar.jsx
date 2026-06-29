@@ -1,0 +1,179 @@
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { Menu, PlugZap, UserRound } from "lucide-react";
+import { supabase } from "../../lib/supabase.js";
+import { readMlConnectionStatus } from "../../lib/meliConnection.js";
+
+export default function TopMenuBar({ onOpenSidebar }) {
+  const location = useLocation();
+  const [userEmail, setUserEmail] = useState("");
+  const [authLoading, setAuthLoading] = useState(true);
+  const [isMlConnected, setIsMlConnected] = useState(false);
+  const [mlStatusLoading, setMlStatusLoading] = useState(true);
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false);
+      setMlStatusLoading(false);
+      return undefined;
+    }
+
+    let mounted = true;
+
+    const loadUser = async () => {
+      setAuthLoading(true);
+
+      const { data, error } = await supabase.auth.getUser();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (error) {
+        console.error("No se pudo obtener el usuario autenticado:", error);
+        setUserEmail("");
+        setAuthLoading(false);
+        return;
+      }
+
+      setUserEmail(data?.user?.email || "");
+      setAuthLoading(false);
+    };
+
+    loadUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) {
+        return;
+      }
+
+      setUserEmail(session?.user?.email || "");
+      setAuthLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) {
+      setMlStatusLoading(false);
+      setIsMlConnected(false);
+      return;
+    }
+
+    if (authLoading || !userEmail) {
+      if (!authLoading && !userEmail) {
+        setIsMlConnected(false);
+        setMlStatusLoading(false);
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkMlConnection = async () => {
+      setMlStatusLoading(true);
+
+      try {
+        const connection = await readMlConnectionStatus();
+
+        if (!cancelled) {
+          setIsMlConnected(connection.connected);
+        }
+      } catch (error) {
+        console.error("Error inesperado verificando conexion ML:", error);
+
+        if (!cancelled) {
+          setIsMlConnected(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setMlStatusLoading(false);
+        }
+      }
+    };
+
+    checkMlConnection();
+
+    const handleWindowFocus = () => {
+      checkMlConnection();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkMlConnection();
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [authLoading, location.pathname, location.search, userEmail]);
+
+  const userLabel = useMemo(() => {
+    if (authLoading) {
+      return "Cargando...";
+    }
+
+    return userEmail || "No se encontro usuario autenticado";
+  }, [authLoading, userEmail]);
+
+  const mlStatusLabel = mlStatusLoading
+    ? "Verificando..."
+    : isMlConnected
+    ? "Conectado"
+    : "No Conectado";
+
+  return (
+    <header className="top-menu-bar">
+      <button
+        type="button"
+        className="top-menu-bar__menu-button"
+        onClick={onOpenSidebar}
+        aria-label="Abrir menu"
+      >
+        <Menu size={22} />
+      </button>
+
+      <div className="top-menu-bar__meta">
+        <div className="top-menu-bar__item top-menu-bar__item--user">
+          <span className="top-menu-bar__icon">
+            <UserRound size={18} />
+          </span>
+          <span className="top-menu-bar__label">Usuario</span>
+          <span className="top-menu-bar__value" title={userLabel}>
+            {userLabel}
+          </span>
+        </div>
+
+        <div className="top-menu-bar__item">
+          <span className="top-menu-bar__icon">
+            <PlugZap size={18} />
+          </span>
+          <span className="top-menu-bar__label">Estado Mercado Libre</span>
+          <span
+            className={`top-menu-bar__status ${
+              mlStatusLoading
+                ? "top-menu-bar__status--pending"
+                : isMlConnected
+                ? "top-menu-bar__status--success"
+                : "top-menu-bar__status--danger"
+            }`}
+          >
+            {mlStatusLabel}
+          </span>
+        </div>
+      </div>
+    </header>
+  );
+}

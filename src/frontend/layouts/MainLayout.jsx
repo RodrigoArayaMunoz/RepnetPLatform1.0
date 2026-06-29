@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../components/SideBar";
+import TopMenuBar from "../components/TopMenuBar";
 import "../styles/MainLayout.css";
 
 function RouteLoadingOverlay({ visible }) {
@@ -43,6 +44,8 @@ export default function MainLayout() {
       />
 
       <div className="layout__main">
+        <TopMenuBar onOpenSidebar={() => setSidebarOpen(true)} />
+
         <main className="layout__content">
           <div className={`layout__page ${routeLoading ? "layout__page--hidden" : ""}`}>
             <Outlet />

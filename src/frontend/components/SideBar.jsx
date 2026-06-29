@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   X,
@@ -6,22 +6,15 @@ import {
   ChevronDown,
   ChevronRight,
   BadgeDollarSign,
-  User,
-  PlugZap,
   FileSpreadsheet,
   Ban,
   FolderSync,
   FolderTree,
+  ClipboardList,
+  Store,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
-//import logo from "../../assets/repnetmercadolibre_logo.png";
-import { supabase } from "../../lib/supabase.js";
-import {
-  ML_VERIFYING_MESSAGE,
-  readMlConnectionStatus,
-} from "../../lib/meliConnection.js";
 import "../styles/SideBar.css";
-import mercadoLibreLogo from "../../assets/mercadolibre_logo.png";
 
 const navItems = [
   {
@@ -56,7 +49,7 @@ const navItems = [
     ],
   },
 
-    {
+  {
     key: "procesos",
     label: "PROCESOS",
     icon: FolderSync,
@@ -73,21 +66,28 @@ const navItems = [
       },
     ],
   },
+  {
+    key: "vendedor",
+    label: "VENDEDOR",
+    icon: Store,
+    children: [
+      {
+        to: "/vendedor/solicitud-pedido",
+        label: "Solicitud de Pedido",
+        icon: ClipboardList,
+      },
+    ],
+  },
 ];
 
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const location = useLocation();
 
-  const [userEmail, setUserEmail] = useState("");
-  const [authLoading, setAuthLoading] = useState(true);
-  const [isMlConnected, setIsMlConnected] = useState(false);
-  const [mlStatusLoading, setMlStatusLoading] = useState(true);
-  const [mlStatusMessage, setMlStatusMessage] = useState(ML_VERIFYING_MESSAGE);
-
   const getMenuStateFromPath = (pathname) => ({
     compatibilidades: pathname.startsWith("/compatibilidades"),
     actualizaciones: pathname.startsWith("/actualizaciones"),
     procesos: pathname.startsWith("/procesos"),
+    vendedor: pathname.startsWith("/vendedor"),
   });
 
   const [openMenus, setOpenMenus] = useState(
@@ -98,121 +98,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
     setOpenMenus(getMenuStateFromPath(location.pathname));
   }, [location.pathname]);
 
-  useEffect(() => {
-    if (!supabase) {
-      setAuthLoading(false);
-      setMlStatusLoading(false);
-      return undefined;
-    }
-
-    let mounted = true;
-
-    const loadUser = async () => {
-      setAuthLoading(true);
-
-      const { data, error } = await supabase.auth.getUser();
-
-      if (!mounted) {
-        return;
-      }
-
-      if (error) {
-        console.error("No se pudo obtener el usuario autenticado:", error);
-        setUserEmail("");
-        setAuthLoading(false);
-        return;
-      }
-
-      setUserEmail(data?.user?.email || "");
-      setAuthLoading(false);
-    };
-
-    loadUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) {
-        return;
-      }
-
-      setUserEmail(session?.user?.email || "");
-      setAuthLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!supabase) {
-      setMlStatusLoading(false);
-      setMlStatusMessage("Sin configuracion");
-      return;
-    }
-
-    if (authLoading || !userEmail) {
-      if (!authLoading && !userEmail) {
-        setIsMlConnected(false);
-        setMlStatusLoading(false);
-        setMlStatusMessage("No conectado");
-      }
-      return;
-    }
-
-    let cancelled = false;
-
-    const checkMlConnection = async () => {
-      setMlStatusLoading(true);
-      setMlStatusMessage(ML_VERIFYING_MESSAGE);
-
-      try {
-        const connection = await readMlConnectionStatus();
-
-        if (cancelled) {
-          return;
-        }
-
-        setIsMlConnected(connection.connected);
-        setMlStatusMessage(connection.statusMessage);
-      } catch (error) {
-        console.error("Error inesperado verificando conexion ML:", error);
-
-        if (!cancelled) {
-          setIsMlConnected(false);
-          setMlStatusMessage("No se pudo verificar la conexion con Mercado Libre");
-        }
-      } finally {
-        if (!cancelled) {
-          setMlStatusLoading(false);
-        }
-      }
-    };
-
-    checkMlConnection();
-
-    const handleWindowFocus = () => {
-      checkMlConnection();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        checkMlConnection();
-      }
-    };
-
-    window.addEventListener("focus", handleWindowFocus);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener("focus", handleWindowFocus);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [authLoading, location.pathname, location.search, userEmail]);
-
   const toggleMenu = (key) => {
     setOpenMenus((prev) => ({
       compatibilidades:
@@ -222,6 +107,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
 
       procesos:
         key === "procesos" ? !prev.procesos : false,
+      vendedor:
+        key === "vendedor" ? !prev.vendedor : false,
     }));
   };
 
@@ -229,18 +116,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
 
   const isGroupActive = (children) =>
     children.some((child) => location.pathname === child.to);
-
-  const mlStatusLabel = useMemo(() => {
-    if (!supabase) {
-      return "Sin configuracion";
-    }
-
-    if (mlStatusLoading) {
-      return "Verificando...";
-    }
-
-    return isMlConnected ? "Conectado" : mlStatusMessage;
-  }, [isMlConnected, mlStatusLoading, mlStatusMessage]);
 
   return (
     <>
@@ -254,11 +129,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
           <div className="sidebar__branding">
             <div className="sidebar__brand-stack">
               <img src={logo} alt="Repnet" className="sidebar__brand-logo" />
-              <img
-                src={mercadoLibreLogo}
-                alt="Mercado Libre"
-                className="sidebar__brand-logo sidebar__brand-logo--secondary"
-              />
             </div>
           </div>
 
@@ -338,46 +208,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
             );
           })}
         </nav>
-
-        <div className="sidebar__card sidebar__card--user">
-          <div className="sidebar__user-row">
-            <span className="sidebar__user-icon">
-              <User size={16} />
-            </span>
-
-            <div className="sidebar__user-content">
-              <span className="sidebar__user-title">Usuario:</span>
-              <span className="sidebar__user-value">
-                {authLoading
-                  ? "Cargando..."
-                  : userEmail || "No se encontro usuario autenticado"}
-              </span>
-            </div>
-          </div>
-
-          <div className="sidebar__user-row">
-            <span className="sidebar__user-icon">
-              <PlugZap size={16} />
-            </span>
-
-            <div className="sidebar__user-content">
-              <span className="sidebar__user-title">
-                Estado Mercado Libre:
-              </span>
-              <span
-                className={`sidebar__status-badge ${
-                  mlStatusLoading
-                    ? "sidebar__status-badge--pending"
-                    : isMlConnected
-                    ? "sidebar__status-badge--success"
-                    : "sidebar__status-badge--danger"
-                }`}
-              >
-                {mlStatusLabel}
-              </span>
-            </div>
-          </div>
-        </div>
       </aside>
     </>
   );

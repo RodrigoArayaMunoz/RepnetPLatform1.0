@@ -8,6 +8,7 @@ import NoCompatibilidades from "./frontend/pages/NoCompatibilities";
 import Login from "./frontend/pages/Login";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import MainSyncJobs from "./frontend/pages/MainSyncJobs.jsx";
+import SellerOrderRequest from "./frontend/pages/SellerOrderRequest.jsx";
 
 function AuthLoadingScreen() {
   return <div className="app-root" />;
@@ -182,6 +183,20 @@ export default function App() {
           }
         >
           <Route index element={<MainSyncJobs />} />
+        </Route>
+
+        <Route
+          path="/vendedor/solicitud-pedido"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<SellerOrderRequest />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -37,9 +37,21 @@ POSICION_ID_VALUE_IDS = {
     "derecha": "2262160",
 }
 
+POSICION_DT_VALUE_NAMES = {
+    "delantera": "Delantera",
+    "trasera": "Trasera",
+    "conductor": "Conductor",
+    "acompañante": "Acompañante",
+}
+
+POSICION_ID_VALUE_NAMES = {
+    "izquierda": "Izquierda",
+    "derecha": "Derecha",
+}
+
 FAMILIAS_BRAKE_SHOCK = {"MLC-VEHICLE_BRAKE_PADS", "MLC-VEHICLE_SHOCK_ABSORBERS"}
 FAMILIAS_LIGHTS = {"MLC-VEHICLE_TAIL_LIGHTS", "MLC-VEHICLE_HEADLIGHTS"}
-FAMILIAS_BRAKE_DISC = {"MLC-VEHICLE_BRAKE_DISCS"}
+FAMILIAS_BRAKE_DISC = {"MLC-VEHICLE_BRAKE_DISCS","MLC-VEHICLE_DRUM_BRAKE_SHOES"}
 
 
 def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list:
@@ -53,11 +65,21 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
 
     dt_value_id = POSICION_DT_VALUE_IDS.get(dt_lower, "")
     id_value_id = POSICION_ID_VALUE_IDS.get(id_lower, "")
-    dt_name = _safe_text(posicion_dt)
-    id_name = _safe_text(posicion_id)
+    dt_name = POSICION_DT_VALUE_NAMES.get(dt_lower, _safe_text(posicion_dt))
+    id_name = POSICION_ID_VALUE_NAMES.get(id_lower, _safe_text(posicion_id))
+
+    if familia_upper in (FAMILIAS_BRAKE_SHOCK | FAMILIAS_LIGHTS | FAMILIAS_BRAKE_DISC):
+        if not dt_value_id:
+            logger.warning(
+                "[BATCH][RESTRICTION_SKIP] familia=%s posicion_dt=%s posicion_id=%s reason=missing_dt_value_id",
+                familia_upper,
+                posicion_dt,
+                posicion_id,
+            )
+            return []
 
     if familia_upper in FAMILIAS_BRAKE_SHOCK:
-        return [
+        restriction = [
             {
                 "attribute_id": "POSITION",
                 "attribute_values": [
@@ -76,9 +98,26 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
                 ],
             }
         ]
+        logger.info(
+            "[BATCH][RESTRICTION] familia=%s posicion_dt=%s posicion_id=%s restriction=%s",
+            familia_upper,
+            dt_name,
+            id_name,
+            json.dumps(restriction, ensure_ascii=False),
+        )
+        return restriction
 
     if familia_upper in FAMILIAS_LIGHTS:
-        return [
+        if not id_value_id:
+            logger.warning(
+                "[BATCH][RESTRICTION_SKIP] familia=%s posicion_dt=%s posicion_id=%s reason=missing_id_value_id",
+                familia_upper,
+                posicion_dt,
+                posicion_id,
+            )
+            return []
+
+        restriction = [
             {
                 "attribute_id": "POSITION",
                 "attribute_values": [
@@ -91,9 +130,17 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
                 ],
             }
         ]
+        logger.info(
+            "[BATCH][RESTRICTION] familia=%s posicion_dt=%s posicion_id=%s restriction=%s",
+            familia_upper,
+            dt_name,
+            id_name,
+            json.dumps(restriction, ensure_ascii=False),
+        )
+        return restriction
     
     if familia_upper in FAMILIAS_BRAKE_DISC:
-        return  [
+        restriction = [
             {
                 "attribute_id": "POSITION",
                 "attribute_values": [
@@ -105,17 +152,16 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
                 ],
             }
         ]
-        #print("=" * 60)
-        #print(f"[BRAKE_DISC][RESTRICTION] familia={familia_upper} posicion_dt={dt_name}")
-        #print(f"[BRAKE_DISC][RESTRICTION] JSON:\n{json.dumps(restriction, indent=2, ensure_ascii=False)}")
-        #print("=" * 60)
-        #logger.info(
-            #"[BRAKE_DISC][RESTRICTION] familia=%s posicion_dt=%s restriction=%s",
-            #familia_upper, dt_name, json.dumps(restriction, ensure_ascii=False),
-        #)
+        logger.info(
+            "[BATCH][RESTRICTION] familia=%s posicion_dt=%s posicion_id=%s restriction=%s",
+            familia_upper,
+            dt_name,
+            id_name,
+            json.dumps(restriction, ensure_ascii=False),
+        )
         return restriction
 
-    #return []
+    return []
 
 
 def chunked(items: list[str], size: int) -> Iterable[list[str]]:
@@ -283,6 +329,15 @@ async def post_compatibilities_batch(
         created_count = 0
         if isinstance(response, dict):
             created_count = response.get("created_compatibilities_count", 0) or 0
+
+        logger.info(
+            "[BATCH][POST_RESULT] item_id=%s user_product_id=%s products_sent=%s restrictions_sent=%s created_compatibilities_count=%s",
+            item_id,
+            user_product_id,
+            len(product_ids),
+            bool(restrictions),
+            created_count,
+        )
 
         return {
             "ok": True,

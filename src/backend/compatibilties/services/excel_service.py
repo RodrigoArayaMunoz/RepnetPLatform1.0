@@ -37,7 +37,7 @@ COMPAT_REQUIRED_LOGICAL_COLUMNS = [
 
 
 def get_row_value(row: dict, column_name: str) -> Any:
-    aliases = COLUMN_ALIASES.get(column_name, [column_name])
+    aliases = [column_name, *COLUMN_ALIASES.get(column_name, [])]
     for alias in aliases:
         if alias in row and row[alias] is not None:
             return row[alias]
@@ -85,7 +85,7 @@ def _pick_existing_columns(df: pd.DataFrame) -> dict[str, str]:
     found: dict[str, str] = {}
     cols = set(str(c).strip() for c in df.columns)
 
-    for logical_col in COMPAT_REQUIRED_LOGICAL_COLUMNS:
+    for logical_col in COLUMN_ALIASES:
         aliases = COLUMN_ALIASES.get(logical_col, [logical_col])
         for alias in aliases:
             if alias in cols:
