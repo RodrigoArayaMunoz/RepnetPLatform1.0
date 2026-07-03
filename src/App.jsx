@@ -9,6 +9,7 @@ import Login from "./frontend/pages/Login";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import MainSyncJobs from "./frontend/pages/MainSyncJobs.jsx";
 import SellerOrderRequest from "./frontend/pages/SellerOrderRequest.jsx";
+import CompatibilityCopy from "./frontend/pages/CompatibilityCopy.jsx";
 
 function AuthLoadingScreen() {
   return <div className="app-root" />;
@@ -183,6 +184,20 @@ export default function App() {
           }
         >
           <Route index element={<MainSyncJobs />} />
+        </Route>
+
+        <Route
+          path="/procesos/copia-compatibilidades"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<CompatibilityCopy />} />
         </Route>
 
         <Route

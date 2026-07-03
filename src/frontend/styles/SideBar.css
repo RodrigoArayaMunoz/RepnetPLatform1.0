@@ -35,13 +35,16 @@
 }
 
 .sidebar__header {
+  height: 64px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 0 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background-color: #ffffff;
   position: relative;
+  box-sizing: border-box;
 }
 
 .sidebar__branding {
@@ -60,8 +63,9 @@
 }
 
 .sidebar__brand-logo {
-  width: 230px;
+  width: 190px;
   max-width: 100%;
+  max-height: 46px;
   height: auto;
   display: block;
   object-fit: contain;
@@ -146,7 +150,7 @@
 }
 
 .sidebar__group-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #ffffff;
@@ -227,7 +231,7 @@
 }
 
 .sidebar__sublink-text {
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.4;
 }
 

@@ -9,6 +9,7 @@ from urllib.parse import urlencode, urlparse
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from pydantic import BaseModel
 
 from config import settings
 from schemas import JobResponse
@@ -169,6 +170,76 @@ def build_ml_authorization_url(redirect_to: str | None = None) -> str:
     return f"{settings.ml_auth_url}?{urlencode(params)}"
 
 
+class CopyItemCompatibilitiesRequest(BaseModel):
+    origin_item_id: str
+
+
+async def get_connected_ml_user_id() -> str:
+    rows = await supabase_meli_connection_store.list_rows(include_tokens=False)
+    if not rows:
+        raise HTTPException(
+            status_code=401,
+            detail="No hay cuenta de Mercado Libre conectada",
+        )
+
+    row = rows[0]
+    user_id = row.get("ml_user_id")
+    if not row.get("is_active") or not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="La cuenta de Mercado Libre no esta conectada",
+        )
+
+    return str(user_id)
+
+
+def item_has_compatibilities(item: dict) -> bool:
+    attributes = item.get("attributes") if isinstance(item, dict) else []
+    return (
+        any(attribute.get("id") == "HAS_COMPATIBILITIES" for attribute in attributes)
+        if isinstance(attributes, list)
+        else False
+    )
+
+
+async def get_user_product_compatibilities(
+    *,
+    user_product_id: str,
+    user_id: int | str,
+) -> dict:
+    data = await ml_client.request(
+        "GET",
+        f"/user-products/{user_product_id}/compatibilities",
+        params={
+            "main_domain_id": settings.ml_domain_id,
+            "extended": "true",
+        },
+        user_id=user_id,
+    )
+    return data if isinstance(data, dict) else {}
+
+
+def build_user_product_copy_products(origin_compatibilities: dict) -> list[dict]:
+    products = []
+    for compatibility in origin_compatibilities.get("products") or []:
+        product_id = compatibility.get("catalog_product_id") or compatibility.get("id")
+        if not product_id:
+            continue
+
+        product = {
+            "id": str(product_id),
+            "creation_source": "DEFAULT",
+        }
+        if compatibility.get("note"):
+            product["note"] = compatibility["note"]
+        if compatibility.get("restrictions"):
+            product["restrictions"] = compatibility["restrictions"]
+
+        products.append(product)
+
+    return products
+
+
 @app.get("/ml/status")
 async def ml_status():
     rows = await supabase_meli_connection_store.list_rows(include_tokens=False)
@@ -198,6 +269,150 @@ async def ml_me(user_id: int):
     access_token = await ml_client.get_valid_token(user_id)
     data = await ml_client.request("GET", "/users/me", access_token)
     return data
+
+
+@app.get("/ml/items/{item_id}/compatibility-status")
+async def get_ml_item_compatibility_status(item_id: str):
+    user_id = await get_connected_ml_user_id()
+    item = await ml_client.get_item_detail(
+        access_token=None,
+        item_id=item_id,
+        user_id=user_id,
+    )
+    user_product_id = item.get("user_product_id")
+    if user_product_id:
+        compatibilities = await get_user_product_compatibilities(
+            user_product_id=user_product_id,
+            user_id=user_id,
+        )
+        return {
+            "item_id": item_id,
+            "user_product_id": user_product_id,
+            "has_compatibilities": bool(compatibilities.get("products")),
+            "resource": "user-products",
+        }
+
+    return {
+        "item_id": item_id,
+        "has_compatibilities": item_has_compatibilities(item),
+        "resource": "items",
+    }
+
+
+@app.post("/ml/items/{destination_item_id}/compatibilities/copy")
+async def copy_ml_item_compatibilities(
+    destination_item_id: str,
+    payload: CopyItemCompatibilitiesRequest,
+):
+    origin_item_id = payload.origin_item_id.strip()
+    if not origin_item_id:
+        raise HTTPException(status_code=400, detail="origin_item_id es requerido")
+
+    user_id = await get_connected_ml_user_id()
+    destination_item = await ml_client.get_item_detail(
+        access_token=None,
+        item_id=destination_item_id,
+        user_id=user_id,
+    )
+    origin_item = await ml_client.get_item_detail(
+        access_token=None,
+        item_id=origin_item_id,
+        user_id=user_id,
+    )
+
+    destination_user_product_id = destination_item.get("user_product_id")
+    origin_user_product_id = origin_item.get("user_product_id")
+
+    if destination_user_product_id and origin_user_product_id:
+        destination_compatibilities = await get_user_product_compatibilities(
+            user_product_id=destination_user_product_id,
+            user_id=user_id,
+        )
+        origin_compatibilities = await get_user_product_compatibilities(
+            user_product_id=origin_user_product_id,
+            user_id=user_id,
+        )
+        products = build_user_product_copy_products(origin_compatibilities)
+        if not products:
+            raise HTTPException(
+                status_code=400,
+                detail="El User Product origen no tiene compatibilidades para copiar",
+            )
+
+        has_compatibilities = bool(destination_compatibilities.get("products"))
+        base_body = {
+            "domain_id": settings.ml_domain_id,
+            "category_id": destination_item.get("category_id"),
+        }
+
+        if has_compatibilities:
+            method = "PUT"
+            request_body = {
+                **base_body,
+                "create": {
+                    "products": products,
+                },
+            }
+        else:
+            method = "POST"
+            request_body = {
+                **base_body,
+                "products": products,
+            }
+
+        response = await ml_client.request(
+            method,
+            f"/user-products/{destination_user_product_id}/compatibilities",
+            json_body=request_body,
+            user_id=user_id,
+        )
+
+        return {
+            "origin_item_id": origin_item_id,
+            "destination_item_id": destination_item_id,
+            "origin_user_product_id": origin_user_product_id,
+            "destination_user_product_id": destination_user_product_id,
+            "had_compatibilities": has_compatibilities,
+            "method": method,
+            "resource": "user-products",
+            "response": response,
+        }
+
+    has_compatibilities = item_has_compatibilities(destination_item)
+
+    item_to_copy = {
+        "item_id": origin_item_id,
+        "extended_information": True,
+    }
+
+    if has_compatibilities:
+        method = "PUT"
+        request_body = {
+            "create": {
+                "item_to_copy": item_to_copy,
+            },
+        }
+    else:
+        method = "POST"
+        request_body = {
+            "item_to_copy": item_to_copy,
+        }
+
+    response = await ml_client.request(
+        method,
+        f"/items/{destination_item_id}/compatibilities",
+        json_body=request_body,
+        user_id=user_id,
+    )
+
+    return {
+        "origin_item_id": origin_item_id,
+        "destination_item_id": destination_item_id,
+        "had_compatibilities": has_compatibilities,
+        "method": method,
+        "resource": "items",
+        "response": response,
+    }
 
 
 @app.get("/auth/login")
