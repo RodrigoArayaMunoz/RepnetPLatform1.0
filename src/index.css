@@ -83,6 +83,10 @@ body,
   color: #0f172a;
 }
 
+html {
+  font-size: 15px;
+}
+
 body {
   overflow-x: hidden;
 }

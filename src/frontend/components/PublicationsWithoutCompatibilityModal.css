@@ -30,7 +30,7 @@
 
 .custom-modal-header h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 800;
   color: #2a5aa8;
 }
@@ -38,7 +38,7 @@
 .custom-modal-close {
   border: none;
   background: transparent;
-  font-size: 32px;
+  font-size: 28px;
   cursor: pointer;
   color: #475569;
   line-height: 1;
@@ -61,7 +61,7 @@
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   padding: 0 14px;
-  font-size: 15px;
+  font-size: 14px;
   outline: none;
 }
 
@@ -84,7 +84,7 @@
 
 .publications-count {
   margin: 8px 0 14px;
-  font-size: 14px;
+  font-size: 13px;
   color: #475569;
   font-weight: 600;
 }
@@ -127,13 +127,13 @@
 }
 
 .publications-table th {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   color: #1e293b;
 }
 
 .publications-table td {
-  font-size: 14px;
+  font-size: 13px;
   color: #334155;
   vertical-align: top;
 }
@@ -154,7 +154,7 @@
   align-items: center;
   justify-content: center;
   color: #334155;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -186,7 +186,7 @@
 }
 
 .publications-pagination span {
-  font-size: 14px;
+  font-size: 13px;
   color: #334155;
   font-weight: 600;
 }
@@ -202,7 +202,7 @@
   border: 1px solid #cbd5e1;
   border-radius: 12px;
   padding: 0 16px;
-  font-size: 15px;
+  font-size: 14px;
   outline: none;
   background: #fff;
   color: #1e293b;
@@ -240,7 +240,7 @@
 
 .publications-refresh-message {
   margin-bottom: 12px;
-  font-size: 14px;
+  font-size: 13px;
   color: #475569;
   font-weight: 600;
 }

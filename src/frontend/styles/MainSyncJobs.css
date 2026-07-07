@@ -2,7 +2,7 @@
   width: min(100%, 1280px);
   height: 100%;
   margin: 0 auto;
-  padding: 30px 48px 24px;
+  padding: 24px 48px 20px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -10,20 +10,20 @@
 }
 
 .main-sync-jobs__page-header {
-  margin-bottom: 22px;
+  margin-bottom: 16px;
   flex-shrink: 0;
 }
 
 .main-sync-jobs__page-header h1 {
   margin: 0;
   color: #111827;
-  font-size: 1.62rem;
+  font-size: 1.5rem;
   font-weight: 900;
   line-height: 1.15;
 }
 
 .main-sync-jobs__page-header p {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: #7a8598;
   font-size: 0.94rem;
   font-weight: 500;
@@ -200,9 +200,14 @@
 .main-sync-jobs__table-card {
   background: #ffffff;
   border-radius: 18px;
-  padding: 20px 22px;
+  padding: 18px 22px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
   border: 1px solid #e3e8f1;
+}
+
+.main-sync-jobs__card {
+  flex: 0 0 auto;
+  padding: 14px 18px;
 }
 
 .main-sync-jobs__table-card {
@@ -210,13 +215,13 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin-top: 22px;
+  margin-top: 16px;
 }
 
 .main-sync-jobs__workspace {
   display: flex;
-  align-items: stretch;
-  gap: 14px;
+  align-items: center;
+  gap: 12px;
   min-height: 0;
 }
 
@@ -338,7 +343,7 @@
 }
 
 .main-sync-jobs__table-header {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   flex-shrink: 0;
 }
 
@@ -376,14 +381,14 @@
   text-align: left;
   font-size: 0.78rem;
   font-weight: 900;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid #e7ecf5;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .process-table tbody td {
-  padding: 8px 12px;
+  padding: 9px 12px;
   font-size: 0.82rem;
   line-height: 1.2;
   color: #334155;
@@ -658,11 +663,11 @@
 }
 
 .main-sync-jobs__quick-card {
-  flex: 0 0 300px;
-  width: 300px;
+  flex: 0 0 282px;
+  width: 282px;
   margin-top: 0;
-  padding: 14px;
-  border-radius: 14px;
+  padding: 12px;
+  border-radius: 13px;
   background: linear-gradient(145deg, #4c79d8 0%, #3f68c0 52%, #2f55a8 100%);
   box-shadow: 0 14px 28px rgba(15, 23, 42, 0.16);
   color: #ffffff;
@@ -686,7 +691,7 @@
 
 .main-sync-jobs__quick-button {
   width: 100%;
-  min-height: 36px;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -699,7 +704,7 @@
 }
 
 .main-sync-jobs__quick-button + .main-sync-jobs__quick-button {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .main-sync-jobs__quick-button--save {
@@ -743,7 +748,7 @@
 .main-sync-jobs__quick-feedback {
   display: grid;
   gap: 5px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .main-sync-jobs__quick-feedback .main-sync-jobs__message--success {
@@ -760,7 +765,7 @@
 
 .main-sync-jobs__quick-divider {
   height: 1px;
-  margin: 10px 0 8px;
+  margin: 8px 0 7px;
   background: rgba(255, 255, 255, 0.16);
 }
 
