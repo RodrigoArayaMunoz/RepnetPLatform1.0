@@ -183,6 +183,12 @@ function UploadFamily() {
   return (
     <section className="compat-page">
       <div className="compat-upload-layout upload-family-layout">
+        <header className="compat-upload-header">
+          <h1>Carga de Familias</h1>
+          <p>Asigna una familia a tus archivos de compatibilidades desde Excel.</p>
+        </header>
+
+        <div className="compat-upload-card">
         <div className="file-wrapper">
           <label className="family-label" htmlFor="familySelect">
             Familia
@@ -237,6 +243,7 @@ function UploadFamily() {
         </div>
 
         {message && <p className={`status-message ${status}`}>{message}</p>}
+        </div>
       </div>
     </section>
   );

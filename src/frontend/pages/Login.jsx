@@ -1,59 +1,28 @@
 import { useEffect, useState } from "react";
-import { Package, RefreshCw, Truck } from "lucide-react";
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  Mail,
+  Package,
+  RefreshCw,
+  ShieldCheck,
+  Truck,
+} from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "../styles/Login.css";
-import loginVisual from "../../../src/assets/repnetmercadolibre_logo.png";
-import repnetlogo from "../../../src/assets/repnetsolo_logo.png";
+import mercadoLibreLogo from "../../../src/assets/mercadolibre_logo.png";
+import repnetLogo from "../../../src/assets/repnetsolo_logo.png";
 import {
   supabase,
   supabaseConfigErrorMessage,
 } from "../../lib/supabase.js";
 
-const MailIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" className="input-icon" aria-hidden="true">
-    <path
-      d="M4 7.5L10.94 12.46C11.57 12.91 12.43 12.91 13.06 12.46L20 7.5"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <rect
-      x="3"
-      y="5"
-      width="18"
-      height="14"
-      rx="2.5"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    />
-  </svg>
-);
-
-const LockIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" className="input-icon" aria-hidden="true">
-    <path
-      d="M8 10V7.75C8 5.68 9.68 4 11.75 4H12.25C14.32 4 16 5.68 16 7.75V10"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    />
-    <rect
-      x="5"
-      y="10"
-      width="14"
-      height="10"
-      rx="2.5"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    />
-  </svg>
-);
-
 const brandFeatures = [
-  { label: "Logistica", Icon: Truck },
-  { label: "Sincronizacion", Icon: RefreshCw },
-  { label: "Inventario", Icon: Package },
+  { label: "Logistica", icon: Truck },
+  { label: "Sincronizacion", icon: RefreshCw },
+  { label: "Inventario", icon: Package },
 ];
 
 export default function Login({
@@ -68,10 +37,13 @@ export default function Login({
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const authErrorMsg = supabaseConfigured
+    ? errorMsg
+    : supabaseConfigErrorMessage;
 
   useEffect(() => {
     if (!supabaseConfigured) {
-      setErrorMsg(supabaseConfigErrorMessage);
       return;
     }
 
@@ -138,11 +110,7 @@ export default function Login({
           <div className="login-loading-box">
             <div className="login-spinner-wrap">
               <div className="login-spinner"></div>
-              <img
-                src={repnetlogo}
-                alt="Repnet"
-                className="login-spinner-logo"
-              />
+              <img src={repnetLogo} alt="Repnet" className="login-spinner-logo" />
             </div>
           </div>
         </div>
@@ -150,92 +118,131 @@ export default function Login({
 
       <main className={`login-page ${loading ? "login-page--blocked" : ""}`}>
         <div className="login-layout">
-          <section className="login-left">
-            <div className="brand-visual-wrapper">
-              <img
-                src={loginVisual}
-                alt="Marcas asociadas"
-                className="brand-visual"
-              />
-            </div>
+          <section className="login-brand-panel">
+            <header className="login-brand-header">
+              
+            </header>
 
-            <div className="brand-feature-row" aria-label="Funciones principales">
-              {brandFeatures.map(({ label, Icon }) => (
-                <div className="brand-feature" key={label}>
-                  <Icon className="brand-feature-icon" aria-hidden="true" />
-                  <span>{label}</span>
+            <div className="login-brand-copy">
+              <div className="login-sync-pill">
+                <span aria-hidden="true"></span>
+                Sincronizado con Mercado Libre
+              </div>
+
+              <h1>
+                Gestion de repuestos,
+                <span>simple y en tiempo real.</span>
+              </h1>
+              <p>
+                Ingresa a tu panel para sincronizar catalogo, cargar familias y
+                copiar compatibilidades entre publicaciones.
+              </p>
+
+              <div
+                className="login-partner-row"
+                aria-label="Integracion Repnet y Mercado Libre"
+              >
+                <div className="login-partner-chip">
+                  <img src={repnetLogo} alt="Repnet.cl" />
                 </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="login-right">
-            <div className="login-panel">
-              <h1 className="login-welcome">Bienvenido</h1>
-
-              <div className="login-card">
-                <div className="login-card-content">
-                  <form className="login-form" onSubmit={handleSubmit}>
-                    <div className="form-field">
-                      <label className="input-label" htmlFor="email">
-                        Correo Electronico
-                      </label>
-                      <div className="input-group">
-                        <span className="icon-wrapper">
-                          <MailIcon />
-                        </span>
-                        <input
-                          id="email"
-                          type="email"
-                          name="email"
-                          placeholder="nombre@empresa.cl"
-                          autoComplete="email"
-                          required
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          disabled={loading || !supabaseConfigured}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="form-field">
-                      <label className="input-label" htmlFor="password">
-                        Contraseña
-                      </label>
-                      <div className="input-group">
-                        <span className="icon-wrapper">
-                          <LockIcon />
-                        </span>
-                        <input
-                          id="password"
-                          type="password"
-                          name="password"
-                          placeholder="Password"
-                          autoComplete="current-password"
-                          required
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          disabled={loading || !supabaseConfigured}
-                        />
-                      </div>
-                    </div>
-
-                    {errorMsg && <p className="auth-message error">{errorMsg}</p>}
-
-                    <button
-                      type="submit"
-                      className="login-btn"
-                      disabled={loading || !supabaseConfigured}
-                    >
-                      Ingresar
-                    </button>
-                  </form>
+                <div className="login-partner-line" aria-hidden="true"></div>
+                <div className="login-partner-chip login-partner-chip--meli">
+                  <img src={mercadoLibreLogo} alt="Mercado Libre" />
                 </div>
               </div>
             </div>
 
-            <div className="curve curve-one"></div>
-            <div className="curve curve-two"></div>
+            <div className="brand-feature-row" aria-label="Funciones principales">
+              {brandFeatures.map((feature) => (
+                <div className="brand-feature" key={feature.label}>
+                  <feature.icon
+                    className="brand-feature-icon"
+                    aria-hidden="true"
+                  />
+                  <span>{feature.label}</span>
+                </div>
+              ))}
+            </div>
+
+          </section>
+
+          <section className="login-form-panel">
+            <div className="login-panel">
+              <div className="login-panel-heading">
+                <h2>Ingresa a tu panel</h2>
+                <p>Usa tu correo corporativo para acceder al ERP.</p>
+              </div>
+
+              <form className="login-form" onSubmit={handleSubmit}>
+                <div className="form-field">
+                  <label className="input-label" htmlFor="email">
+                    Correo electronico
+                  </label>
+                  <div className="input-group">
+                    <Mail className="input-icon" aria-hidden="true" />
+                    <input
+                      id="email"
+                      type="email"
+                      name="email"
+                      placeholder="nombre@empresa.cl"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={loading || !supabaseConfigured}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-field">
+                  <label className="input-label" htmlFor="password">
+                    Contraseña
+                  </label>
+                  <div className="input-group">
+                    <LockKeyhole className="input-icon" aria-hidden="true" />
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      placeholder="Ingresa tu contrasena"
+                      autoComplete="current-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={loading || !supabaseConfigured}
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle"
+                      onClick={() => setShowPassword((current) => !current)}
+                      disabled={loading}
+                      aria-label={
+                        showPassword ? "Ocultar contrasena" : "Mostrar contrasena"
+                      }
+                    >
+                      {showPassword ? (
+                        <EyeOff aria-hidden="true" />
+                      ) : (
+                        <Eye aria-hidden="true" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {authErrorMsg && (
+                  <p className="auth-message error">{authErrorMsg}</p>
+                )}
+
+                <button
+                  type="submit"
+                  className="login-btn"
+                  disabled={loading || !supabaseConfigured}
+                >
+                  <span>Ingresar</span>
+                  <ArrowRight aria-hidden="true" />
+                </button>
+              </form>
+            </div>
           </section>
         </div>
       </main>

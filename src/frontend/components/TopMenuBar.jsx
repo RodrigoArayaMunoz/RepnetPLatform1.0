@@ -1,8 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Menu, PlugZap, UserRound } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 import { supabase } from "../../lib/supabase.js";
 import { readMlConnectionStatus } from "../../lib/meliConnection.js";
+
+const ROUTE_LABELS = {
+  "/menu": ["Inicio"],
+  "/procesos/sincronizacion-procesos": ["Procesos", "Sincronizacion"],
+  "/procesos/carga-familias-compatibilidades": [
+    "Procesos",
+    "Carga de Familias",
+  ],
+  "/procesos/copia-compatibilidades": ["Procesos", "Copia de Compatibilidades"],
+  "/compatibilidades/carga-masiva": ["Compatibilidades", "Carga Masiva"],
+  "/compatibilidades/no-compatibilidades": [
+    "Compatibilidades",
+    "No Compatibilidades",
+  ],
+  "/actualizaciones/precios-stock": ["Actualizaciones", "Precios y Stock"],
+  "/vendedor/solicitud-pedido": ["Administracion", "Solicitud de Pedido"],
+};
 
 export default function TopMenuBar({ onOpenSidebar }) {
   const location = useLocation();
@@ -129,10 +146,11 @@ export default function TopMenuBar({ onOpenSidebar }) {
   }, [authLoading, userEmail]);
 
   const mlStatusLabel = mlStatusLoading
-    ? "Verificando..."
+    ? "ML VERIFICANDO"
     : isMlConnected
-    ? "Conectado"
-    : "No Conectado";
+    ? "MERCADOLIBRE CONECTADO"
+    : "MERCADOLIBRE NO CONECTADO";
+  const breadcrumbs = ROUTE_LABELS[location.pathname] || ["Repnet"];
 
   return (
     <header className="top-menu-bar">
@@ -145,21 +163,23 @@ export default function TopMenuBar({ onOpenSidebar }) {
         <Menu size={22} />
       </button>
 
-      <div className="top-menu-bar__meta">
-        <div className="top-menu-bar__item top-menu-bar__item--user">
-          <span className="top-menu-bar__icon">
-            <UserRound size={18} />
+      <nav className="top-menu-bar__breadcrumbs" aria-label="Ruta actual">
+        {breadcrumbs.map((crumb, index) => (
+          <span
+            key={`${crumb}-${index}`}
+            className={
+              index === breadcrumbs.length - 1
+                ? "top-menu-bar__breadcrumb top-menu-bar__breadcrumb--current"
+                : "top-menu-bar__breadcrumb"
+            }
+          >
+            {crumb}
           </span>
-          <span className="top-menu-bar__label">Usuario</span>
-          <span className="top-menu-bar__value" title={userLabel}>
-            {userLabel}
-          </span>
-        </div>
+        ))}
+      </nav>
 
+      <div className="top-menu-bar__meta">
         <div className="top-menu-bar__item">
-          <span className="top-menu-bar__icon">
-            <PlugZap size={18} />
-          </span>
           <span className="top-menu-bar__label">Estado Mercado Libre</span>
           <span
             className={`top-menu-bar__status ${
@@ -173,6 +193,20 @@ export default function TopMenuBar({ onOpenSidebar }) {
             {mlStatusLabel}
           </span>
         </div>
+
+        <span className="top-menu-bar__divider" aria-hidden="true" />
+
+        <span className="top-menu-bar__value" title={userLabel}>
+          {userLabel}
+        </span>
+
+        <button
+          type="button"
+          className="top-menu-bar__notification"
+          aria-label="Notificaciones"
+        >
+          <Bell size={18} />
+        </button>
       </div>
     </header>
   );

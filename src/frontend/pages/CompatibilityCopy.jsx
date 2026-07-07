@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, CopyPlus, FileSpreadsheet } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CopyPlus,
+  FileSpreadsheet,
+  Upload,
+} from "lucide-react";
 import * as XLSX from "xlsx";
 import { authFetch } from "../../lib/apiClient.js";
 import "../styles/CompatibilityCopy.css";
@@ -7,7 +13,20 @@ import "../styles/CompatibilityCopy.css";
 const ORIGIN_HEADER = "MLC-ORIGEN";
 const DESTINATION_HEADER = "MLC-DESTINO";
 const HISTORY_STORAGE_KEY = "compatibilityCopyHistory";
-const HISTORY_PAGE_SIZE = 6;
+const HISTORY_PAGE_SIZE = 4;
+
+const formatHistoryDate = (value) => {
+  if (!value) return "Ahora";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Ahora";
+
+  return new Intl.DateTimeFormat("es-CL", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+};
 
 const getInitialHistory = () => {
   if (typeof window === "undefined") return [];
@@ -114,9 +133,7 @@ export default function CompatibilityCopy() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (event) => {
-    const selectedFile = event.target.files?.[0] ?? null;
-
+  const setSelectedFile = (selectedFile) => {
     if (selectedFile && !isExcelFile(selectedFile)) {
       setFile(null);
       setMessage("Archivo no valido. Selecciona un Excel (.xlsx o .xls).");
@@ -131,6 +148,19 @@ export default function CompatibilityCopy() {
     setProcessedRows(0);
     setTotalRows(0);
     setResults([]);
+  };
+
+  const handleFileChange = (event) => {
+    const selectedFile = event.target.files?.[0] ?? null;
+
+    setSelectedFile(selectedFile);
+  };
+
+  const handleDropFile = (event) => {
+    event.preventDefault();
+    const droppedFile = event.dataTransfer.files?.[0] ?? null;
+
+    setSelectedFile(droppedFile);
   };
 
   const parseCompatibilityRows = async (selectedFile) => {
@@ -271,6 +301,8 @@ export default function CompatibilityCopy() {
           id: `${Date.now()}-${file.name}`,
           fileName: file.name,
           copiedCount: successfulCopies,
+          createdAt: new Date().toISOString(),
+          status: "Completado",
         },
         ...currentHistory,
       ]);
@@ -288,11 +320,20 @@ export default function CompatibilityCopy() {
   return (
     <section className="compat-copy-page">
       <div className="compat-copy-layout">
-        <h1 className="compat-copy-title">Copia de Compatibilidades</h1>
+        <header className="compat-copy-header">
+          <h1 className="compat-copy-title">Copia de Compatibilidades</h1>
+          <p className="compat-copy-subtitle">
+            Duplica configuraciones de compatibilidad entre SKUs masivamente via Excel.
+          </p>
+        </header>
 
-        <div className="compat-copy-content">
-          <div className="compat-copy-workspace">
-            <div className="compat-copy-upload-row">
+        <div className="compat-copy-card">
+          <div className="compat-copy-card-grid">
+            <div className="compat-copy-upload-panel">
+              <span className="compat-copy-section-label">
+                Archivo fuente (Excel)
+              </span>
+
               <input
                 ref={fileInputRef}
                 className="compat-copy-file-input"
@@ -302,12 +343,17 @@ export default function CompatibilityCopy() {
               />
 
               <button
-                className="compat-copy-file-button"
+                className="compat-copy-dropzone"
                 type="button"
                 onClick={handleSelectFile}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={handleDropFile}
               >
-                <FileSpreadsheet size={20} />
-                <span>Seleccionar Archivo Excel</span>
+                <Upload size={24} />
+                <span>
+                  Arrastra tu archivo o <strong>selecciona uno</strong>
+                </span>
+                <small>XLSX, XLS hasta 10MB</small>
               </button>
 
               <p className="compat-copy-file-name">
@@ -315,7 +361,7 @@ export default function CompatibilityCopy() {
               </p>
             </div>
 
-            <div className="compat-copy-actions-row">
+            <div className="compat-copy-actions-panel">
               <button
                 className="compat-copy-process-button"
                 type="button"
@@ -324,9 +370,13 @@ export default function CompatibilityCopy() {
               >
                 <CopyPlus size={18} />
                 <span>
-                  {isProcessing ? "Procesando..." : "Copiar Compatibilidades"}
+                  {isProcessing ? "Procesando..." : "Ejecutar copia masiva"}
                 </span>
               </button>
+
+              <span className="compat-copy-estimate">
+                Tiempo estimado del proceso: ~45 segundos
+              </span>
             </div>
 
             {message && (
@@ -360,74 +410,94 @@ export default function CompatibilityCopy() {
               </div>
             )}
           </div>
+        </div>
 
-          <div className="compat-copy-history" aria-label="Historial de procesos">
+        <section className="compat-copy-history" aria-label="Historial de procesos">
+          <div className="compat-copy-history-heading">
             <h2 className="compat-copy-history-title">Historial de procesos</h2>
-
-            <div className="compat-copy-history-table-wrap">
-              <table className="compat-copy-history-table">
-                <thead>
-                  <tr>
-                    <th>Archivo</th>
-                    <th>Compatibilidades copiadas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleHistory.length > 0 ? (
-                    visibleHistory.map((entry) => (
-                      <tr key={entry.id}>
-                        <td title={entry.fileName}>{entry.fileName}</td>
-                        <td>{entry.copiedCount}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="2" className="compat-copy-history-empty">
-                        Sin procesos registrados
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
             {processHistory.length > HISTORY_PAGE_SIZE && (
-              <div className="compat-copy-history-pagination">
-                <button
-                  className="compat-copy-history-page-button"
-                  type="button"
-                  onClick={() =>
-                    setHistoryPage((currentPage) =>
-                      Math.max(currentPage - 1, 0)
-                    )
-                  }
-                  disabled={historyPage === 0}
-                  aria-label="Pagina anterior"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-
-                <span className="compat-copy-history-page-status">
-                  {historyPage + 1}/{historyPageCount}
-                </span>
-
-                <button
-                  className="compat-copy-history-page-button"
-                  type="button"
-                  onClick={() =>
-                    setHistoryPage((currentPage) =>
-                      Math.min(currentPage + 1, historyPageCount - 1)
-                    )
-                  }
-                  disabled={historyPage >= historyPageCount - 1}
-                  aria-label="Pagina siguiente"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
+              <span className="compat-copy-history-see-all">Ver todo</span>
             )}
           </div>
-        </div>
+
+          <div className="compat-copy-history-table-wrap">
+            <table className="compat-copy-history-table">
+              <thead>
+                <tr>
+                  <th>Archivo</th>
+                  <th>Compatibilidades</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleHistory.length > 0 ? (
+                  visibleHistory.map((entry) => (
+                    <tr key={entry.id}>
+                      <td title={entry.fileName}>
+                        <span className="compat-copy-file-cell-icon">
+                          <FileSpreadsheet size={17} />
+                        </span>
+                        <span className="compat-copy-file-cell-name">
+                          {entry.fileName}
+                        </span>
+                      </td>
+                      <td>{entry.copiedCount}</td>
+                      <td>{formatHistoryDate(entry.createdAt)}</td>
+                      <td>
+                        <span className="compat-copy-status-pill">
+                          {entry.status || "Completado"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="compat-copy-history-empty">
+                      Sin procesos registrados
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {processHistory.length > HISTORY_PAGE_SIZE && (
+            <div className="compat-copy-history-pagination">
+              <button
+                className="compat-copy-history-page-button"
+                type="button"
+                onClick={() =>
+                  setHistoryPage((currentPage) =>
+                    Math.max(currentPage - 1, 0)
+                  )
+                }
+                disabled={historyPage === 0}
+                aria-label="Pagina anterior"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <span className="compat-copy-history-page-status">
+                {historyPage + 1}/{historyPageCount}
+              </span>
+
+              <button
+                className="compat-copy-history-page-button"
+                type="button"
+                onClick={() =>
+                  setHistoryPage((currentPage) =>
+                    Math.min(currentPage + 1, historyPageCount - 1)
+                  )
+                }
+                disabled={historyPage >= historyPageCount - 1}
+                aria-label="Pagina siguiente"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
+        </section>
       </div>
     </section>
   );

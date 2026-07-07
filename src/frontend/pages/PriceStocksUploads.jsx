@@ -351,6 +351,12 @@ function PriceStocksUploads() {
 
       <section className="price-stocks-page">
         <div className="price-stocks-layout">
+          <header className="price-stocks-header">
+            <h1>Actualizacion de Precios y Stock</h1>
+            <p>Procesa archivos Excel para actualizar publicaciones masivamente.</p>
+          </header>
+
+          <div className="price-stocks-card">
           <div className="price-stocks-connection-block">
             <button
               className={`price-stocks-connect-button ${mlVerified ? "connected" : ""}`}
@@ -432,6 +438,7 @@ function PriceStocksUploads() {
           {message && !loadingProcess && (
             <p className={`price-stocks-status-message ${status}`}>{message}</p>
           )}
+          </div>
         </div>
       </section>
 

@@ -1,10 +1,7 @@
-import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   X,
   Boxes,
-  ChevronDown,
-  ChevronRight,
   BadgeDollarSign,
   FileSpreadsheet,
   Ban,
@@ -88,40 +85,9 @@ const navItems = [
 
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const location = useLocation();
-
-  const getMenuStateFromPath = (pathname) => ({
-    compatibilidades: pathname.startsWith("/compatibilidades"),
-    actualizaciones: pathname.startsWith("/actualizaciones"),
-    procesos: pathname.startsWith("/procesos"),
-    vendedor: pathname.startsWith("/vendedor"),
-  });
-
-  const [openMenus, setOpenMenus] = useState(
-    getMenuStateFromPath(location.pathname)
-  );
-
-  useEffect(() => {
-    setOpenMenus(getMenuStateFromPath(location.pathname));
-  }, [location.pathname]);
-
-  const toggleMenu = (key) => {
-    setOpenMenus((prev) => ({
-      compatibilidades:
-        key === "compatibilidades" ? !prev.compatibilidades : false,
-      actualizaciones:
-        key === "actualizaciones" ? !prev.actualizaciones : false,
-
-      procesos:
-        key === "procesos" ? !prev.procesos : false,
-      vendedor:
-        key === "vendedor" ? !prev.vendedor : false,
-    }));
-  };
-
   const isChildActive = (to) => location.pathname === to;
-
-  const isGroupActive = (children) =>
-    children.some((child) => location.pathname === child.to);
+  const processItems = navItems.find((group) => group.key === "procesos")?.children || [];
+  const adminItems = navItems.find((group) => group.key === "vendedor")?.children || [];
 
   return (
     <>
@@ -149,70 +115,53 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
         </div>
 
         <nav className="sidebar__nav">
-          {navItems
-            .filter((group) => !group.hidden)
-            .map((group) => {
-            const GroupIcon = group.icon;
-            const groupOpen = openMenus[group.key];
-            const groupActive = isGroupActive(group.children);
+          <span className="sidebar__section-label">PROCESOS</span>
+          {processItems.map((item) => {
+            const ItemIcon = item.icon;
+            const active = isChildActive(item.to);
 
             return (
-              <div key={group.key} className="sidebar__group">
-                <button
-                  type="button"
-                  className={`sidebar__group-button ${
-                    groupActive ? "sidebar__group-button--active" : ""
-                  }`}
-                  onClick={() => toggleMenu(group.key)}
-                  aria-expanded={groupOpen}
-                >
-                  <div className="sidebar__group-left">
-                    <span className="sidebar__icon">
-                      <GroupIcon size={20} />
-                    </span>
-                    <span className="sidebar__group-label">{group.label}</span>
-                  </div>
-
-                  <span className="sidebar__group-arrow">
-                    {groupOpen ? (
-                      <ChevronDown size={18} />
-                    ) : (
-                      <ChevronRight size={18} />
-                    )}
-                  </span>
-                </button>
-
-                <div
-                  className={`sidebar__submenu ${
-                    groupOpen ? "sidebar__submenu--open" : ""
-                  }`}
-                >
-                  {group.children.map((item) => {
-                    const ItemIcon = item.icon;
-                    const active = isChildActive(item.to);
-
-                    return (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        onClick={() => setSidebarOpen(false)}
-                        className={`sidebar__sublink ${
-                          active ? "sidebar__sublink--active" : ""
-                        }`}
-                      >
-                        <span className="sidebar__sublink-icon">
-                          <ItemIcon size={18} />
-                        </span>
-                        <span className="sidebar__sublink-text">
-                          {item.label}
-                        </span>
-                      </NavLink>
-                    );
-                  })}
-                </div>
-              </div>
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setSidebarOpen(false)}
+                className={`sidebar__sublink ${
+                  active ? "sidebar__sublink--active" : ""
+                }`}
+              >
+                <span className="sidebar__sublink-icon">
+                  <ItemIcon size={17} strokeWidth={2} />
+                </span>
+                <span className="sidebar__sublink-text">{item.label}</span>
+              </NavLink>
             );
           })}
+
+          <span className="sidebar__section-label sidebar__section-label--spaced">
+            ADMINISTRACION
+          </span>
+
+          {adminItems.map((item) => {
+            const ItemIcon = item.icon;
+            const active = isChildActive(item.to);
+
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setSidebarOpen(false)}
+                className={`sidebar__sublink ${
+                  active ? "sidebar__sublink--active" : ""
+                }`}
+              >
+                <span className="sidebar__sublink-icon">
+                  <ItemIcon size={17} strokeWidth={2} />
+                </span>
+                <span className="sidebar__sublink-text">{item.label}</span>
+              </NavLink>
+            );
+          })}
+
         </nav>
       </aside>
     </>

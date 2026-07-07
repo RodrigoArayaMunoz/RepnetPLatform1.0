@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Download, Save, Zap } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  Download,
+  LoaderCircle,
+  RefreshCw,
+  Save,
+  Zap,
+} from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ProcessQueueErrorModal from "../components/ProcessQueueErrorModal.jsx";
 import "../styles/MainSyncJobs.css";
 import { supabase } from "../../lib/supabase.js";
-import { authFetch, startMercadoLibreLogin } from "../../lib/apiClient.js";
+import { authFetch } from "../../lib/apiClient.js";
 
 const SYNC_ROUTE = "/procesos/sincronizacion-procesos";
 const PROCESS_BUCKET = "excel-procesos";
@@ -15,7 +23,7 @@ const PROCESS_STATUS = {
   PROCESSED_WITH_ERRORS: "Procesado con Errores",
   ERROR: "Error",
 };
-const PROCESS_ROWS_PER_PAGE = 4;
+const PROCESS_ROWS_PER_PAGE = 3;
 
 export default function MainSyncJobs() {
   const fileInputRef = useRef(null);
@@ -40,7 +48,6 @@ export default function MainSyncJobs() {
   const [exportingRowId, setExportingRowId] = useState(null);
   const [processPage, setProcessPage] = useState(1);
 
-  const [isConnectingMl, setIsConnectingMl] = useState(false);
   const [isCheckingMl, setIsCheckingMl] = useState(true);
   const [isMercadoLibreConnected, setIsMercadoLibreConnected] = useState(false);
   const [mlUserId, setMlUserId] = useState(null);
@@ -339,7 +346,6 @@ export default function MainSyncJobs() {
       setMlUserId(null);
     } finally {
       setIsCheckingMl(false);
-      setIsConnectingMl(false);
     }
   };
 
@@ -366,22 +372,6 @@ export default function MainSyncJobs() {
     } catch (error) {
       console.error("Error consultando estado de cola:", error);
       return null;
-    }
-  };
-
-  const handleConnectMercadoLibre = async () => {
-    if (isCheckingMl || isMercadoLibreConnected) return;
-
-    setIsConnectingMl(true);
-    const redirectTo = `${window.location.pathname}${window.location.search}`;
-    try {
-      await startMercadoLibreLogin(API_BASE, redirectTo);
-    } catch (error) {
-      setIsConnectingMl(false);
-      setStatusMessage(
-        error?.message || "No se pudo iniciar la conexion con Mercado Libre."
-      );
-      setStatusType("error");
     }
   };
 
@@ -613,7 +603,7 @@ export default function MainSyncJobs() {
       const blob = await response.blob();
       const contentDisposition =
         response.headers.get("Content-Disposition") || "";
-      const filenameMatch = contentDisposition.match(/filename=\"?([^\"]+)\"?/i);
+      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
       const filename =
         filenameMatch?.[1] || `resultado_proceso_${String(row.id)}.xlsx`;
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -672,6 +662,58 @@ export default function MainSyncJobs() {
 
   return (
     <section className="main-sync-jobs">
+      {(isCheckingMl || !isMercadoLibreConnected) && (
+        <div
+          className="main-sync-jobs__ml-modal-backdrop"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="ml-connection-modal-title"
+          aria-describedby="ml-connection-modal-description"
+        >
+          <div className="main-sync-jobs__ml-modal">
+            {isCheckingMl ? (
+              <>
+                <div className="main-sync-jobs__ml-modal-icon main-sync-jobs__ml-modal-icon--loading">
+                  <LoaderCircle aria-hidden="true" />
+                </div>
+                <h2 id="ml-connection-modal-title">
+                  Verificando conexion con Mercado Libre
+                </h2>
+                <p id="ml-connection-modal-description">
+                  Estamos validando la conexion antes de habilitar la
+                  sincronizacion de procesos.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="main-sync-jobs__ml-modal-icon main-sync-jobs__ml-modal-icon--error">
+                  <AlertTriangle aria-hidden="true" />
+                </div>
+                <h2 id="ml-connection-modal-title">
+                  Mercado Libre no esta conectado
+                </h2>
+                <p id="ml-connection-modal-description">
+                  Contacte con administrador para conectar a Mercado Libre.
+                </p>
+                <button
+                  type="button"
+                  className="main-sync-jobs__ml-modal-button"
+                  onClick={checkMercadoLibreConnection}
+                >
+                  <RefreshCw aria-hidden="true" />
+                  Reintentar verificacion
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <header className="main-sync-jobs__page-header">
+        <h1>Sincronizacion de Procesos</h1>
+        <p>Gestiona archivos, cola de ejecucion y resultados de procesos masivos.</p>
+      </header>
+
       <div className="main-sync-jobs__card">
         {!isMercadoLibreConnected && (
           <div className="main-sync-jobs__topbar">
@@ -683,13 +725,11 @@ export default function MainSyncJobs() {
               <button
                 type="button"
                 className="main-sync-jobs__connect-button"
-                onClick={handleConnectMercadoLibre}
-                disabled={isCheckingMl || isConnectingMl}
+                onClick={checkMercadoLibreConnection}
+                disabled={isCheckingMl}
               >
                 {isCheckingMl
                   ? "Verificando..."
-                  : isConnectingMl
-                  ? "Conectando..."
                   : "Conectar Mercado Libre"}
               </button>
             </div>

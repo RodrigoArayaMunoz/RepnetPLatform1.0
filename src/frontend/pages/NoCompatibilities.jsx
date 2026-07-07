@@ -353,6 +353,12 @@ function NoCompatibilitiesUpload() {
 
       <section className="compat-page">
         <div className="compat-upload-layout">
+          <header className="compat-upload-header">
+            <h1>No Compatibilidades</h1>
+            <p>Informa publicaciones sin compatibilidades desde un archivo Excel o CSV.</p>
+          </header>
+
+          <div className="compat-upload-card compat-upload-card--single">
           <div className="ml-connection-block">
             <button
               className={`process-button-ml ${mlVerified ? "connected" : ""}`}
@@ -434,6 +440,7 @@ function NoCompatibilitiesUpload() {
               <p>Job excepciones: {exceptionJobId}</p>
             </div>
           )}
+          </div>
         </div>
       </section>
 

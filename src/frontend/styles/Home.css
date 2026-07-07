@@ -1,9 +1,9 @@
 .home-page {
   width: 100%;
-  min-height: 100vh;
+  min-height: 100%;
   margin: 0;
   padding: 0;
-  background: transparent;
+  background: #f6f8fc;
   border: none;
   border-radius: 0;
   box-shadow: none;
@@ -11,21 +11,27 @@
 }
 
 .home-page__layout {
-  width: 100%;
-  min-height: 100vh;
+  width: min(100%, 1280px);
+  min-height: 100%;
+  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 44px 56px 40px;
   box-sizing: border-box;
 }
 
 .home-page__logo {
-  width: min(420px, 70%);
+  width: min(380px, 70%);
   max-width: 100%;
   height: auto;
   display: block;
   object-fit: contain;
+  padding: 56px;
+  border: 1px solid #e3e8f1;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
 @media (max-width: 767px) {
