@@ -18,6 +18,8 @@ const ROUTE_LABELS = {
     "No Compatibilidades",
   ],
   "/actualizaciones/precios-stock": ["Actualizaciones", "Precios y Stock"],
+  "/gestion/devoluciones": ["Gestion", "Gestión Devoluciones"],
+  "/gestion/garantias": ["Gestion", "Gestión Garantías"],
   "/vendedor/solicitud-pedido": ["Administracion", "Solicitud de Pedido"],
 };
 

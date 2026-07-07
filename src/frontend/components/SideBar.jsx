@@ -9,6 +9,8 @@ import {
   FolderSync,
   FolderTree,
   ClipboardList,
+  RotateCcw,
+  ShieldCheck,
   Store,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
@@ -70,6 +72,22 @@ const navItems = [
     ],
   },
   {
+    key: "gestion",
+    label: "GESTION",
+    children: [
+      {
+        to: "/gestion/devoluciones",
+        label: "Gestión Devoluciones",
+        icon: RotateCcw,
+      },
+      {
+        to: "/gestion/garantias",
+        label: "Gestión Garantías",
+        icon: ShieldCheck,
+      },
+    ],
+  },
+  {
     key: "vendedor",
     label: "VENDEDOR",
     icon: Store,
@@ -87,6 +105,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const location = useLocation();
   const isChildActive = (to) => location.pathname === to;
   const processItems = navItems.find((group) => group.key === "procesos")?.children || [];
+  const gestionItems = navItems.find((group) => group.key === "gestion")?.children || [];
   const adminItems = navItems.find((group) => group.key === "vendedor")?.children || [];
 
   return (
@@ -117,6 +136,31 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
         <nav className="sidebar__nav">
           <span className="sidebar__section-label">PROCESOS</span>
           {processItems.map((item) => {
+            const ItemIcon = item.icon;
+            const active = isChildActive(item.to);
+
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setSidebarOpen(false)}
+                className={`sidebar__sublink ${
+                  active ? "sidebar__sublink--active" : ""
+                }`}
+              >
+                <span className="sidebar__sublink-icon">
+                  <ItemIcon size={17} strokeWidth={2} />
+                </span>
+                <span className="sidebar__sublink-text">{item.label}</span>
+              </NavLink>
+            );
+          })}
+
+          <span className="sidebar__section-label sidebar__section-label--spaced">
+            GESTION
+          </span>
+
+          {gestionItems.map((item) => {
             const ItemIcon = item.icon;
             const active = isChildActive(item.to);
 

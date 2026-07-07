@@ -10,6 +10,7 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import MainSyncJobs from "./frontend/pages/MainSyncJobs.jsx";
 import SellerOrderRequest from "./frontend/pages/SellerOrderRequest.jsx";
 import CompatibilityCopy from "./frontend/pages/CompatibilityCopy.jsx";
+import ManagementPlaceholder from "./frontend/pages/ManagementPlaceholder.jsx";
 
 function AuthLoadingScreen() {
   return <div className="app-root" />;
@@ -30,7 +31,6 @@ export default function App() {
 
   useEffect(() => {
     if (!supabase) {
-      setAuthLoading(false);
       return undefined;
     }
 
@@ -198,6 +198,40 @@ export default function App() {
           }
         >
           <Route index element={<CompatibilityCopy />} />
+        </Route>
+
+        <Route
+          path="/gestion/devoluciones"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route
+            index
+            element={<ManagementPlaceholder title="Gestión Devoluciones" />}
+          />
+        </Route>
+
+        <Route
+          path="/gestion/garantias"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route
+            index
+            element={<ManagementPlaceholder title="Gestión Garantías" />}
+          />
         </Route>
 
         <Route

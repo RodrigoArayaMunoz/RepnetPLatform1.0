@@ -1,0 +1,72 @@
+.management-placeholder {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #f6f8fc;
+  box-sizing: border-box;
+}
+
+.management-placeholder__layout {
+  width: min(100%, 1280px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 38px 48px;
+  box-sizing: border-box;
+}
+
+.management-placeholder__header {
+  margin-bottom: 20px;
+}
+
+.management-placeholder__header h1 {
+  margin: 0;
+  color: #111827;
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1.16;
+}
+
+.management-placeholder__header p {
+  margin: 6px 0 0;
+  color: #7a8598;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.management-placeholder__card {
+  width: min(100%, 720px);
+  padding: 24px;
+  border: 1px solid #e3e8f1;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.management-placeholder__status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #eef3ff;
+  color: #4c79d8;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.management-placeholder__card p {
+  margin: 14px 0 0;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+@media (max-width: 767px) {
+  .management-placeholder__layout {
+    padding: 28px 16px;
+  }
+}
