@@ -87,6 +87,7 @@ class MercadoLibreClient:
         json_body: dict | None = None,
         params: dict | None = None,
         user_id: int | str | None = None,
+        rate_limiter: Any | None = None,
     ) -> Any:
         if not self.client:
             raise RuntimeError("MercadoLibreClient no inicializado")
@@ -106,6 +107,9 @@ class MercadoLibreClient:
 
         for attempt in range(1, settings.ml_retry_attempts + 1):
             try:
+                if rate_limiter is not None:
+                    await rate_limiter.acquire()
+
                 headers = self._build_headers(
                     access_token=access_token,
                     has_json_body=json_body is not None,
@@ -154,24 +158,49 @@ class MercadoLibreClient:
                         retry_after_seconds,
                     )
 
+                    if response.status_code == 429:
+                        base_delay = max(
+                            float(getattr(settings, "ml_retry_429_min_delay_seconds", 12.0)),
+                            retry_after_seconds or 0.0,
+                        )
+                        limiter_cooldown = max(
+                            float(
+                                getattr(
+                                    settings,
+                                    "ml_retry_429_cooldown_seconds",
+                                    30.0,
+                                )
+                            ),
+                            base_delay,
+                        )
+                        if (
+                            rate_limiter is not None
+                            and hasattr(rate_limiter, "penalize")
+                        ):
+                            await rate_limiter.penalize(limiter_cooldown)
+                    else:
+                        base_delay = settings.ml_retry_base_delay * (2 ** (attempt - 1))
+
                     if attempt == settings.ml_retry_attempts:
                         raise HTTPException(
                             status_code=response.status_code,
                             detail=response_payload,
                         )
 
-                    if response.status_code == 429:
-                        base_delay = max(
-                            float(getattr(settings, "ml_retry_429_min_delay_seconds", 12.0)),
-                            retry_after_seconds or 0.0,
-                        )
+                    if response.status_code == 429 and retry_after_seconds:
+                        delay = base_delay
                     else:
-                        base_delay = settings.ml_retry_base_delay * (2 ** (attempt - 1))
-
-                    delay = min(
-                        base_delay,
-                        float(getattr(settings, "ml_retry_max_delay_seconds", 60.0)),
-                    ) + random.uniform(0, 0.5)
+                        delay = min(
+                            base_delay,
+                            float(
+                                getattr(
+                                    settings,
+                                    "ml_retry_max_delay_seconds",
+                                    60.0,
+                                )
+                            ),
+                        )
+                    delay += random.uniform(0, 0.5)
                     await asyncio.sleep(delay)
                     continue
 

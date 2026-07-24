@@ -126,7 +126,10 @@ class RedisWindowRateLimiter:
                     await pipe.watch(self._next_allowed_key)
                     raw_value = await pipe.get(self._next_allowed_key)
                     next_allowed_at = float(raw_value) if raw_value else 0.0
-                    penalized_until = max(now, next_allowed_at) + cooldown_seconds
+                    penalized_until = max(
+                        next_allowed_at,
+                        now + cooldown_seconds,
+                    )
                     pipe.multi()
                     pipe.set(
                         self._next_allowed_key,

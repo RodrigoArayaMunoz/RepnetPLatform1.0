@@ -87,6 +87,60 @@ class Settings(BaseSettings):
     ml_retry_429_min_delay_seconds: float = 12.0
     ml_retry_429_cooldown_seconds: float = 30.0
 
+    # Exportacion de publicaciones con descripciones.
+    ml_publication_export_requests_per_second: float = Field(
+        default=2.0,
+        ge=0.1,
+        le=10.0,
+    )
+    ml_publication_export_concurrency: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+    )
+    ml_publication_export_batch_size: int = Field(
+        default=50,
+        ge=1,
+        le=500,
+    )
+    ml_publication_description_cache_ttl_seconds: int = Field(
+        default=7 * 24 * 60 * 60,
+        ge=5 * 60,
+    )
+    ml_publication_missing_cache_ttl_seconds: int = Field(
+        default=6 * 60 * 60,
+        ge=5 * 60,
+    )
+    ml_publication_export_artifact_ttl_seconds: int = Field(
+        default=7 * 24 * 60 * 60,
+        ge=60 * 60,
+    )
+    ml_publication_export_task_max_retries: int = Field(
+        default=5,
+        ge=0,
+        le=20,
+    )
+    ml_publication_export_retry_base_delay_seconds: int = Field(
+        default=60,
+        ge=5,
+    )
+    ml_publication_export_retry_max_delay_seconds: int = Field(
+        default=15 * 60,
+        ge=60,
+    )
+    ml_publication_export_lock_ttl_seconds: int = Field(
+        default=2 * 60,
+        ge=60,
+    )
+    ml_publication_export_lock_heartbeat_seconds: int = Field(
+        default=30,
+        ge=10,
+    )
+    ml_publication_export_recovery_stale_seconds: int = Field(
+        default=3 * 60,
+        ge=60,
+    )
+
     # Procesamiento
     max_row_concurrency: int = 2
     job_progress_update_every: int = 25

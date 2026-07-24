@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -10,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 class SupabasePublicationsStore:
     UPSERT_BATCH_SIZE = 500
+    READ_PAGE_SIZE = 1000
 
     def __init__(self) -> None:
         self.table_name = settings.supabase_publications_table
@@ -89,6 +91,93 @@ class SupabasePublicationsStore:
 
         rows = response.json()
         return isinstance(rows, list) and bool(rows)
+
+    async def count_by_creation_date(self, creation_date: str) -> int:
+        headers = self._headers()
+        headers.update(
+            {
+                "Prefer": "count=exact",
+                "Range": "0-0",
+                "Range-Unit": "items",
+            }
+        )
+
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(
+                self.table_url,
+                headers=headers,
+                params={
+                    "select": "mlc",
+                    "fecha_creacion": f"eq.{creation_date}",
+                },
+            )
+
+        if response.status_code >= 400:
+            logger.error(
+                "[SUPABASE_PUBLICATIONS][COUNT_DATE_ERROR] status=%s body=%s",
+                response.status_code,
+                response.text[:1000],
+            )
+            raise RuntimeError(
+                "No se pudieron contar las publicaciones de la fecha "
+                f"{creation_date} ({response.status_code})."
+            )
+
+        content_range = response.headers.get("content-range", "")
+        match = re.search(r"/(\d+)$", content_range)
+        return int(match.group(1)) if match else 0
+
+    async def list_by_creation_date(
+        self,
+        creation_date: str,
+    ) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            for start in range(0, 1_000_000, self.READ_PAGE_SIZE):
+                headers = self._headers()
+                headers.update(
+                    {
+                        "Range": (
+                            f"{start}-{start + self.READ_PAGE_SIZE - 1}"
+                        ),
+                        "Range-Unit": "items",
+                    }
+                )
+                response = await client.get(
+                    self.table_url,
+                    headers=headers,
+                    params={
+                        "select": "mlc,sku,titulo",
+                        "fecha_creacion": f"eq.{creation_date}",
+                        "order": "mlc.asc",
+                    },
+                )
+
+                if response.status_code >= 400:
+                    logger.error(
+                        "[SUPABASE_PUBLICATIONS][LIST_DATE_ERROR] "
+                        "status=%s body=%s",
+                        response.status_code,
+                        response.text[:1000],
+                    )
+                    raise RuntimeError(
+                        "No se pudieron consultar las publicaciones de la fecha "
+                        f"{creation_date} ({response.status_code})."
+                    )
+
+                batch = response.json()
+                if not isinstance(batch, list):
+                    raise RuntimeError(
+                        "Supabase devolvio una respuesta invalida al filtrar "
+                        "publicaciones."
+                    )
+
+                rows.extend(item for item in batch if isinstance(item, dict))
+                if len(batch) < self.READ_PAGE_SIZE:
+                    break
+
+        return rows
 
     async def upsert_rows(self, rows: list[dict[str, Any]]) -> int:
         if not rows:

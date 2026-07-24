@@ -100,6 +100,29 @@ services:
     restart: unless-stopped
     command: celery -A celery_app:celery_app worker -Q publications_sync --concurrency=1 --loglevel=info
 
+  worker_publication_exports:
+    build:
+      context: ../src/backend/compatibilties
+      dockerfile: Dockerfile
+    container_name: compat_worker_publication_exports
+    working_dir: /code
+    env_file:
+      - ../src/backend/compatibilties/.env
+    environment:
+      APP_ENV: production
+      REDIS_URL: redis://redis:6379/0
+      UPLOAD_DIR: /code/uploads
+      TOKENS_FILE: /code/data/tokens.json
+    volumes:
+      - api_uploads:/code/uploads
+      - api_data:/code/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 2m
+    command: celery -A celery_app:celery_app worker -Q publication_exports --concurrency=1 --loglevel=info
+
   frontend:
     build:
       context: ..

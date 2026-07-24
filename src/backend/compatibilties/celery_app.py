@@ -14,6 +14,7 @@ celery_app = Celery(
         "tasks.price_stock_tasks",
         "tasks.process_queue_tasks",
         "tasks.publication_sync_tasks",
+        "tasks.publication_export_tasks",
     ],
 )
 
@@ -43,6 +44,7 @@ celery_app.conf.update(
         "tasks.process_price_stock_job": {"queue": "compat_dispatch"},
         "tasks.run_process_queue_job": {"queue": "compat_dispatch"},
         "tasks.sync_publications_job": {"queue": "publications_sync"},
+        "tasks.export_publications_job": {"queue": "publication_exports"},
     },
 )
 
@@ -56,3 +58,4 @@ import tasks.item_pictures_tasks  # noqa: E402,F401
 import tasks.price_stock_tasks  # noqa: E402,F401
 import tasks.process_queue_tasks  # noqa: E402,F401
 import tasks.publication_sync_tasks  # noqa: E402,F401
+import tasks.publication_export_tasks  # noqa: E402,F401

@@ -224,6 +224,11 @@
   font-weight: 700;
 }
 
+.download-publications-date-control input:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .download-publications-download-button {
   min-width: 245px;
   background: #3483fa;
@@ -235,6 +240,17 @@
   background: #2968c8;
   box-shadow: 0 7px 18px rgba(52, 131, 250, 0.28);
   transform: translateY(-1px);
+}
+
+.download-publications-download-button:disabled {
+  background: #8ab8fb;
+  cursor: wait;
+  opacity: 0.82;
+  transform: none;
+}
+
+.download-publications-export-status {
+  margin-top: 18px;
 }
 
 .download-publications-load-button:focus-visible,
