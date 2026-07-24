@@ -91,6 +91,89 @@
   transform: translateY(-1px);
 }
 
+.download-publications-load-button:disabled {
+  background: #f5dc00;
+  cursor: wait;
+  opacity: 0.8;
+  transform: none;
+}
+
+.download-publications-button-spinner {
+  animation: downloadPublicationsSpin 0.8s linear infinite;
+}
+
+.download-publications-sync-status {
+  width: 100%;
+  max-width: 720px;
+  padding: 16px;
+  border: 1px solid #dbe7fb;
+  border-radius: 12px;
+  background: #f7faff;
+  box-sizing: border-box;
+}
+
+.download-publications-sync-status--error {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.download-publications-sync-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  color: #43516a;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.download-publications-sync-heading strong {
+  flex: 0 0 auto;
+  color: #2d3277;
+  font-weight: 900;
+}
+
+.download-publications-sync-status--error
+  .download-publications-sync-heading,
+.download-publications-sync-status--error
+  .download-publications-sync-heading
+  strong {
+  color: #b91c1c;
+}
+
+.download-publications-progress-track {
+  height: 8px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e1e9f6;
+}
+
+.download-publications-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #3483fa;
+  transition: width 0.3s ease;
+}
+
+.download-publications-sync-status--error
+  .download-publications-progress-track
+  span {
+  background: #ef4444;
+}
+
+.download-publications-sync-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 12px;
+  color: #69758a;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .download-publications-divider {
   height: 1px;
   margin: 28px 0;
@@ -158,6 +241,12 @@
 .download-publications-download-button:focus-visible {
   outline: 3px solid rgba(52, 131, 250, 0.28);
   outline-offset: 3px;
+}
+
+@keyframes downloadPublicationsSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 767px) {

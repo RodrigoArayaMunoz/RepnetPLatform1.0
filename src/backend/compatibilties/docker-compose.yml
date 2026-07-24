@@ -61,3 +61,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
     command: celery -A celery_app:celery_app worker -Q compat_chunks --concurrency=1 --loglevel=info
+
+  worker_publications:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: compat_worker_publications
+    working_dir: /code
+    volumes:
+      - .:/code
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: celery -A celery_app:celery_app worker -Q publications_sync --concurrency=1 --loglevel=info

@@ -13,6 +13,7 @@ celery_app = Celery(
         "tasks.item_pictures_tasks",
         "tasks.price_stock_tasks",
         "tasks.process_queue_tasks",
+        "tasks.publication_sync_tasks",
     ],
 )
 
@@ -21,6 +22,13 @@ celery_app.conf.update(
     task_track_started=True,
     worker_prefetch_multiplier=1,
     task_acks_late=True,
+    broker_transport_options={
+        "visibility_timeout": settings.celery_visibility_timeout_seconds,
+    },
+    result_backend_transport_options={
+        "visibility_timeout": settings.celery_visibility_timeout_seconds,
+    },
+    visibility_timeout=settings.celery_visibility_timeout_seconds,
     result_expires=7 * 24 * 60 * 60,
     broker_connection_retry_on_startup=True,
     task_default_queue="compat_dispatch",
@@ -34,6 +42,7 @@ celery_app.conf.update(
         "tasks.process_item_pictures_job": {"queue": "compat_dispatch"},
         "tasks.process_price_stock_job": {"queue": "compat_dispatch"},
         "tasks.run_process_queue_job": {"queue": "compat_dispatch"},
+        "tasks.sync_publications_job": {"queue": "publications_sync"},
     },
 )
 
@@ -46,3 +55,4 @@ import tasks.compatibility_exception_tasks  # noqa: E402,F401
 import tasks.item_pictures_tasks  # noqa: E402,F401
 import tasks.price_stock_tasks  # noqa: E402,F401
 import tasks.process_queue_tasks  # noqa: E402,F401
+import tasks.publication_sync_tasks  # noqa: E402,F401

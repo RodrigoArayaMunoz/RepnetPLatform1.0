@@ -25,6 +25,7 @@ from routers.compatibility_exception_router import router as compatibility_excep
 from routers.item_pictures_router import router as item_pictures_router
 from routers.price_stock_router import router as price_stock_router
 from routers.process_queue_router import router as process_queue_router
+from routers.publications_router import router as publications_router
 
 
 @asynccontextmanager
@@ -44,6 +45,7 @@ app.include_router(compatibility_exception_router)
 app.include_router(item_pictures_router)
 app.include_router(price_stock_router)
 app.include_router(process_queue_router)
+app.include_router(publications_router)
 
 app.add_middleware(
     CORSMiddleware,

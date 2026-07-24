@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     tokens_file: str = str(BASE_DIR / "tokens.json")
 
     redis_url: str = "redis://redis:6379/0"
+    celery_visibility_timeout_seconds: int = Field(
+        default=12 * 60 * 60,
+        ge=60 * 60,
+    )
     
 
     ml_client_id: str | None = None
@@ -45,6 +49,7 @@ class Settings(BaseSettings):
     )
     supabase_meli_connection_table: str = "meli_global_connection"
     supabase_process_table: str = "procesos"
+    supabase_publications_table: str = "publicaciones_ml"
     backend_auth_enabled: bool = True
     backend_auth_cache_ttl_seconds: int = 60
 
