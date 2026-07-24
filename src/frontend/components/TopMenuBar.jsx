@@ -19,7 +19,6 @@ const ROUTE_LABELS = {
   ],
   "/actualizaciones/precios-stock": ["Actualizaciones", "Precios y Stock"],
   "/gestion/descargar-publicaciones": ["Gestion", "Descargar Publicaciones"],
-  "/vendedor/solicitud-pedido": ["Administracion", "Solicitud de Pedido"],
 };
 
 export default function TopMenuBar({ onOpenSidebar }) {
