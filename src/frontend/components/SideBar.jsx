@@ -9,8 +9,7 @@ import {
   FolderSync,
   FolderTree,
   ClipboardList,
-  RotateCcw,
-  ShieldCheck,
+  Download,
   Store,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
@@ -76,14 +75,9 @@ const navItems = [
     label: "GESTION",
     children: [
       {
-        to: "/gestion/devoluciones",
-        label: "Gestión Devoluciones",
-        icon: RotateCcw,
-      },
-      {
-        to: "/gestion/garantias",
-        label: "Gestión Garantías",
-        icon: ShieldCheck,
+        to: "/gestion/descargar-publicaciones",
+        label: "Descargar Publicaciones",
+        icon: Download,
       },
     ],
   },

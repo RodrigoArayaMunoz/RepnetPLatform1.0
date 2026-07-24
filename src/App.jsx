@@ -201,7 +201,7 @@ export default function App() {
         </Route>
 
         <Route
-          path="/gestion/devoluciones"
+          path="/gestion/descargar-publicaciones"
           element={
             <RequireAuth
               canAccessProtectedRoutes={canAccessProtectedRoutes}
@@ -213,24 +213,7 @@ export default function App() {
         >
           <Route
             index
-            element={<ManagementPlaceholder title="Gestión Devoluciones" />}
-          />
-        </Route>
-
-        <Route
-          path="/gestion/garantias"
-          element={
-            <RequireAuth
-              canAccessProtectedRoutes={canAccessProtectedRoutes}
-              authLoading={authLoading}
-            >
-              <MainLayout />
-            </RequireAuth>
-          }
-        >
-          <Route
-            index
-            element={<ManagementPlaceholder title="Gestión Garantías" />}
+            element={<ManagementPlaceholder title="Descargar Publicaciones" />}
           />
         </Route>
 
