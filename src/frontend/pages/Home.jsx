@@ -1,4 +1,4 @@
-import logo from "../../../public/logo.png";
+import logo from "../../assets/repnetsolo_logo.png";
 import "../styles/Home.css";
 
 export default function Home() {
