@@ -210,7 +210,14 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<DownloadPublications />} />
+          <Route
+            index
+            element={
+              <DownloadPublications
+                authUserId={session?.user?.id || ""}
+              />
+            }
+          />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

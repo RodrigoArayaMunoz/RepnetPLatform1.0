@@ -56,6 +56,9 @@ def export_publications_task(
         )
         return
 
+    requested_by_user_id = str(
+        job.get("requested_by_user_id") or ""
+    )
     result_path = str(job.get("result_path") or "")
     if (
         job.get("status") == "success"
@@ -180,11 +183,13 @@ def export_publications_task(
             last_error=str(exc),
             heartbeat_at=time.time(),
         )
-        publication_export_store.release_reference(
-            user_id=user_id,
-            creation_date=creation_date,
-            job_id=job_id,
-        )
+        if requested_by_user_id:
+            publication_export_store.release_reference(
+                requested_by_user_id=requested_by_user_id,
+                seller_id=user_id,
+                creation_date=creation_date,
+                job_id=job_id,
+            )
         raise
     finally:
         publication_export_store.release_run_lock(

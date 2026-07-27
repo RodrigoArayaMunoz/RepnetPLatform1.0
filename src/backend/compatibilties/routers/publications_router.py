@@ -3,7 +3,7 @@ import time
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -21,6 +21,34 @@ router = APIRouter(prefix="/publications", tags=["publications"])
 
 class PublicationExportRequest(BaseModel):
     publication_date: date
+
+
+def _authenticated_user_id(request: Request) -> str:
+    if not settings.backend_auth_enabled:
+        return "development-user"
+
+    user = getattr(request.state, "supabase_user", None)
+    if not isinstance(user, dict) or not user.get("id"):
+        raise HTTPException(
+            status_code=401,
+            detail="No se pudo identificar al usuario autenticado.",
+        )
+    return str(user["id"])
+
+
+def _owned_export_job(request: Request, job_id: str) -> dict:
+    job = JobStore.get(job_id)
+    if (
+        not job
+        or job.get("job_type") != "publication_export"
+        or str(job.get("requested_by_user_id") or "")
+        != _authenticated_user_id(request)
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Exportacion de publicaciones no encontrada.",
+        )
+    return job
 
 
 async def _get_connected_ml_user_id() -> str:
@@ -85,12 +113,14 @@ def _export_job_response(job: dict) -> dict:
 
 def _existing_export_job(
     *,
-    user_id: str,
+    requested_by_user_id: str,
+    seller_id: str,
     creation_date: str,
     total_rows: int,
 ) -> dict | None:
     existing_job_id = publication_export_store.get_referenced_job_id(
-        user_id=user_id,
+        requested_by_user_id=requested_by_user_id,
+        seller_id=seller_id,
         creation_date=creation_date,
     )
     if not existing_job_id:
@@ -112,7 +142,8 @@ def _existing_export_job(
         return job
 
     publication_export_store.release_reference(
-        user_id=user_id,
+        requested_by_user_id=requested_by_user_id,
+        seller_id=seller_id,
         creation_date=creation_date,
         job_id=existing_job_id,
     )
@@ -219,11 +250,16 @@ async def get_publications_sync_status():
 
 
 @router.post("/export")
-async def start_publications_export(payload: PublicationExportRequest):
-    user_id = await _get_connected_ml_user_id()
+async def start_publications_export(
+    payload: PublicationExportRequest,
+    request: Request,
+):
+    requested_by_user_id = _authenticated_user_id(request)
+    seller_id = await _get_connected_ml_user_id()
     creation_date = payload.publication_date.isoformat()
     total_rows = await supabase_publications_store.count_by_creation_date(
-        creation_date
+        creation_date,
+        seller_id=seller_id,
     )
     if total_rows == 0:
         raise HTTPException(
@@ -235,7 +271,8 @@ async def start_publications_export(payload: PublicationExportRequest):
         )
 
     existing_job = _existing_export_job(
-        user_id=user_id,
+        requested_by_user_id=requested_by_user_id,
+        seller_id=seller_id,
         creation_date=creation_date,
         total_rows=total_rows,
     )
@@ -246,13 +283,15 @@ async def start_publications_export(payload: PublicationExportRequest):
     filename = f"publicaciones_{creation_date}.xlsx"
     job = JobStore.create(filename)
     if not publication_export_store.claim_reference(
-        user_id=user_id,
+        requested_by_user_id=requested_by_user_id,
+        seller_id=seller_id,
         creation_date=creation_date,
         job_id=job["id"],
     ):
         JobStore.delete(job["id"])
         existing_job = _existing_export_job(
-            user_id=user_id,
+            requested_by_user_id=requested_by_user_id,
+            seller_id=seller_id,
             creation_date=creation_date,
             total_rows=total_rows,
         )
@@ -289,7 +328,8 @@ async def start_publications_export(payload: PublicationExportRequest):
         ),
         http_concurrency=settings.ml_publication_export_concurrency,
         batch_size=settings.ml_publication_export_batch_size,
-        ml_user_id=user_id,
+        ml_user_id=seller_id,
+        requested_by_user_id=requested_by_user_id,
         queued_at=now,
         heartbeat_at=now,
         output_filename=filename,
@@ -299,7 +339,7 @@ async def start_publications_export(payload: PublicationExportRequest):
     try:
         async_result = export_publications_task.delay(
             job["id"],
-            user_id,
+            seller_id,
             creation_date,
         )
     except Exception as exc:
@@ -310,7 +350,8 @@ async def start_publications_export(payload: PublicationExportRequest):
             last_error=str(exc),
         )
         publication_export_store.release_reference(
-            user_id=user_id,
+            requested_by_user_id=requested_by_user_id,
+            seller_id=seller_id,
             creation_date=creation_date,
             job_id=job["id"],
         )
@@ -325,25 +366,15 @@ async def start_publications_export(payload: PublicationExportRequest):
 
 
 @router.get("/export/{job_id}")
-async def get_publications_export(job_id: str):
-    job = JobStore.get(job_id)
-    if not job or job.get("job_type") != "publication_export":
-        raise HTTPException(
-            status_code=404,
-            detail="Exportacion de publicaciones no encontrada.",
-        )
+async def get_publications_export(job_id: str, request: Request):
+    job = _owned_export_job(request, job_id)
     recovered_job = _recover_stale_export_if_needed(job)
     return _export_job_response(recovered_job)
 
 
 @router.get("/export/{job_id}/download")
-async def download_publications_export(job_id: str):
-    job = JobStore.get(job_id)
-    if not job or job.get("job_type") != "publication_export":
-        raise HTTPException(
-            status_code=404,
-            detail="Exportacion de publicaciones no encontrada.",
-        )
+async def download_publications_export(job_id: str, request: Request):
+    job = _owned_export_job(request, job_id)
     if job.get("status") != "success":
         raise HTTPException(
             status_code=409,

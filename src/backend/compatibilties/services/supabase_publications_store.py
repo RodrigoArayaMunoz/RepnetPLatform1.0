@@ -92,7 +92,12 @@ class SupabasePublicationsStore:
         rows = response.json()
         return isinstance(rows, list) and bool(rows)
 
-    async def count_by_creation_date(self, creation_date: str) -> int:
+    async def count_by_creation_date(
+        self,
+        creation_date: str,
+        *,
+        seller_id: str | None = None,
+    ) -> int:
         headers = self._headers()
         headers.update(
             {
@@ -102,14 +107,18 @@ class SupabasePublicationsStore:
             }
         )
 
+        params = {
+            "select": "mlc",
+            "fecha_creacion": f"eq.{creation_date}",
+        }
+        if seller_id:
+            params["seller_id"] = f"eq.{seller_id}"
+
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.get(
                 self.table_url,
                 headers=headers,
-                params={
-                    "select": "mlc",
-                    "fecha_creacion": f"eq.{creation_date}",
-                },
+                params=params,
             )
 
         if response.status_code >= 400:
@@ -130,6 +139,8 @@ class SupabasePublicationsStore:
     async def list_by_creation_date(
         self,
         creation_date: str,
+        *,
+        seller_id: str | None = None,
     ) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
 
@@ -144,14 +155,18 @@ class SupabasePublicationsStore:
                         "Range-Unit": "items",
                     }
                 )
+                params = {
+                    "select": "mlc,sku,titulo",
+                    "fecha_creacion": f"eq.{creation_date}",
+                    "order": "mlc.asc",
+                }
+                if seller_id:
+                    params["seller_id"] = f"eq.{seller_id}"
+
                 response = await client.get(
                     self.table_url,
                     headers=headers,
-                    params={
-                        "select": "mlc,sku,titulo",
-                        "fecha_creacion": f"eq.{creation_date}",
-                        "order": "mlc.asc",
-                    },
+                    params=params,
                 )
 
                 if response.status_code >= 400:

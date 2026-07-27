@@ -2,10 +2,11 @@ import asyncio
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from openpyxl import load_workbook
 
 from celery_app import celery_app
@@ -13,6 +14,7 @@ from config import settings
 from services.job_store import JobStore
 from services.ml_client import MercadoLibreClient, ml_client
 from services.publication_export_service import PublicationExportService
+from services.publication_export_store import PublicationExportStore
 from services.supabase_publications_store import supabase_publications_store
 from routers import publications_router
 
@@ -490,6 +492,70 @@ class PublicationExcelTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(settings.ml_publication_export_concurrency, 5)
         self.assertEqual(settings.ml_publication_export_batch_size, 50)
+
+    def test_export_worker_accepts_four_jobs_in_parallel_by_default(self):
+        self.assertEqual(
+            settings.publication_export_worker_concurrency,
+            4,
+        )
+
+
+class PublicationExportOwnershipTests(unittest.TestCase):
+    @staticmethod
+    def _request(user_id: str) -> Request:
+        request = Mock(spec=Request)
+        request.state = SimpleNamespace(
+            supabase_user={"id": user_id}
+        )
+        return request
+
+    def test_reference_is_isolated_by_authenticated_user(self):
+        first = PublicationExportStore._reference_key(
+            "supabase-user-a",
+            "2682261950",
+            "2026-07-24",
+        )
+        second = PublicationExportStore._reference_key(
+            "supabase-user-b",
+            "2682261950",
+            "2026-07-24",
+        )
+        self.assertNotEqual(first, second)
+
+    def test_user_cannot_read_another_users_export(self):
+        job = {
+            "id": "job-a",
+            "job_type": "publication_export",
+            "requested_by_user_id": "supabase-user-a",
+        }
+        with (
+            patch.object(settings, "backend_auth_enabled", True),
+            patch.object(JobStore, "get", return_value=job),
+        ):
+            with self.assertRaises(HTTPException) as raised:
+                publications_router._owned_export_job(
+                    self._request("supabase-user-b"),
+                    "job-a",
+                )
+
+        self.assertEqual(raised.exception.status_code, 404)
+
+    def test_owner_can_read_own_export(self):
+        job = {
+            "id": "job-a",
+            "job_type": "publication_export",
+            "requested_by_user_id": "supabase-user-a",
+        }
+        with (
+            patch.object(settings, "backend_auth_enabled", True),
+            patch.object(JobStore, "get", return_value=job),
+        ):
+            result = publications_router._owned_export_job(
+                self._request("supabase-user-a"),
+                "job-a",
+            )
+
+        self.assertIs(result, job)
 
 
 class PublicationExportRecoveryTests(unittest.TestCase):

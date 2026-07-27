@@ -26,8 +26,14 @@ class PublicationExportStore:
         )
 
     @staticmethod
-    def _reference_key(user_id: str, creation_date: str) -> str:
-        identity = f"{user_id}:{creation_date}".encode("utf-8")
+    def _reference_key(
+        requested_by_user_id: str,
+        seller_id: str,
+        creation_date: str,
+    ) -> str:
+        identity = (
+            f"{requested_by_user_id}:{seller_id}:{creation_date}"
+        ).encode("utf-8")
         digest = hashlib.sha256(identity).hexdigest()
         return f"publication-export:reference:{digest}"
 
@@ -42,23 +48,33 @@ class PublicationExportStore:
     def get_referenced_job_id(
         self,
         *,
-        user_id: str,
+        requested_by_user_id: str,
+        seller_id: str,
         creation_date: str,
     ) -> str | None:
         return self._client.get(
-            self._reference_key(user_id, creation_date)
+            self._reference_key(
+                requested_by_user_id,
+                seller_id,
+                creation_date,
+            )
         )
 
     def claim_reference(
         self,
         *,
-        user_id: str,
+        requested_by_user_id: str,
+        seller_id: str,
         creation_date: str,
         job_id: str,
     ) -> bool:
         return bool(
             self._client.set(
-                self._reference_key(user_id, creation_date),
+                self._reference_key(
+                    requested_by_user_id,
+                    seller_id,
+                    creation_date,
+                ),
                 job_id,
                 nx=True,
                 ex=int(
@@ -70,14 +86,19 @@ class PublicationExportStore:
     def release_reference(
         self,
         *,
-        user_id: str,
+        requested_by_user_id: str,
+        seller_id: str,
         creation_date: str,
         job_id: str,
     ) -> None:
         self._client.eval(
             self._COMPARE_DELETE_SCRIPT,
             1,
-            self._reference_key(user_id, creation_date),
+            self._reference_key(
+                requested_by_user_id,
+                seller_id,
+                creation_date,
+            ),
             job_id,
         )
 

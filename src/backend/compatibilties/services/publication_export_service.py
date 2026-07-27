@@ -55,7 +55,8 @@ class PublicationExportService:
     ) -> dict[str, Any]:
         self._cleanup_expired_artifacts()
         publications = await supabase_publications_store.list_by_creation_date(
-            creation_date
+            creation_date,
+            seller_id=user_id,
         )
         total = len(publications)
         if total == 0:

@@ -98,6 +98,11 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    publication_export_worker_concurrency: int = Field(
+        default=4,
+        ge=1,
+        le=16,
+    )
     ml_publication_export_batch_size: int = Field(
         default=50,
         ge=1,

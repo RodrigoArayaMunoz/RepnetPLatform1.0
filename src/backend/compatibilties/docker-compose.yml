@@ -93,4 +93,4 @@ services:
         condition: service_healthy
     restart: unless-stopped
     stop_grace_period: 2m
-    command: celery -A celery_app:celery_app worker -Q publication_exports --concurrency=1 --loglevel=info
+    command: celery -A celery_app:celery_app worker -Q publication_exports --concurrency=${PUBLICATION_EXPORT_WORKER_CONCURRENCY:-4} --loglevel=info

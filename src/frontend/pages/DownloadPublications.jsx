@@ -10,8 +10,8 @@ import "../styles/DownloadPublications.css";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-const EXPORT_JOB_STORAGE_KEY = "repnet_publication_export_job_id";
-const DOWNLOADED_EXPORT_STORAGE_KEY =
+const EXPORT_JOB_STORAGE_KEY_BASE = "repnet_publication_export_job_id";
+const DOWNLOADED_EXPORT_STORAGE_KEY_BASE =
   "repnet_publication_export_downloaded_job_id";
 
 const getLocalToday = () => {
@@ -36,7 +36,18 @@ const readErrorMessage = (data, fallback) => {
   return fallback;
 };
 
-export default function DownloadPublications() {
+const userStorageKey = (baseKey, authUserId) =>
+  `${baseKey}:${authUserId || "anonymous"}`;
+
+export default function DownloadPublications({ authUserId }) {
+  const exportJobStorageKey = userStorageKey(
+    EXPORT_JOB_STORAGE_KEY_BASE,
+    authUserId
+  );
+  const downloadedExportStorageKey = userStorageKey(
+    DOWNLOADED_EXPORT_STORAGE_KEY_BASE,
+    authUserId
+  );
   const [publicationDate, setPublicationDate] = useState(getLocalToday);
   const [syncState, setSyncState] = useState(null);
   const [syncError, setSyncError] = useState("");
@@ -134,21 +145,25 @@ export default function DownloadPublications() {
       await downloadExportFile(job);
       downloadedExportRef.current = job.job_id;
       window.localStorage.setItem(
-        DOWNLOADED_EXPORT_STORAGE_KEY,
+        downloadedExportStorageKey,
         job.job_id
       );
     },
-    [downloadExportFile]
+    [downloadExportFile, downloadedExportStorageKey]
   );
 
   useEffect(() => {
-    const storedJobId = window.localStorage.getItem(EXPORT_JOB_STORAGE_KEY);
+    setExportJob(null);
+    setExportError("");
+    downloadedExportRef.current = "";
+
+    const storedJobId = window.localStorage.getItem(exportJobStorageKey);
     if (!storedJobId) {
       return undefined;
     }
 
     downloadedExportRef.current =
-      window.localStorage.getItem(DOWNLOADED_EXPORT_STORAGE_KEY) || "";
+      window.localStorage.getItem(downloadedExportStorageKey) || "";
 
     let cancelled = false;
     const restoreExportJob = async () => {
@@ -164,8 +179,8 @@ export default function DownloadPublications() {
 
         if (!response.ok) {
           if (response.status === 404) {
-            window.localStorage.removeItem(EXPORT_JOB_STORAGE_KEY);
-            window.localStorage.removeItem(DOWNLOADED_EXPORT_STORAGE_KEY);
+            window.localStorage.removeItem(exportJobStorageKey);
+            window.localStorage.removeItem(downloadedExportStorageKey);
           }
           throw new Error(
             readErrorMessage(
@@ -195,7 +210,7 @@ export default function DownloadPublications() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [downloadedExportStorageKey, exportJobStorageKey]);
 
   useEffect(() => {
     const jobId = exportJob?.job_id;
@@ -326,7 +341,7 @@ export default function DownloadPublications() {
       setExportError("");
       setExportJob(null);
       downloadedExportRef.current = "";
-      window.localStorage.removeItem(DOWNLOADED_EXPORT_STORAGE_KEY);
+      window.localStorage.removeItem(downloadedExportStorageKey);
 
       const response = await authFetch(`${API_BASE}/publications/export`, {
         method: "POST",
@@ -349,7 +364,7 @@ export default function DownloadPublications() {
         );
       }
 
-      window.localStorage.setItem(EXPORT_JOB_STORAGE_KEY, data.job_id);
+      window.localStorage.setItem(exportJobStorageKey, data.job_id);
       setExportJob(data);
     } catch (error) {
       setExportError(
@@ -483,10 +498,8 @@ export default function DownloadPublications() {
                     setExportJob(null);
                     setExportError("");
                     downloadedExportRef.current = "";
-                    window.localStorage.removeItem(EXPORT_JOB_STORAGE_KEY);
-                    window.localStorage.removeItem(
-                      DOWNLOADED_EXPORT_STORAGE_KEY
-                    );
+                    window.localStorage.removeItem(exportJobStorageKey);
+                    window.localStorage.removeItem(downloadedExportStorageKey);
                   }}
                 />
               </div>
