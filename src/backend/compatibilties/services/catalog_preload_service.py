@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass, field
 
 from services.excel_service import normalize_for_compare
@@ -77,6 +78,8 @@ class CatalogPreloadService:
         self.call_ml = call_ml
         self.metrics = metrics
         self.data = GlobalCatalogDictionaries()
+        self._context_values: dict[tuple, list[dict]] = {}
+        self._context_tasks: dict[tuple, asyncio.Task] = {}
 
     async def preload_all(
         self,
@@ -84,57 +87,126 @@ class CatalogPreloadService:
         *,
         user_id: int | str | None = None,
     ) -> GlobalCatalogDictionaries:
-        brand_values = await self.call_ml(
-            ml_client.get_top_values,
-            access_token,
-            "BRAND",
+        brand_values = await self._get_contextual_values(
+            access_token=access_token,
             user_id=user_id,
-            metrics=self.metrics,
+            attribute_id="BRAND",
+            known_attributes=[],
         )
-        model_values = await self.call_ml(
-            ml_client.get_top_values,
-            access_token,
-            "CAR_AND_VAN_MODEL",
-            user_id=user_id,
-            metrics=self.metrics,
-        )
-        year_values = await self.call_ml(
-            ml_client.get_top_values,
-            access_token,
-            "YEAR",
-            user_id=user_id,
-            metrics=self.metrics,
-        )
-        version_values = await self.call_ml(
-            ml_client.get_top_values,
-            access_token,
-            "CAR_AND_VAN_SUBMODEL",
-            user_id=user_id,
-            metrics=self.metrics,
-        )
-        engine_values = await self.call_ml(
-            ml_client.get_top_values,
-            access_token,
-            "CAR_AND_VAN_ENGINE",
-            user_id=user_id,
-            metrics=self.metrics,
-        )
-        transmission_values = await self.call_ml(
-            ml_client.get_top_values,
-            access_token,
-            "TRANSMISSION_CONTROL_TYPE",
-            user_id=user_id,
-            metrics=self.metrics,
-        )
-
         self.data.brands = _build_name_to_id_map(brand_values)
-        self.data.models = _build_name_to_id_map(model_values)
-        self.data.years = _build_name_to_id_map(year_values)
-        self.data.versions = _build_name_to_id_map(version_values)
-        self.data.engines = _build_name_to_id_map(engine_values)
-        self.data.transmissions = _build_name_to_id_map(transmission_values)
-
         return self.data
+
+    async def _get_contextual_values(
+        self,
+        *,
+        access_token: str,
+        user_id: int | str | None,
+        attribute_id: str,
+        known_attributes: list[dict[str, str]],
+    ) -> list[dict]:
+        if self.call_ml is None:
+            raise RuntimeError(
+                "El catálogo contextual no tiene un cliente de Mercado Libre configurado"
+            )
+
+        context_key = (
+            attribute_id,
+            tuple(
+                (str(attribute["id"]), str(attribute["value_id"]))
+                for attribute in known_attributes
+            ),
+        )
+        cached = self._context_values.get(context_key)
+        if cached is not None:
+            return cached
+
+        task = self._context_tasks.get(context_key)
+        if task is None:
+            task = asyncio.create_task(
+                self.call_ml(
+                    ml_client.get_top_values,
+                    access_token,
+                    attribute_id,
+                    known_attributes=(
+                        [dict(attribute) for attribute in known_attributes]
+                        if known_attributes
+                        else None
+                    ),
+                    user_id=user_id,
+                    metrics=self.metrics,
+                )
+            )
+            self._context_tasks[context_key] = task
+
+        try:
+            values = await task
+        except Exception:
+            self._context_tasks.pop(context_key, None)
+            raise
+
+        normalized_values = [
+            value for value in (values or []) if isinstance(value, dict)
+        ]
+        self._context_values[context_key] = normalized_values
+        self._context_tasks.pop(context_key, None)
+        return normalized_values
+
+    async def resolve_vehicle_attribute_ids(
+        self,
+        *,
+        access_token: str,
+        user_id: int | str | None,
+        brand_name: str,
+        model_name: str,
+        year: int,
+        version_name: str,
+        engine_name: str,
+        transmission_name: str,
+    ) -> dict[str, str | None]:
+        requested_attributes = [
+            ("brand_id", "BRAND", brand_name),
+            ("model_id", "CAR_AND_VAN_MODEL", model_name),
+            ("year_id", "YEAR", str(year)),
+            ("version_id", "CAR_AND_VAN_SUBMODEL", version_name),
+            ("engine_id", "CAR_AND_VAN_ENGINE", engine_name),
+            (
+                "transmission_id",
+                "TRANSMISSION_CONTROL_TYPE",
+                transmission_name,
+            ),
+        ]
+        resolved: dict[str, str | None] = {
+            result_key: None
+            for result_key, _attribute_id, _value_name in requested_attributes
+        }
+        known_attributes: list[dict[str, str]] = []
+
+        for result_key, attribute_id, value_name in requested_attributes:
+            if attribute_id == "BRAND" and self.data.brands:
+                value_id = self.data.brands.get(normalize_for_compare(value_name))
+            else:
+                values = await self._get_contextual_values(
+                    access_token=access_token,
+                    user_id=user_id,
+                    attribute_id=attribute_id,
+                    known_attributes=known_attributes,
+                )
+                value_id = _build_name_to_id_map(values).get(
+                    normalize_for_compare(value_name)
+                )
+
+            if not value_id:
+                break
+
+            resolved[result_key] = str(value_id)
+            known_attributes.append(
+                {
+                    "id": attribute_id,
+                    "value_id": str(value_id),
+                }
+            )
+
+        return resolved
 
     def to_snapshot(self) -> dict:
         return self.data.to_dict()

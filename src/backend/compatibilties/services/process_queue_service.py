@@ -200,6 +200,22 @@ def _display_process_id(process_row: dict[str, Any]) -> str:
     return str(process_row.get("proceso_id") or process_row.get("id") or "")
 
 
+def _has_partial_process_errors(
+    process_type: str | None,
+    summary: dict[str, Any],
+) -> bool:
+    return (
+        process_type
+        in {
+            "compatibilities",
+            "price_stock",
+            "item_pictures",
+            "sku_descriptions",
+        }
+        and int(summary.get("error_count") or 0) > 0
+    )
+
+
 def _build_extended_partial_process_error_payload(
     *,
     process_row_id: int | str | None,
@@ -749,9 +765,9 @@ async def run_process_queue(*, user_id: str) -> None:
                     process_row=current_row,
                     user_id=user_id,
                 )
-                has_partial_errors = (
-                    process_type in {"price_stock", "item_pictures", "sku_descriptions"}
-                    and int(summary.get("error_count") or 0) > 0
+                has_partial_errors = _has_partial_process_errors(
+                    process_type,
+                    summary,
                 )
                 job_data = JobStore.get(internal_job_id) or {}
                 result_path = str(job_data.get("result_path") or "").strip()
@@ -808,7 +824,12 @@ async def run_process_queue(*, user_id: str) -> None:
                 created_compatibilities = int(
                     summary.get("total_created_compatibilities", 0) or 0
                 )
-                if process_type == "compatibilities":
+                if process_type == "compatibilities" and has_partial_errors:
+                    last_completion_message = (
+                        f"{created_compatibilities} compatibilidades agregadas en "
+                        f"{current_filename}, con errores en algunas filas."
+                    )
+                elif process_type == "compatibilities":
                     last_completion_message = (
                         f"{created_compatibilities} compatibilidades "
                         f"agregadas correctamente en {current_filename}."

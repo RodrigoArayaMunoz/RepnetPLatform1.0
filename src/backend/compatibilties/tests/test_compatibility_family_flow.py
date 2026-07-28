@@ -3,17 +3,22 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from config import settings
+from services.catalog_preload_service import CatalogPreloadService
 from services.compatibility_batch_service import (
+    build_compat_summary,
     build_grouped_product_families,
     chunk_product_families,
     process_compatibility_batches,
+    validate_resolved_family_rows,
 )
+from services.process_queue_service import _has_partial_process_errors
 from services.compatibility_orchestrator_service import (
     process_excel_compatibilities_end_to_end,
 )
 from services.compatibility_service import (
     JobCaches,
     JobMetrics,
+    build_vehicle_resolution_plan,
     resolve_vehicle_product_row,
 )
 from services.ml_client import MercadoLibreClient
@@ -45,8 +50,16 @@ def _family_row(
                 {"id": "BRAND", "value_id": "100"},
                 {"id": "CAR_AND_VAN_MODEL", "value_id": "200"},
                 {"id": "YEAR", "value_id": "300"},
+                {"id": "CAR_AND_VAN_SUBMODEL", "value_id": "400"},
+                {"id": "CAR_AND_VAN_ENGINE", "value_id": "500"},
+                {
+                    "id": "TRANSMISSION_CONTROL_TYPE",
+                    "value_id": "600",
+                },
             ],
         },
+        "category_id": "MLC1748",
+        "user_product_id": "MLCU123",
         "familia": "",
         "posicion_dt": "",
         "posicion_id": "",
@@ -134,10 +147,21 @@ class CompatibilityFamilyResolutionTests(unittest.IsolatedAsyncioTestCase):
         }
 
     async def test_resolution_returns_family_instead_of_catalog_product_id(self):
-        with patch(
-            "services.compatibility_service.call_ml",
-            new=AsyncMock(return_value=1),
-        ) as call_ml:
+        with (
+            patch(
+                "services.compatibility_service.get_item_detail_cached",
+                new=AsyncMock(
+                    return_value={
+                        "category_id": "MLC1748",
+                        "user_product_id": "MLCU123",
+                    }
+                ),
+            ),
+            patch(
+                "services.compatibility_service.call_ml",
+                new=AsyncMock(return_value=1),
+            ) as call_ml,
+        ):
             result = await resolve_vehicle_product_row(
                 access_token="token",
                 user_id="123",
@@ -159,11 +183,38 @@ class CompatibilityFamilyResolutionTests(unittest.IsolatedAsyncioTestCase):
             call_ml.await_args.kwargs["domain_id"],
             settings.ml_domain_id,
         )
+        self.assertEqual(
+            result["product_family"]["attributes"],
+            [
+                {"id": "BRAND", "value_id": "100"},
+                {"id": "CAR_AND_VAN_MODEL", "value_id": "200"},
+                {"id": "YEAR", "value_id": "300"},
+                {"id": "CAR_AND_VAN_SUBMODEL", "value_id": "400"},
+                {"id": "CAR_AND_VAN_ENGINE", "value_id": "500"},
+                {
+                    "id": "TRANSMISSION_CONTROL_TYPE",
+                    "value_id": "600",
+                },
+            ],
+        )
+        self.assertEqual(result["category_id"], "MLC1748")
+        self.assertEqual(result["user_product_id"], "MLCU123")
 
     async def test_resolution_rejects_family_above_official_200_limit(self):
-        with patch(
-            "services.compatibility_service.call_ml",
-            new=AsyncMock(return_value=201),
+        with (
+            patch(
+                "services.compatibility_service.get_item_detail_cached",
+                new=AsyncMock(
+                    return_value={
+                        "category_id": "MLC1748",
+                        "user_product_id": "MLCU123",
+                    }
+                ),
+            ),
+            patch(
+                "services.compatibility_service.call_ml",
+                new=AsyncMock(return_value=201),
+            ),
         ):
             result = await resolve_vehicle_product_row(
                 access_token="token",
@@ -180,8 +231,277 @@ class CompatibilityFamilyResolutionTests(unittest.IsolatedAsyncioTestCase):
             "PRODUCT_FAMILY_LIMIT_EXCEEDED",
         )
 
+    async def test_resolution_requires_all_six_vehicle_values(self):
+        incomplete_row = {
+            **self.row,
+            "TRANSMISION": "",
+        }
+        contextual_resolver = AsyncMock()
+
+        with patch(
+            "services.compatibility_service.get_item_detail_cached",
+            new=AsyncMock(
+                return_value={
+                    "category_id": "MLC1748",
+                    "user_product_id": "MLCU123",
+                }
+            ),
+        ) as get_item:
+            result = await resolve_vehicle_product_row(
+                access_token="token",
+                user_id="123",
+                row=incomplete_row,
+                catalog_cache=SimpleNamespace(
+                    resolve_vehicle_attribute_ids=contextual_resolver
+                ),
+                caches=JobCaches(),
+                metrics=JobMetrics(),
+            )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(
+            result["error_code"],
+            "MISSING_REQUIRED_VEHICLE_DATA",
+        )
+        self.assertIn("TRANSMISION", result["reason"])
+        get_item.assert_awaited_once()
+        contextual_resolver.assert_not_awaited()
+
+    def test_same_vehicle_on_two_items_validates_both_mlcs(self):
+        second_item_row = {
+            **self.row,
+            "ASOCIACION ML": "MLC999",
+        }
+
+        unique_entries, _indices = build_vehicle_resolution_plan(
+            [self.row, second_item_row]
+        )
+
+        self.assertEqual(len(unique_entries), 2)
+
+
+class ContextualCatalogResolutionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_top_values_are_resolved_progressively(self):
+        values_by_attribute = {
+            "BRAND": [{"id": "100", "name": "Chevrolet"}],
+            "CAR_AND_VAN_MODEL": [{"id": "200", "name": "Sail"}],
+            "YEAR": [{"id": "300", "name": "2018"}],
+            "CAR_AND_VAN_SUBMODEL": [{"id": "400", "name": "LT"}],
+            "CAR_AND_VAN_ENGINE": [{"id": "500", "name": "1.5"}],
+            "TRANSMISSION_CONTROL_TYPE": [
+                {"id": "600", "name": "Manual"}
+            ],
+        }
+        known_by_attribute = {}
+
+        async def fake_call_ml(_fn, _token, attribute_id, **kwargs):
+            known_by_attribute[attribute_id] = kwargs.get("known_attributes")
+            return values_by_attribute[attribute_id]
+
+        catalog = CatalogPreloadService(
+            call_ml=fake_call_ml,
+            metrics=JobMetrics(),
+        )
+        await catalog.preload_all("token", user_id="123")
+        resolved = await catalog.resolve_vehicle_attribute_ids(
+            access_token="token",
+            user_id="123",
+            brand_name="Chevrolet",
+            model_name="Sail",
+            year=2018,
+            version_name="LT",
+            engine_name="1.5",
+            transmission_name="Manual",
+        )
+
+        self.assertEqual(
+            resolved,
+            {
+                "brand_id": "100",
+                "model_id": "200",
+                "year_id": "300",
+                "version_id": "400",
+                "engine_id": "500",
+                "transmission_id": "600",
+            },
+        )
+        self.assertEqual(
+            known_by_attribute["CAR_AND_VAN_MODEL"],
+            [{"id": "BRAND", "value_id": "100"}],
+        )
+        self.assertEqual(
+            known_by_attribute["TRANSMISSION_CONTROL_TYPE"],
+            [
+                {"id": "BRAND", "value_id": "100"},
+                {"id": "CAR_AND_VAN_MODEL", "value_id": "200"},
+                {"id": "YEAR", "value_id": "300"},
+                {"id": "CAR_AND_VAN_SUBMODEL", "value_id": "400"},
+                {"id": "CAR_AND_VAN_ENGINE", "value_id": "500"},
+            ],
+        )
+
+
+class CompatibilityEndToEndOrderTests(unittest.IsolatedAsyncioTestCase):
+    async def test_flow_gets_item_before_counting_and_posting_family(self):
+        events = []
+        attributes = [
+            {"id": "BRAND", "value_id": "100"},
+            {"id": "CAR_AND_VAN_MODEL", "value_id": "200"},
+            {"id": "YEAR", "value_id": "300"},
+            {"id": "CAR_AND_VAN_SUBMODEL", "value_id": "400"},
+            {"id": "CAR_AND_VAN_ENGINE", "value_id": "500"},
+            {"id": "TRANSMISSION_CONTROL_TYPE", "value_id": "600"},
+        ]
+
+        async def get_item(**_kwargs):
+            events.append("get_item")
+            return {
+                "category_id": "MLC1748",
+                "user_product_id": "MLCU123",
+            }
+
+        async def resolve_attributes(**_kwargs):
+            events.append("resolve_attributes")
+            return {
+                "brand_id": "100",
+                "model_id": "200",
+                "year_id": "300",
+                "version_id": "400",
+                "engine_id": "500",
+                "transmission_id": "600",
+            }
+
+        async def count_family(*_args, **_kwargs):
+            events.append("count_family")
+            return 1
+
+        async def post_family(*_args, **kwargs):
+            events.append("post_family")
+            self.assertEqual(
+                kwargs["product_families"][0]["attributes"],
+                attributes,
+            )
+            return {"created_compatibilities_count": 1}
+
+        catalog_data = SimpleNamespace(stats=lambda: {"brands": 1})
+        catalog_cache = SimpleNamespace(
+            preload_all=AsyncMock(return_value=catalog_data),
+            resolve_vehicle_attribute_ids=resolve_attributes,
+        )
+        row = {
+            "ASOCIACION ML": "MLC123",
+            "MARCA": "Chevrolet",
+            "MODELO": "Sail",
+            "VERSION": "LT",
+            "CILINDRADA": "1.5",
+            "TRANSMISION": "Manual",
+            "AÑO": 2018,
+            "FAMILIA": "",
+            "POSICION_DT": "",
+            "POSICION_ID": "",
+        }
+
+        with (
+            patch(
+                "services.compatibility_orchestrator_service.CatalogPreloadService",
+                return_value=catalog_cache,
+            ),
+            patch(
+                "services.compatibility_service.get_item_detail_cached",
+                new=get_item,
+            ),
+            patch(
+                "services.compatibility_service.call_ml",
+                new=count_family,
+            ),
+            patch(
+                "services.compatibility_batch_service.call_ml",
+                new=post_family,
+            ),
+            patch(
+                "services.compatibility_orchestrator_service.JobStore.update"
+            ),
+        ):
+            outcome = await process_excel_compatibilities_end_to_end(
+                job_id="job-flow",
+                access_token="token",
+                user_id="123",
+                rows=[row],
+            )
+
+        self.assertEqual(
+            events,
+            [
+                "get_item",
+                "resolve_attributes",
+                "count_family",
+                "post_family",
+            ],
+        )
+        self.assertEqual(
+            outcome["summary"]["total_created_compatibilities"],
+            1,
+        )
+
 
 class CompatibilityFamilyBatchTests(unittest.IsolatedAsyncioTestCase):
+    def test_incomplete_resolved_family_is_rejected_before_write(self):
+        row = _family_row()
+        row["product_family"]["attributes"] = row["product_family"][
+            "attributes"
+        ][:3]
+
+        validated = validate_resolved_family_rows([row])
+
+        self.assertFalse(validated[0]["ok"])
+        self.assertEqual(
+            validated[0]["error_code"],
+            "INVALID_PRODUCT_FAMILY_ATTRIBUTES",
+        )
+        self.assertIn("CAR_AND_VAN_ENGINE", validated[0]["error_message"])
+        self.assertIn(
+            "TRANSMISSION_CONTROL_TYPE",
+            validated[0]["error_message"],
+        )
+
+    def test_resolved_family_with_extra_attribute_is_rejected(self):
+        row = _family_row()
+        row["product_family"]["attributes"].append(
+            {"id": "EXTRA_ATTRIBUTE", "value_id": "700"}
+        )
+
+        validated = validate_resolved_family_rows([row])
+
+        self.assertFalse(validated[0]["ok"])
+        self.assertEqual(
+            validated[0]["error_code"],
+            "INVALID_PRODUCT_FAMILY_ATTRIBUTES",
+        )
+        self.assertIn("EXTRA_ATTRIBUTE", validated[0]["error_message"])
+
+    async def test_incomplete_resolved_family_never_reaches_ml(self):
+        row = _family_row()
+        row["product_family"]["attributes"] = row["product_family"][
+            "attributes"
+        ][:3]
+
+        with patch(
+            "services.compatibility_batch_service.call_ml",
+            new=AsyncMock(),
+        ) as call_ml:
+            outcome = await process_compatibility_batches(
+                access_token="token",
+                user_id="123",
+                rows=[row],
+            )
+
+        call_ml.assert_not_awaited()
+        self.assertFalse(outcome["results"][0]["ok"])
+        self.assertEqual(
+            outcome["results"][0]["error_code"],
+            "INVALID_PRODUCT_FAMILY_ATTRIBUTES",
+        )
+
     def test_batches_are_capped_by_records_and_matched_products(self):
         entries = [
             {
@@ -284,6 +604,24 @@ class CompatibilityFamilyBatchTests(unittest.IsolatedAsyncioTestCase):
             2,
         )
         on_progress.assert_awaited_once_with(1, 1, 2)
+
+    def test_failed_items_are_exposed_as_partial_process_errors(self):
+        summary = build_compat_summary(
+            [
+                {
+                    "ok": False,
+                    "item_id": "MLC123",
+                    "error_type": "functional",
+                }
+            ],
+            [],
+            JobMetrics(),
+        )
+
+        self.assertEqual(summary["failed_item_ids"], ["MLC123"])
+        self.assertTrue(
+            _has_partial_process_errors("compatibilities", summary)
+        )
 
 
 class CompatibilityChunkPolicyTests(unittest.IsolatedAsyncioTestCase):

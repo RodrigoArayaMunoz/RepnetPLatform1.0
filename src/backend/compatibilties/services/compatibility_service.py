@@ -26,6 +26,7 @@ from services.redis_rate_limiter import RedisWindowRateLimiter
 @dataclass
 class JobCaches:
     item_detail: dict[str, dict] = field(default_factory=dict)
+    item_detail_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
     family_product_count: dict[
         tuple[str | None, str | None, str | None, str | None, str | None, str | None],
         int,
@@ -317,16 +318,22 @@ async def get_item_detail_cached(
     if item_id in caches.item_detail:
         return cached
 
-    data = await call_ml(
-        ml_client.get_item_detail,
-        access_token,
-        item_id,
-        user_id=user_id,
-        metrics=metrics,
-        limiter=READ_RATE_LIMITER,
-    )
-    caches.item_detail[item_id] = data
-    return data
+    item_lock = caches.item_detail_locks.setdefault(item_id, asyncio.Lock())
+    async with item_lock:
+        if item_id in caches.item_detail:
+            metrics.cache_hits += 1
+            return caches.item_detail[item_id]
+
+        data = await call_ml(
+            ml_client.get_item_detail,
+            access_token,
+            item_id,
+            user_id=user_id,
+            metrics=metrics,
+            limiter=READ_RATE_LIMITER,
+        )
+        caches.item_detail[item_id] = data
+        return data
 
 
 def dedup_key(row: dict) -> tuple:
@@ -350,6 +357,7 @@ def dedup_key(row: dict) -> tuple:
 
 
 def vehicle_resolution_key(row: dict) -> tuple:
+    item_id = extract_item_id(get_row_value(row, "ASOCIACION ML"))
     brand_name = normalize_for_compare(get_row_value(row, "MARCA"))
     model_name = normalize_for_compare(get_row_value(row, "MODELO"))
     version_name = normalize_for_compare(get_row_value(row, "VERSION"))
@@ -358,6 +366,7 @@ def vehicle_resolution_key(row: dict) -> tuple:
     year = parse_year_value(get_row_value(row, "AÑO"))
 
     return (
+        item_id,
         brand_name,
         model_name,
         version_name,
@@ -365,6 +374,47 @@ def vehicle_resolution_key(row: dict) -> tuple:
         transmission_name,
         year,
     )
+
+
+async def resolve_vehicle_attribute_ids(
+    *,
+    access_token: str,
+    user_id: int | str | None,
+    catalog_cache: CatalogPreloadService,
+    brand_name: str,
+    model_name: str,
+    year: int,
+    version_name: str,
+    engine_name: str,
+    transmission_name: str,
+) -> dict[str, str | None]:
+    contextual_resolver = getattr(
+        catalog_cache,
+        "resolve_vehicle_attribute_ids",
+        None,
+    )
+    if contextual_resolver is not None:
+        return await contextual_resolver(
+            access_token=access_token,
+            user_id=user_id,
+            brand_name=brand_name,
+            model_name=model_name,
+            year=year,
+            version_name=version_name,
+            engine_name=engine_name,
+            transmission_name=transmission_name,
+        )
+
+    return {
+        "brand_id": catalog_cache.resolve_brand_id(brand_name),
+        "model_id": catalog_cache.resolve_model_id(model_name),
+        "year_id": catalog_cache.resolve_year_id(year),
+        "version_id": catalog_cache.resolve_version_id(version_name),
+        "engine_id": catalog_cache.resolve_engine_id(engine_name),
+        "transmission_id": catalog_cache.resolve_transmission_id(
+            transmission_name
+        ),
+    }
 
 
 def build_vehicle_resolution_plan(rows: list[dict]) -> tuple[list[dict], list[list[int]]]:
@@ -559,108 +609,99 @@ async def resolve_vehicle_product_row(
             error_code="MISSING_ITEM_ID",
         )
 
-    if not brand_name or not model_name or year is None:
-        return _build_error_result(
-            item_id,
-            "Faltan datos mínimos: MARCA / MODELO / AÑO",
+    try:
+        item_detail = await get_item_detail_cached(
+            access_token=access_token,
+            user_id=user_id,
+            item_id=item_id,
+            caches=caches,
+            metrics=metrics,
+        )
+        category_id = normalize_text(item_detail.get("category_id"))
+        user_product_id = normalize_text(item_detail.get("user_product_id"))
+        if not category_id or not user_product_id:
+            return _build_error_result(
+                item_id,
+                "La publicación no tiene category_id o user_product_id",
+                brand_name=brand_name,
+                model_name=model_name,
+                version_name=version_name,
+                engine_name=engine_name,
+                transmission_name=transmission_name,
+                year=year,
+                error_code="MISSING_ITEM_COMPATIBILITY_TARGET",
+            )
+
+        required_values = {
+            "MARCA": brand_name,
+            "MODELO": model_name,
+            "AÑO": year,
+            "VERSION": version_name,
+            "CILINDRADA": engine_name,
+            "TRANSMISION": transmission_name,
+        }
+        missing_fields = [
+            field_name
+            for field_name, value in required_values.items()
+            if value in (None, "")
+        ]
+        if missing_fields:
+            return _build_error_result(
+                item_id,
+                "Faltan datos obligatorios: " + ", ".join(missing_fields),
+                brand_name=brand_name,
+                model_name=model_name,
+                version_name=version_name,
+                engine_name=engine_name,
+                transmission_name=transmission_name,
+                year=year,
+                error_code="MISSING_REQUIRED_VEHICLE_DATA",
+            )
+
+        attribute_ids = await resolve_vehicle_attribute_ids(
+            access_token=access_token,
+            user_id=user_id,
+            catalog_cache=catalog_cache,
             brand_name=brand_name,
             model_name=model_name,
+            year=year,
             version_name=version_name,
             engine_name=engine_name,
             transmission_name=transmission_name,
-            year=year,
-            error_code="MISSING_MINIMUM_DATA",
         )
-
-    try:
-        brand_id = catalog_cache.resolve_brand_id(brand_name)
-        if not brand_id:
+        attribute_labels = {
+            "brand_id": "MARCA",
+            "model_id": "MODELO",
+            "year_id": "AÑO",
+            "version_id": "VERSION",
+            "engine_id": "CILINDRADA",
+            "transmission_id": "TRANSMISION",
+        }
+        missing_attribute_ids = [
+            attribute_labels[key]
+            for key, value in attribute_ids.items()
+            if not value
+        ]
+        if missing_attribute_ids:
             return _build_error_result(
                 item_id,
-                f"No se encontró BRAND para '{brand_name}'",
+                "No se pudieron resolver en contexto: "
+                + ", ".join(missing_attribute_ids),
                 brand_name=brand_name,
                 model_name=model_name,
                 version_name=version_name,
                 engine_name=engine_name,
                 transmission_name=transmission_name,
                 year=year,
-                error_code="BRAND_NOT_FOUND",
+                error_code="CONTEXTUAL_ATTRIBUTE_NOT_FOUND",
             )
 
-        model_id = catalog_cache.resolve_model_id(model_name)
-        if not model_id:
-            return _build_error_result(
-                item_id,
-                f"No se encontró MODEL para '{model_name}'",
-                brand_name=brand_name,
-                model_name=model_name,
-                version_name=version_name,
-                engine_name=engine_name,
-                transmission_name=transmission_name,
-                year=year,
-                error_code="MODEL_NOT_FOUND",
-            )
-
-        year_id = catalog_cache.resolve_year_id(year)
-        if not year_id:
-            return _build_error_result(
-                item_id,
-                f"No se encontró YEAR para '{year}'",
-                brand_name=brand_name,
-                model_name=model_name,
-                version_name=version_name,
-                engine_name=engine_name,
-                transmission_name=transmission_name,
-                year=year,
-                error_code="YEAR_NOT_FOUND",
-            )
-
-        version_id = catalog_cache.resolve_version_id(version_name) if version_name else None
-        if version_name and not version_id:
-            return _build_error_result(
-                item_id,
-                f"No se encontró VERSION para '{version_name}'",
-                brand_name=brand_name,
-                model_name=model_name,
-                version_name=version_name,
-                engine_name=engine_name,
-                transmission_name=transmission_name,
-                year=year,
-                error_code="VERSION_NOT_FOUND",
-            )
-
-        engine_id = catalog_cache.resolve_engine_id(engine_name) if engine_name else None
-        if engine_name and not engine_id:
-            return _build_error_result(
-                item_id,
-                f"No se encontró ENGINE para '{engine_name}'",
-                brand_name=brand_name,
-                model_name=model_name,
-                version_name=version_name,
-                engine_name=engine_name,
-                transmission_name=transmission_name,
-                year=year,
-                error_code="ENGINE_NOT_FOUND",
-            )
-
-        transmission_id = (
-            catalog_cache.resolve_transmission_id(transmission_name)
-            if transmission_name
-            else None
-        )
-        if transmission_name and not transmission_id:
-            return _build_error_result(
-                item_id,
-                f"No se encontró TRANSMISSION para '{transmission_name}'",
-                brand_name=brand_name,
-                model_name=model_name,
-                version_name=version_name,
-                engine_name=engine_name,
-                transmission_name=transmission_name,
-                year=year,
-                error_code="TRANSMISSION_NOT_FOUND",
-            )
-
+        brand_id = attribute_ids["brand_id"]
+        model_id = attribute_ids["model_id"]
+        year_id = attribute_ids["year_id"]
+        version_id = attribute_ids["version_id"]
+        engine_id = attribute_ids["engine_id"]
+        transmission_id = attribute_ids["transmission_id"]
         family_product_count, family_attributes = await count_vehicle_family_products(
             access_token=access_token,
             user_id=user_id,
@@ -727,6 +768,8 @@ async def resolve_vehicle_product_row(
         return {
             "ok": True,
             "item_id": item_id,
+            "category_id": category_id,
+            "user_product_id": user_product_id,
             "brand_name": brand_name,
             "model_name": model_name,
             "version_name": version_name,
@@ -847,6 +890,9 @@ async def process_unique_rows_chunk(
 ) -> dict:
     caches = JobCaches()
     metrics = JobMetrics()
+    if getattr(catalog_cache, "call_ml", None) is None:
+        catalog_cache.call_ml = call_ml
+    catalog_cache.metrics = metrics
 
     max_concurrency = max(1, int(_settings_value("max_row_concurrency", 2)))
     progress_every = max(1, int(_settings_value("chunk_progress_update_every", 25)))

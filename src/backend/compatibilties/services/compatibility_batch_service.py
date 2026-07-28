@@ -14,7 +14,6 @@ from services.compatibility_service import (
     call_ml,
 )
 from services.ml_client import ml_client
-from services.product_cache_service import ProductCacheService
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +23,16 @@ DEFAULT_COMPATIBILITY_NOTE = (
 )
 MAX_PRODUCTS_PER_ML_REQUEST = 200
 MAX_PRODUCT_FAMILIES_PER_ML_REQUEST = 10
+REQUIRED_VEHICLE_FAMILY_ATTRIBUTE_IDS = frozenset(
+    {
+        "BRAND",
+        "CAR_AND_VAN_MODEL",
+        "YEAR",
+        "CAR_AND_VAN_SUBMODEL",
+        "CAR_AND_VAN_ENGINE",
+        "TRANSMISSION_CONTROL_TYPE",
+    }
+)
 
 
 def _safe_text(value) -> str:
@@ -221,12 +230,7 @@ async def get_item_compact_cached(
     item_id: str,
     metrics: JobMetrics,
 ) -> dict:
-    cached = ProductCacheService.get_item_compact(item_id)
-    if cached:
-        logger.debug("[BATCH][CACHE_HIT] item_id=%s", item_id)
-        return cached
-
-    logger.debug("[BATCH][CACHE_MISS] item_id=%s", item_id)
+    logger.debug("[BATCH][ITEM_FETCH] item_id=%s", item_id)
     item_detail = await call_ml(
         ml_client.get_item_detail,
         access_token,
@@ -240,7 +244,6 @@ async def get_item_compact_cached(
         "category_id": item_detail.get("category_id"),
         "user_product_id": item_detail.get("user_product_id"),
     }
-    ProductCacheService.set_item_compact(item_id, compact)
     return compact
 
 
@@ -287,6 +290,81 @@ def _resolved_row_key(row: dict) -> str:
         return f"product:{product_id}"
 
     return ""
+
+
+def validate_resolved_family_rows(rows: list[dict]) -> list[dict]:
+    """Reject stale or incomplete resolved families before any ML write."""
+    validated_rows: list[dict] = []
+
+    for row in rows:
+        product_family = row.get("product_family")
+        if not row.get("ok") or not isinstance(product_family, dict):
+            validated_rows.append(row)
+            continue
+
+        raw_attributes = product_family.get("attributes")
+        attributes = raw_attributes if isinstance(raw_attributes, list) else []
+        present_attribute_id_list = [
+            _safe_text(attribute.get("id"))
+            for attribute in attributes
+            if isinstance(attribute, dict)
+            and _safe_text(attribute.get("id"))
+            and _safe_text(attribute.get("value_id"))
+        ]
+        present_attribute_ids = set(present_attribute_id_list)
+        missing_attribute_ids = sorted(
+            REQUIRED_VEHICLE_FAMILY_ATTRIBUTE_IDS - present_attribute_ids
+        )
+        unexpected_attribute_ids = sorted(
+            present_attribute_ids - REQUIRED_VEHICLE_FAMILY_ATTRIBUTE_IDS
+        )
+        has_exact_attributes = (
+            len(attributes) == len(REQUIRED_VEHICLE_FAMILY_ATTRIBUTE_IDS)
+            and len(present_attribute_id_list)
+            == len(REQUIRED_VEHICLE_FAMILY_ATTRIBUTE_IDS)
+            and len(present_attribute_ids)
+            == len(REQUIRED_VEHICLE_FAMILY_ATTRIBUTE_IDS)
+            and not missing_attribute_ids
+            and not unexpected_attribute_ids
+        )
+        if has_exact_attributes:
+            validated_rows.append(row)
+            continue
+
+        validation_details: list[str] = []
+        if missing_attribute_ids:
+            validation_details.append(
+                "faltan " + ", ".join(missing_attribute_ids)
+            )
+        if unexpected_attribute_ids:
+            validation_details.append(
+                "sobran " + ", ".join(unexpected_attribute_ids)
+            )
+        if not validation_details:
+            validation_details.append(
+                "hay atributos duplicados, inválidos o sin value_id"
+            )
+
+        invalid_row = dict(row)
+        invalid_row.update(
+            {
+                "ok": False,
+                "error_type": "functional",
+                "error_code": "INVALID_PRODUCT_FAMILY_ATTRIBUTES",
+                "error_message": (
+                    "La familia vehicular resuelta debe contener exactamente "
+                    "los seis atributos requeridos; "
+                    + "; ".join(validation_details)
+                ),
+                "reason": (
+                    "Familia vehicular inválida; "
+                    + "; ".join(validation_details)
+                ),
+            }
+        )
+        validated_rows.append(invalid_row)
+
+    return validated_rows
 
 
 def build_grouped_product_families(rows: list[dict]) -> dict[str, list[dict]]:
@@ -337,6 +415,11 @@ def build_grouped_product_families(rows: list[dict]) -> dict[str, list[dict]]:
         grouped[item_id][compatibility_key] = {
             "compatibility_key": compatibility_key,
             "payload": family_payload,
+            "item_compact": {
+                "item_id": item_id,
+                "category_id": _safe_text(row.get("category_id")),
+                "user_product_id": _safe_text(row.get("user_product_id")),
+            },
             "matched_products_count": max(
                 1,
                 int(row.get("family_product_count", 1) or 1),
@@ -517,6 +600,7 @@ async def post_compatibility_families_batch(
     item_id: str,
     family_entries: list[dict],
     metrics: JobMetrics,
+    item_compact: dict | None = None,
 ) -> dict:
     batch_size = min(
         MAX_PRODUCT_FAMILIES_PER_ML_REQUEST,
@@ -539,12 +623,16 @@ async def post_compatibility_families_batch(
     )
 
     try:
-        item_compact = await get_item_compact_cached(
-            access_token=access_token,
-            user_id=user_id,
-            item_id=item_id,
-            metrics=metrics,
-        )
+        if not item_compact or not (
+            item_compact.get("category_id")
+            and item_compact.get("user_product_id")
+        ):
+            item_compact = await get_item_compact_cached(
+                access_token=access_token,
+                user_id=user_id,
+                item_id=item_id,
+                metrics=metrics,
+            )
 
         category_id = item_compact.get("category_id")
         user_product_id = item_compact.get("user_product_id")
@@ -836,6 +924,13 @@ def build_compat_summary(final_rows: list[dict], batch_results: list[dict], metr
             }
         ),
         "items_count": len({str(r.get("item_id") or "") for r in final_rows if r.get("item_id")}),
+        "failed_item_ids": sorted(
+            {
+                str(row.get("item_id"))
+                for row in final_rows
+                if not row.get("ok") and row.get("item_id")
+            }
+        ),
         "batches_count": len(batch_results),
         "total_created_compatibilities": total_created,
         "metrics": metrics.to_dict(),
@@ -850,6 +945,7 @@ async def process_compatibility_batches(
     on_progress: Callable[[int, int, int], Awaitable[None]] | None = None,
 ) -> dict:
     metrics = metrics or JobMetrics()
+    rows = validate_resolved_family_rows(rows)
     grouped_products, restriction_data = build_grouped_product_ids(rows)
     grouped_families = build_grouped_product_families(rows)
     batch_size = min(
@@ -928,6 +1024,12 @@ async def process_compatibility_batches(
                         item_id=item_id,
                         family_entries=entries,
                         metrics=metrics,
+                        item_compact=(
+                            entries[0].get("item_compact")
+                            if entries
+                            and isinstance(entries[0].get("item_compact"), dict)
+                            else None
+                        ),
                     )
                 else:
                     product_ids = batch_spec.get("product_ids", [])
