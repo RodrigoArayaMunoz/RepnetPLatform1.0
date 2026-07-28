@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   CopyPlus,
   FileSpreadsheet,
   Upload,
+  X,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { authFetch } from "../../lib/apiClient.js";
@@ -14,6 +16,9 @@ const ORIGIN_HEADER = "MLC-ORIGEN";
 const DESTINATION_HEADER = "MLC-DESTINO";
 const HISTORY_STORAGE_KEY = "compatibilityCopyHistory";
 const HISTORY_PAGE_SIZE = 4;
+const PROCESS_OK = "PROCESO OK";
+const PROCESS_WITH_ERRORS = "PROCESO CON ERRORES";
+const PROCESSING = "PROCESANDO";
 
 const formatHistoryDate = (value) => {
   if (!value) return "Ahora";
@@ -35,7 +40,13 @@ const getInitialHistory = () => {
     const storedHistory = window.localStorage.getItem(HISTORY_STORAGE_KEY);
     const parsedHistory = storedHistory ? JSON.parse(storedHistory) : [];
 
-    return Array.isArray(parsedHistory) ? parsedHistory : [];
+    if (!Array.isArray(parsedHistory)) return [];
+
+    return parsedHistory.map((entry) => {
+      const sanitizedEntry = { ...entry };
+      delete sanitizedEntry.status;
+      return sanitizedEntry;
+    });
   } catch {
     return [];
   }
@@ -46,6 +57,38 @@ const isExcelFile = (file) => {
 
   return /\.(xlsx|xls)$/i.test(file.name || "");
 };
+
+const getHistoryErrors = (entry) =>
+  Array.isArray(entry?.errors) ? entry.errors : [];
+
+const getHistoryErrorCount = (entry) => {
+  const storedErrorCount = Number(entry?.errorCount);
+  if (Number.isFinite(storedErrorCount) && storedErrorCount >= 0) {
+    return storedErrorCount;
+  }
+
+  return getHistoryErrors(entry).length;
+};
+
+const getProcessResult = (entry) => {
+  if (entry?.processResult === PROCESSING) return PROCESSING;
+  if (entry?.processResult === PROCESS_WITH_ERRORS) {
+    return PROCESS_WITH_ERRORS;
+  }
+  if (entry?.processResult === PROCESS_OK) return PROCESS_OK;
+
+  return getHistoryErrorCount(entry) > 0
+    ? PROCESS_WITH_ERRORS
+    : PROCESS_OK;
+};
+
+const buildFailedRow = (result) => ({
+  rowNumber: result.rowNumber,
+  origin: result.origin || "",
+  destination: result.destination || "",
+  message: result.statusText || "No se pudo procesar la copia",
+  statusCode: result.statusCode || null,
+});
 
 const normalizeHeader = (value) =>
   String(value ?? "")
@@ -61,7 +104,11 @@ const getCellText = (worksheet, rowIndex, columnIndex) => {
   return String(worksheet[cellAddress]?.v ?? "").trim();
 };
 
-const copyItemCompatibilities = async (apiBase, originItemId, destinationItemId) => {
+const copyItemCompatibilities = async (
+  apiBase,
+  originItemId,
+  destinationItemId
+) => {
   const response = await authFetch(
     `${apiBase}/ml/items/${encodeURIComponent(
       destinationItemId
@@ -84,11 +131,13 @@ const copyItemCompatibilities = async (apiBase, originItemId, destinationItemId)
     const detailMessage =
       typeof detail === "string" ? detail : detail?.message || data?.message;
 
-    throw new Error(
+    const requestError = new Error(
       detailMessage ||
         data?.error ||
         `No se pudo copiar compatibilidades hacia ${destinationItemId}`
     );
+    requestError.statusCode = response.status;
+    throw requestError;
   }
 
   return data;
@@ -105,7 +154,11 @@ export default function CompatibilityCopy() {
   const [results, setResults] = useState([]);
   const [processHistory, setProcessHistory] = useState(getInitialHistory);
   const [historyPage, setHistoryPage] = useState(0);
+  const [selectedErrorHistoryId, setSelectedErrorHistoryId] = useState(null);
   const copiedCompatibilitiesCount = results.filter((result) => result.ok).length;
+  const selectedErrorHistory = processHistory.find(
+    (entry) => entry.id === selectedErrorHistoryId
+  );
   const historyPageCount = Math.max(
     1,
     Math.ceil(processHistory.length / HISTORY_PAGE_SIZE)
@@ -128,6 +181,19 @@ export default function CompatibilityCopy() {
       // El historial visible se mantiene aunque localStorage no este disponible.
     }
   }, [processHistory]);
+
+  useEffect(() => {
+    if (!selectedErrorHistoryId) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setSelectedErrorHistoryId(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedErrorHistoryId]);
 
   const handleSelectFile = () => {
     fileInputRef.current?.click();
@@ -226,6 +292,11 @@ export default function CompatibilityCopy() {
   const handleCopyCompatibilities = async () => {
     if (!file || isProcessing) return;
 
+    const selectedFile = file;
+    let activeProcessId = null;
+    let rows = [];
+    const nextResults = [];
+
     try {
       setIsProcessing(true);
       setStatus("processing");
@@ -234,11 +305,27 @@ export default function CompatibilityCopy() {
       setTotalRows(0);
       setResults([]);
 
-      const rows = await parseCompatibilityRows(file);
+      rows = await parseCompatibilityRows(selectedFile);
+      activeProcessId = `${Date.now()}-${selectedFile.name}`;
+      const createdAt = new Date().toISOString();
+
       setTotalRows(rows.length);
       setMessage(`Procesando 0/${rows.length} filas...`);
-
-      const nextResults = [];
+      setProcessHistory((currentHistory) => [
+        {
+          id: activeProcessId,
+          fileName: selectedFile.name,
+          totalRows: rows.length,
+          processedCount: 0,
+          copiedCount: 0,
+          errorCount: 0,
+          errors: [],
+          createdAt,
+          processResult: PROCESSING,
+        },
+        ...currentHistory,
+      ]);
+      setHistoryPage(0);
 
       for (const row of rows) {
         let result;
@@ -284,32 +371,82 @@ export default function CompatibilityCopy() {
               method: null,
               statusText:
                 error?.message || "Error copiando compatibilidades",
+              statusCode: error?.statusCode || null,
             };
           }
         }
 
         nextResults.push(result);
+        const failedRows = nextResults
+          .filter((currentResult) => !currentResult.ok)
+          .map(buildFailedRow);
+        const successfulCopies = nextResults.length - failedRows.length;
+        const processFinished = nextResults.length === rows.length;
+
         setResults([...nextResults]);
         setProcessedRows(nextResults.length);
         setMessage(`Procesando ${nextResults.length}/${rows.length} filas...`);
+        setProcessHistory((currentHistory) =>
+          currentHistory.map((entry) =>
+            entry.id === activeProcessId
+              ? {
+                  ...entry,
+                  processedCount: nextResults.length,
+                  copiedCount: successfulCopies,
+                  errorCount: failedRows.length,
+                  errors: failedRows,
+                  processResult: processFinished
+                    ? failedRows.length > 0
+                      ? PROCESS_WITH_ERRORS
+                      : PROCESS_OK
+                    : PROCESSING,
+                }
+              : entry
+          )
+        );
       }
 
       const successfulCopies = nextResults.filter((result) => result.ok).length;
+      const failedCopies = nextResults.length - successfulCopies;
 
-      setProcessHistory((currentHistory) => [
-        {
-          id: `${Date.now()}-${file.name}`,
-          fileName: file.name,
-          copiedCount: successfulCopies,
-          createdAt: new Date().toISOString(),
-          status: "Completado",
-        },
-        ...currentHistory,
-      ]);
-      setHistoryPage(0);
-      setStatus("success");
-      setMessage("Proceso Finalizado");
+      setStatus(failedCopies > 0 ? "warning" : "success");
+      setMessage(
+        failedCopies > 0
+          ? `Proceso Finalizado con ${failedCopies} fila(s) con error`
+          : "Proceso Finalizado"
+      );
     } catch (error) {
+      if (activeProcessId) {
+        const unprocessedRows = rows
+          .slice(nextResults.length)
+          .map((row) => ({
+            ...row,
+            ok: false,
+            statusText: "La copia no alcanzó a procesarse",
+          }));
+        const finalResults = [...nextResults, ...unprocessedRows];
+        const failedRows = finalResults
+          .filter((result) => !result.ok)
+          .map(buildFailedRow);
+        const successfulCopies = finalResults.length - failedRows.length;
+
+        setResults(finalResults);
+        setProcessHistory((currentHistory) =>
+          currentHistory.map((entry) =>
+            entry.id === activeProcessId
+              ? {
+                  ...entry,
+                  processedCount: nextResults.length,
+                  copiedCount: successfulCopies,
+                  errorCount: failedRows.length,
+                  errors: failedRows,
+                  processResult: PROCESS_WITH_ERRORS,
+                }
+              : entry
+          )
+        );
+      }
+
       setStatus("error");
       setMessage(error?.message || "No se pudo procesar el archivo.");
     } finally {
@@ -399,7 +536,10 @@ export default function CompatibilityCopy() {
               </div>
             )}
 
-            {results.length > 0 && status === "success" && (
+            {results.length > 0 &&
+              (status === "success" ||
+                status === "warning" ||
+                status === "error") && (
               <div className="compat-copy-summary" aria-live="polite">
                 <p className="compat-copy-summary-label">
                   Nro. de compatibilidades copiadas:
@@ -424,16 +564,46 @@ export default function CompatibilityCopy() {
             <table className="compat-copy-history-table">
               <thead>
                 <tr>
+                  <th>Resultado Proceso</th>
                   <th>Archivo</th>
-                  <th>Compatibilidades</th>
+                  <th>Compatibilidades Copiadas</th>
                   <th>Fecha</th>
-                  <th>Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleHistory.length > 0 ? (
                   visibleHistory.map((entry) => (
                     <tr key={entry.id}>
+                      <td>
+                        {getProcessResult(entry) === PROCESS_WITH_ERRORS ? (
+                          <button
+                            className="compat-copy-result-pill has-errors"
+                            type="button"
+                            onClick={() =>
+                              setSelectedErrorHistoryId(entry.id)
+                            }
+                            aria-label={`Ver ${getHistoryErrorCount(
+                              entry
+                            )} errores de ${entry.fileName}`}
+                          >
+                            <AlertTriangle size={14} />
+                            <span>{PROCESS_WITH_ERRORS}</span>
+                            <strong className="compat-copy-result-error-count">
+                              {getHistoryErrorCount(entry)}
+                            </strong>
+                          </button>
+                        ) : (
+                          <span
+                            className={`compat-copy-result-pill ${
+                              getProcessResult(entry) === PROCESSING
+                                ? "processing"
+                                : "is-ok"
+                            }`}
+                          >
+                            {getProcessResult(entry)}
+                          </span>
+                        )}
+                      </td>
                       <td title={entry.fileName}>
                         <span className="compat-copy-file-cell-icon">
                           <FileSpreadsheet size={17} />
@@ -444,11 +614,6 @@ export default function CompatibilityCopy() {
                       </td>
                       <td>{entry.copiedCount}</td>
                       <td>{formatHistoryDate(entry.createdAt)}</td>
-                      <td>
-                        <span className="compat-copy-status-pill">
-                          {entry.status || "Completado"}
-                        </span>
-                      </td>
                     </tr>
                   ))
                 ) : (
@@ -499,6 +664,107 @@ export default function CompatibilityCopy() {
           )}
         </section>
       </div>
+
+      {selectedErrorHistory && (
+        <div
+          className="compat-copy-error-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedErrorHistoryId(null);
+            }
+          }}
+        >
+          <section
+            className="compat-copy-error-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="compat-copy-error-modal-title"
+          >
+            <header className="compat-copy-error-modal-header">
+              <span className="compat-copy-error-modal-icon">
+                <AlertTriangle size={22} />
+              </span>
+              <div>
+                <h2 id="compat-copy-error-modal-title">
+                  Errores del proceso de copia
+                </h2>
+                <p title={selectedErrorHistory.fileName}>
+                  {selectedErrorHistory.fileName}
+                </p>
+              </div>
+              <button
+                className="compat-copy-error-modal-close"
+                type="button"
+                onClick={() => setSelectedErrorHistoryId(null)}
+                aria-label="Cerrar detalle de errores"
+                autoFocus
+              >
+                <X size={20} />
+              </button>
+            </header>
+
+            <div className="compat-copy-error-modal-summary">
+              <strong>
+                {getHistoryErrorCount(selectedErrorHistory)}
+              </strong>
+              <span>
+                fila(s) no pudieron copiar sus compatibilidades.
+              </span>
+            </div>
+
+            <div className="compat-copy-error-table-wrap">
+              <table className="compat-copy-error-table">
+                <thead>
+                  <tr>
+                    <th>Fila Excel</th>
+                    <th>MLC-ORIGEN</th>
+                    <th>MLC-DESTINO</th>
+                    <th>Detalle del error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getHistoryErrors(selectedErrorHistory).length > 0 ? (
+                    getHistoryErrors(selectedErrorHistory).map(
+                      (errorRow, index) => (
+                        <tr
+                          key={`${errorRow.rowNumber}-${errorRow.origin}-${errorRow.destination}-${index}`}
+                        >
+                          <td>{errorRow.rowNumber || "—"}</td>
+                          <td>{errorRow.origin || "—"}</td>
+                          <td>{errorRow.destination || "—"}</td>
+                          <td>
+                            {errorRow.statusCode
+                              ? `HTTP ${errorRow.statusCode}: `
+                              : ""}
+                            {errorRow.message}
+                          </td>
+                        </tr>
+                      )
+                    )
+                  ) : (
+                    <tr>
+                      <td colSpan="4" className="compat-copy-error-table-empty">
+                        El detalle por MLC no está disponible para este registro
+                        histórico.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <footer className="compat-copy-error-modal-footer">
+              <button
+                type="button"
+                onClick={() => setSelectedErrorHistoryId(null)}
+              >
+                Cerrar
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </section>
   );
 }
