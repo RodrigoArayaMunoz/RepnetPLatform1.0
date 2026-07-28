@@ -21,7 +21,7 @@ def get_compatibility_chunk_pause_seconds() -> int:
             getattr(
                 settings,
                 "compatibility_chunk_pause_seconds",
-                get_process_file_chunk_pause_seconds(),
+                3 * 60 + 30,
             )
         ),
     )

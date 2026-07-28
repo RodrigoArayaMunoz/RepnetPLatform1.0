@@ -6,6 +6,8 @@ from services.catalog_preload_service import CatalogPreloadService
 from services.compatibility_service import (
     JobMetrics,
     READ_RATE_LIMITER,
+    build_product_family_key,
+    build_vehicle_family_attributes,
     call_ml,
 )
 from services.excel_service import (
@@ -150,24 +152,35 @@ async def resolve_single_product_id(
             "error_message": "No fue posible resolver todos los IDs mínimos",
         }
 
-    results = await call_ml(
-        ml_client.search_vehicle_products,
-        access_token=access_token,
-        brand_id=ids["brand_id"],
-        model_id=ids["model_id"],
-        year_id=ids["year_id"],
+    family_attributes = build_vehicle_family_attributes(
+        brand_id=str(ids["brand_id"]),
+        model_id=str(ids["model_id"]),
+        year_id=str(ids["year_id"]),
         version_id=ids["version_id"],
         transmission_id=ids["transmission_id"],
         engine_id=ids["engine_id"],
+    )
+    family_product_count = await call_ml(
+        ml_client.count_vehicle_family_products,
+        access_token=access_token,
+        attributes=family_attributes,
+        domain_id=settings.ml_domain_id,
         user_id=user_id,
         metrics=metrics,
         limiter=READ_RATE_LIMITER,
     )
 
-    product_id = str(results[0]["id"]) if results and results[0].get("id") else None
+    family_product_count = max(0, int(family_product_count or 0))
+    product_family = {
+        "domain_id": settings.ml_domain_id,
+        "creation_source": "DEFAULT",
+        "attributes": family_attributes,
+    }
+    product_family_key = build_product_family_key(product_family)
+    within_limit = family_product_count <= 200
 
     payload = {
-        "ok": bool(product_id),
+        "ok": family_product_count > 0 and within_limit,
         "site_id": site_id,
         "item_id": row.item_id,
         "brand_name": row.brand_name,
@@ -177,12 +190,34 @@ async def resolve_single_product_id(
         "transmission_name": row.transmission_name,
         "year": row.year,
         **ids,
-        "product_id": product_id,
-        "error_code": None if product_id else "PRODUCT_NOT_FOUND",
-        "error_message": None if product_id else "No se encontró product_id",
+        "compatibility_mode": "product_family",
+        "product_family": product_family,
+        "product_family_key": product_family_key,
+        "family_product_count": family_product_count,
+        "error_code": (
+            None
+            if family_product_count > 0 and within_limit
+            else (
+                "PRODUCT_FAMILY_NOT_FOUND"
+                if family_product_count == 0
+                else "PRODUCT_FAMILY_LIMIT_EXCEEDED"
+            )
+        ),
+        "error_message": (
+            None
+            if family_product_count > 0 and within_limit
+            else (
+                "No se encontraron productos para la familia indicada"
+                if family_product_count == 0
+                else (
+                    f"La familia coincide con {family_product_count} productos "
+                    "y supera el máximo oficial de 200"
+                )
+            )
+        ),
     }
 
-    if product_id:
+    if payload["ok"]:
         ProductCacheService.set_product_resolution(key, payload)
 
     return {
@@ -231,7 +266,10 @@ async def resolve_products_from_rows(
                         job_id,
                         progress=min(progress, 95),
                         processed_unique_rows=completed,
-                        message=f"Resolviendo product_id {completed}/{len(unique_rows)}",
+                        message=(
+                            "Validando familias de vehículos "
+                            f"{completed}/{len(unique_rows)}"
+                        ),
                     )
 
     await asyncio.gather(*(worker(i, row) for i, row in enumerate(unique_rows)))
@@ -286,7 +324,11 @@ async def resolve_products_from_rows(
             }
         )
 
-    ok_count = sum(1 for r in final_rows if r.get("ok") and r.get("product_id"))
+    ok_count = sum(
+        1
+        for r in final_rows
+        if r.get("ok") and isinstance(r.get("product_family"), dict)
+    )
     error_count = len(final_rows) - ok_count
 
     return {

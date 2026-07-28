@@ -1,4 +1,5 @@
 import asyncio
+import json
 import random
 import time
 from dataclasses import dataclass, field
@@ -25,9 +26,9 @@ from services.redis_rate_limiter import RedisWindowRateLimiter
 @dataclass
 class JobCaches:
     item_detail: dict[str, dict] = field(default_factory=dict)
-    product: dict[
+    family_product_count: dict[
         tuple[str | None, str | None, str | None, str | None, str | None, str | None],
-        str | None,
+        int,
     ] = field(default_factory=dict)
 
 
@@ -225,7 +226,45 @@ def _cache_get(cache: dict, key: Any, metrics: JobMetrics) -> Any:
     return None
 
 
-async def search_vehicle_product_id(
+def build_vehicle_family_attributes(
+    *,
+    brand_id: str,
+    model_id: str,
+    year_id: str,
+    version_id: str | None = None,
+    transmission_id: str | None = None,
+    engine_id: str | None = None,
+) -> list[dict[str, str]]:
+    attributes = [
+        {"id": "BRAND", "value_id": str(brand_id)},
+        {"id": "CAR_AND_VAN_MODEL", "value_id": str(model_id)},
+        {"id": "YEAR", "value_id": str(year_id)},
+    ]
+
+    if version_id:
+        attributes.append(
+            {"id": "CAR_AND_VAN_SUBMODEL", "value_id": str(version_id)}
+        )
+    if engine_id:
+        attributes.append(
+            {"id": "CAR_AND_VAN_ENGINE", "value_id": str(engine_id)}
+        )
+    if transmission_id:
+        attributes.append(
+            {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_id": str(transmission_id),
+            }
+        )
+
+    return attributes
+
+
+def build_product_family_key(product_family: dict) -> str:
+    return json.dumps(product_family, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+async def count_vehicle_family_products(
     access_token: str,
     user_id: int | str | None,
     brand_id: str | None,
@@ -236,29 +275,35 @@ async def search_vehicle_product_id(
     engine_id: str | None,
     caches: JobCaches,
     metrics: JobMetrics,
-) -> str | None:
+) -> tuple[int, list[dict[str, str]]]:
     key = (brand_id, model_id, year_id, version_id, transmission_id, engine_id)
-    cached = _cache_get(caches.product, key, metrics)
-    if key in caches.product:
-        return cached
+    cached = _cache_get(caches.family_product_count, key, metrics)
 
-    results = await call_ml(
-        ml_client.search_vehicle_products,
-        access_token=access_token,
-        user_id=user_id,
-        brand_id=brand_id,
-        model_id=model_id,
-        year_id=year_id,
+    attributes = build_vehicle_family_attributes(
+        brand_id=str(brand_id),
+        model_id=str(model_id),
+        year_id=str(year_id),
         version_id=version_id,
         transmission_id=transmission_id,
         engine_id=engine_id,
+    )
+
+    if key in caches.family_product_count:
+        return int(cached), attributes
+
+    count = await call_ml(
+        ml_client.count_vehicle_family_products,
+        access_token=access_token,
+        user_id=user_id,
+        attributes=attributes,
+        domain_id=settings.ml_domain_id,
         metrics=metrics,
         limiter=READ_RATE_LIMITER,
     )
 
-    value = str(results[0]["id"]) if results and results[0].get("id") else None
-    caches.product[key] = value
-    return value
+    resolved_count = max(0, int(count or 0))
+    caches.family_product_count[key] = resolved_count
+    return resolved_count, attributes
 
 
 async def get_item_detail_cached(
@@ -616,7 +661,7 @@ async def resolve_vehicle_product_row(
                 error_code="TRANSMISSION_NOT_FOUND",
             )
 
-        product_id = await search_vehicle_product_id(
+        family_product_count, family_attributes = await count_vehicle_family_products(
             access_token=access_token,
             user_id=user_id,
             brand_id=brand_id,
@@ -629,10 +674,10 @@ async def resolve_vehicle_product_row(
             metrics=metrics,
         )
 
-        if not product_id:
+        if family_product_count == 0:
             return _build_error_result(
                 item_id,
-                "No se encontró product_id con los ids resueltos",
+                "No se encontraron productos para la familia de vehículo indicada",
                 brand_name=brand_name,
                 model_name=model_name,
                 version_name=version_name,
@@ -640,17 +685,44 @@ async def resolve_vehicle_product_row(
                 transmission_name=transmission_name,
                 year=year,
                 error_type="functional",
-                error_code="PRODUCT_NOT_FOUND",
+                error_code="PRODUCT_FAMILY_NOT_FOUND",
                 results=[
                     {
                         "ok": False,
                         "year": year,
-                        "reason": "No se encontró product_id con los ids resueltos",
+                        "reason": (
+                            "No se encontraron productos para la familia de "
+                            "vehículo indicada"
+                        ),
                         "error_type": "functional",
-                        "error_code": "PRODUCT_NOT_FOUND",
+                        "error_code": "PRODUCT_FAMILY_NOT_FOUND",
                     }
                 ],
             )
+
+        if family_product_count > 200:
+            return _build_error_result(
+                item_id,
+                (
+                    "La familia indicada coincide con "
+                    f"{family_product_count} productos y supera el máximo oficial de 200"
+                ),
+                brand_name=brand_name,
+                model_name=model_name,
+                version_name=version_name,
+                engine_name=engine_name,
+                transmission_name=transmission_name,
+                year=year,
+                error_type="functional",
+                error_code="PRODUCT_FAMILY_LIMIT_EXCEEDED",
+            )
+
+        product_family = {
+            "domain_id": settings.ml_domain_id,
+            "creation_source": "DEFAULT",
+            "attributes": family_attributes,
+        }
+        product_family_key = build_product_family_key(product_family)
 
         return {
             "ok": True,
@@ -663,7 +735,10 @@ async def resolve_vehicle_product_row(
             "year_requested": year,
             "year_processed": year,
             "year": year,
-            "product_id": product_id,
+            "compatibility_mode": "product_family",
+            "product_family": product_family,
+            "product_family_key": product_family_key,
+            "family_product_count": family_product_count,
             "familia": familia,
             "posicion_dt": posicion_dt,
             "posicion_id": posicion_id,
@@ -673,7 +748,9 @@ async def resolve_vehicle_product_row(
                 {
                     "ok": True,
                     "year": year,
-                    "product_id": product_id,
+                    "compatibility_mode": "product_family",
+                    "product_family_key": product_family_key,
+                    "matched_products_count": family_product_count,
                 }
             ],
         }

@@ -27,7 +27,7 @@ async def create_resolve_products_job(
         "job_id": job["id"],
         "task_id": async_result.id,
         "status": "queued",
-        "message": "Resolución de product_id encolada",
+        "message": "Resolución de familias de vehículos encolada",
     }
 
 

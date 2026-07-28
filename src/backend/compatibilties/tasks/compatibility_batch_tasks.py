@@ -6,10 +6,20 @@ from celery.utils.log import get_task_logger
 
 from celery_app import celery_app
 from config import settings
-from services.compatibility_batch_service import process_compatibility_batches
+from services.compatibility_batch_service import (
+    build_compat_summary,
+    process_compatibility_batches,
+)
+from services.compatibility_service import JobMetrics
 from services.job_store import JobStore
 from services.ml_client import ml_client
-from services.compatibility_orchestrator_service import process_excel_compatibilities_end_to_end
+from services.process_chunking_service import (
+    chunk_sequence,
+    count_chunks,
+    format_pause_minutes,
+    get_compatibility_chunk_pause_seconds,
+    get_process_file_chunk_size,
+)
 
 logger = get_task_logger(__name__)
 
@@ -54,6 +64,7 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
             job_id,
             status="processing",
             progress=1,
+            compatibilities_created=0,
             message="Cargando archivo resuelto...",
         )
 
@@ -64,33 +75,107 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
             len({str(r.get('item_id') or '') for r in rows if r.get('item_id')})
         )
         logger.info(
-            "[TASK BATCH] Product IDs presentes=%s",
-            len({str(r.get('product_id') or '') for r in rows if r.get('product_id')})
+            "[TASK BATCH] Familias de vehículos presentes=%s",
+            len(
+                {
+                    str(r.get("product_family_key") or "")
+                    for r in rows
+                    if r.get("product_family_key")
+                }
+            ),
         )
-
-        async def on_progress(completed: int, total: int) -> None:
-            progress = 10 + int((completed / max(total, 1)) * 85)
-            JobStore.update(
-                job_id,
-                progress=min(progress, 95),
-                processed_rows=len(rows),
-                message=f"Procesando batches {completed}/{total}",
-            )
 
         await ml_client.startup()
         try:
             access_token = await ml_client.get_valid_token(int(user_id))
             logger.info("[TASK BATCH] Token válido obtenido")
 
-            # IMPORTANTE:
-            # aquí NO debes re-resolver el Excel.
-            # aquí solo debes agregar compatibilidades batch sobre filas ya resueltas.
-            outcome = await process_compatibility_batches(
-                access_token=access_token,
-                user_id=user_id,
-                rows=rows,
-                on_progress=on_progress,
-            )
+            chunk_size = get_process_file_chunk_size()
+            pause_seconds = get_compatibility_chunk_pause_seconds()
+            total_chunks = count_chunks(len(rows), chunk_size)
+            metrics = JobMetrics()
+            all_results: list[dict] = []
+            all_batch_results: list[dict] = []
+            processed_rows = 0
+            created_compatibilities = 0
+
+            for chunk_number, (_, chunk_rows) in enumerate(
+                chunk_sequence(rows, chunk_size),
+                start=1,
+            ):
+                created_before_chunk = created_compatibilities
+
+                async def on_progress(
+                    completed: int,
+                    total: int,
+                    chunk_created_compatibilities: int,
+                ) -> None:
+                    local_ratio = completed / max(total, 1)
+                    completed_equivalent = processed_rows + int(
+                        local_ratio * len(chunk_rows)
+                    )
+                    progress = 10 + int(
+                        (completed_equivalent / max(len(rows), 1)) * 85
+                    )
+                    current_created = (
+                        created_before_chunk
+                        + chunk_created_compatibilities
+                    )
+                    JobStore.update(
+                        job_id,
+                        progress=min(progress, 95),
+                        processed_rows=processed_rows,
+                        compatibilities_created=current_created,
+                        message=(
+                            f"Procesando bloque {chunk_number}/{total_chunks}: "
+                            f"{completed}/{total} lotes · "
+                            f"{current_created} compatibilidades agregadas"
+                        ),
+                    )
+
+                chunk_outcome = await process_compatibility_batches(
+                    access_token=access_token,
+                    user_id=user_id,
+                    rows=chunk_rows,
+                    metrics=metrics,
+                    on_progress=on_progress,
+                )
+                all_results.extend(chunk_outcome.get("results", []))
+                all_batch_results.extend(
+                    chunk_outcome.get("batch_results", [])
+                )
+                created_compatibilities += int(
+                    chunk_outcome.get("summary", {}).get(
+                        "total_created_compatibilities",
+                        0,
+                    )
+                    or 0
+                )
+                processed_rows += len(chunk_rows)
+
+                if chunk_number < total_chunks and pause_seconds > 0:
+                    JobStore.update(
+                        job_id,
+                        processed_rows=processed_rows,
+                        compatibilities_created=created_compatibilities,
+                        message=(
+                            f"Bloque {chunk_number}/{total_chunks} completado. "
+                            f"{created_compatibilities} compatibilidades agregadas. "
+                            f"Esperando {format_pause_minutes(pause_seconds)} "
+                            "para continuar."
+                        ),
+                    )
+                    await asyncio.sleep(pause_seconds)
+
+            outcome = {
+                "results": all_results,
+                "batch_results": all_batch_results,
+                "summary": build_compat_summary(
+                    all_results,
+                    all_batch_results,
+                    metrics,
+                ),
+            }
         finally:
             await ml_client.shutdown()
 
@@ -113,8 +198,16 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
             result_path=result_path,
             summary=outcome["summary"],
             processed_rows=outcome["summary"].get("processed_rows", len(rows)),
+            compatibilities_created=outcome["summary"].get(
+                "total_created_compatibilities",
+                0,
+            ),
             batch_debug_path=batch_debug_path,
-            message="Carga batch de compatibilidades finalizada",
+            message=(
+                "Carga batch de compatibilidades finalizada · "
+                f"{outcome['summary'].get('total_created_compatibilities', 0)} "
+                "compatibilidades agregadas"
+            ),
         )
 
         logger.info("[TASK BATCH][OK] job_id=%s result_path=%s", job_id, result_path)

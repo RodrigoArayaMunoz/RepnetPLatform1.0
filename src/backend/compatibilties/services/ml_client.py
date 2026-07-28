@@ -442,52 +442,31 @@ class MercadoLibreClient:
 
         return []
 
-    async def search_vehicle_products(
+    async def count_vehicle_family_products(
         self,
         access_token: str | None = None,
-        brand_id: str | None = None,
-        model_id: str | None = None,
-        year_id: str | None = None,
-        version_id: str | None = None,
-        transmission_id: str | None = None,
-        engine_id: str | None = None,
+        attributes: list[dict[str, Any]] | None = None,
+        domain_id: str | None = None,
         user_id: int | str | None = None,
-    ) -> list[dict]:
-        known_attributes: list[dict[str, Any]] = []
-
-        if brand_id:
-            known_attributes.append({"id": "BRAND", "value_ids": [brand_id]})
-        if model_id:
-            known_attributes.append({"id": "CAR_AND_VAN_MODEL", "value_ids": [model_id]})
-        if year_id:
-            known_attributes.append({"id": "YEAR", "value_ids": [year_id]})
-        if version_id:
-            known_attributes.append({"id": "CAR_AND_VAN_SUBMODEL", "value_ids": [version_id]})
-        if engine_id:
-            known_attributes.append({"id": "CAR_AND_VAN_ENGINE", "value_ids": [engine_id]})
-        if transmission_id:
-            known_attributes.append(
-                {"id": "TRANSMISSION_CONTROL_TYPE", "value_ids": [transmission_id]}
-            )
-
+    ) -> int:
         response = await self.request(
             "POST",
-            "/catalog_compatibilities/products_search/chunks",
+            "/catalog_compatibilities/products_search/count_family_products",
             access_token=access_token,
             json_body={
-                "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
-                "site_id": "MLC",
-                "known_attributes": known_attributes,
+                "domain_id": domain_id or settings.ml_domain_id,
+                "attributes": attributes or [],
             },
             user_id=user_id,
         )
 
         if isinstance(response, dict):
-            results = response.get("results")
-            if isinstance(results, list):
-                return [x for x in results if isinstance(x, dict)]
+            try:
+                return max(0, int(response.get("count", 0) or 0))
+            except (TypeError, ValueError):
+                return 0
 
-        return []
+        return 0
 
     async def add_user_product_compatibility(
         self,
@@ -566,6 +545,33 @@ class MercadoLibreClient:
 
         #print(f"[DEBUG] RESPONSE:\n{_json.dumps(data if isinstance(data, dict) else {'raw': str(data)}, indent=2, ensure_ascii=False)}")
         #print("=" * 60)
+
+        return data if isinstance(data, dict) else {"raw_response": data}
+
+    async def add_user_product_compatibility_families_batch(
+        self,
+        access_token: str | None,
+        user_product_id: str,
+        category_id: str,
+        product_families: list[dict[str, Any]],
+        user_id: int | str | None = None,
+    ) -> dict:
+        if not product_families:
+            return {"created_compatibilities_count": 0}
+
+        body = {
+            "domain_id": settings.ml_domain_id,
+            "category_id": category_id,
+            "products_families": product_families,
+        }
+
+        data = await self.request(
+            "POST",
+            f"/user-products/{user_product_id}/compatibilities",
+            access_token=access_token,
+            json_body=body,
+            user_id=user_id,
+        )
 
         return data if isinstance(data, dict) else {"raw_response": data}
 

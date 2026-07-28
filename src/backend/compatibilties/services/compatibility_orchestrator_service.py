@@ -66,6 +66,7 @@ async def process_excel_compatibilities_end_to_end(
         completed_chunks=0,
         processed_rows=0,
         processed_unique_rows=0,
+        compatibilities_created=0,
         message="Preparando procesamiento de compatibilidades...",
     )
 
@@ -127,6 +128,7 @@ async def process_excel_compatibilities_end_to_end(
     all_batch_results: list[dict] = []
     all_final_rows: list[dict] = []
     completed_rows = 0
+    created_compatibilities = 0
     resolution_summary = _empty_resolution_summary()
 
     for chunk_number, (start_index, chunk_rows) in enumerate(
@@ -183,18 +185,29 @@ async def process_excel_compatibilities_end_to_end(
             chunk_resolution_summary.get("compatibilities_error", 0)
         )
 
-        async def on_batch_progress(completed_batches: int, total_batches: int) -> None:
+        created_before_chunk = created_compatibilities
+
+        async def on_batch_progress(
+            completed_batches: int,
+            total_batches: int,
+            chunk_created_compatibilities: int,
+        ) -> None:
             local_ratio = completed_batches / max(total_batches, 1)
             completed_equivalent_rows = completed_rows + int(local_ratio * len(chunk_rows))
             progress = 10 + int(
                 (completed_equivalent_rows / max(total_rows, 1)) * 85
             )
+            current_created = (
+                created_before_chunk + chunk_created_compatibilities
+            )
             JobStore.update(
                 job_id,
                 progress=min(progress, 95),
+                compatibilities_created=current_created,
                 message=(
                     f"Procesando bloque {chunk_number}/{total_chunks}: "
-                    f"{completed_batches}/{total_batches} lotes aplicados"
+                    f"{completed_batches}/{total_batches} lotes aplicados · "
+                    f"{current_created} compatibilidades agregadas"
                 ),
             )
 
@@ -208,6 +221,13 @@ async def process_excel_compatibilities_end_to_end(
 
         all_final_rows.extend(batch_result.get("results", []))
         all_batch_results.extend(batch_result.get("batch_results", []))
+        created_compatibilities += int(
+            batch_result.get("summary", {}).get(
+                "total_created_compatibilities",
+                0,
+            )
+            or 0
+        )
 
         completed_rows += len(chunk_rows)
         progress = 10 + int((completed_rows / max(total_rows, 1)) * 85)
@@ -217,7 +237,11 @@ async def process_excel_compatibilities_end_to_end(
             processed_rows=completed_rows,
             processed_unique_rows=min(total_unique_rows, completed_rows),
             completed_chunks=chunk_number,
-            message=f"Bloque {chunk_number}/{total_chunks} completado",
+            compatibilities_created=created_compatibilities,
+            message=(
+                f"Bloque {chunk_number}/{total_chunks} completado · "
+                f"{created_compatibilities} compatibilidades agregadas"
+            ),
         )
 
         if chunk_number < total_chunks and pause_seconds > 0:
@@ -226,6 +250,7 @@ async def process_excel_compatibilities_end_to_end(
                 progress=min(progress, 95),
                 message=(
                     f"Bloque {chunk_number}/{total_chunks} completado. "
+                    f"{created_compatibilities} compatibilidades agregadas. "
                     f"Esperando {format_pause_minutes(pause_seconds)} para continuar."
                 ),
             )
@@ -244,11 +269,19 @@ async def process_excel_compatibilities_end_to_end(
     JobStore.update(
         job_id,
         progress=100,
-        message="Procesamiento finalizado",
         processed_rows=compat_summary.get("processed_rows", 0),
         processed_unique_rows=total_unique_rows,
+        compatibilities_created=compat_summary.get(
+            "total_created_compatibilities",
+            0,
+        ),
         summary=final_summary,
         results=all_final_rows,
+        message=(
+            "Procesamiento finalizado · "
+            f"{compat_summary.get('total_created_compatibilities', 0)} "
+            "compatibilidades agregadas"
+        ),
     )
 
     logger.info(

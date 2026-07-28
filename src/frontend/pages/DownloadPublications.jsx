@@ -51,7 +51,6 @@ export default function DownloadPublications({ authUserId }) {
   const [publicationDate, setPublicationDate] = useState(getLocalToday);
   const [syncState, setSyncState] = useState(null);
   const [syncError, setSyncError] = useState("");
-  const [isSyncStatusLoaded, setIsSyncStatusLoaded] = useState(false);
   const [exportJob, setExportJob] = useState(null);
   const [exportError, setExportError] = useState("");
   const [isStartingExport, setIsStartingExport] = useState(false);
@@ -62,9 +61,6 @@ export default function DownloadPublications({ authUserId }) {
     exportJob?.status
   );
   const isExportBusy = isStartingExport || isExporting;
-  const hasStoredPublications = syncState?.has_publications === true;
-  const showPublicationLoadControls =
-    isSyncStatusLoaded && !hasStoredPublications;
 
   const loadSyncStatus = useCallback(async () => {
     try {
@@ -87,7 +83,6 @@ export default function DownloadPublications({ authUserId }) {
       }
 
       setSyncState(data);
-      setIsSyncStatusLoaded(true);
       if (data?.status !== "error") {
         setSyncError("");
       }
@@ -389,96 +384,92 @@ export default function DownloadPublications({ authUserId }) {
         </header>
 
         <div className="download-publications-card">
-          {showPublicationLoadControls ? (
-            <>
-              <div className="download-publications-load-section">
-                <span className="download-publications-section-label">
-                  Publicaciones de Mercado Libre
-                </span>
+          <div className="download-publications-load-section">
+            <span className="download-publications-section-label">
+              Publicaciones de Mercado Libre
+            </span>
 
-                <button
-                  type="button"
-                  className="download-publications-load-button"
-                  onClick={handleLoadPublications}
-                  disabled={isSyncing}
-                >
-                  {isSyncing ? (
-                    <LoaderCircle
-                      className="download-publications-button-spinner"
-                      size={20}
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <CloudDownload size={20} aria-hidden="true" />
-                  )}
-                  {isSyncing
-                    ? "Cargando Publicaciones..."
-                    : "Cargar Publicaciones"}
-                </button>
+            <button
+              type="button"
+              className="download-publications-load-button"
+              onClick={handleLoadPublications}
+              disabled={isSyncing}
+            >
+              {isSyncing ? (
+                <LoaderCircle
+                  className="download-publications-button-spinner"
+                  size={20}
+                  aria-hidden="true"
+                />
+              ) : (
+                <CloudDownload size={20} aria-hidden="true" />
+              )}
+              {isSyncing
+                ? "Cargando Publicaciones..."
+                : "Cargar Publicaciones"}
+            </button>
 
-                {(syncState?.status && syncState.status !== "idle") ||
-                syncError ? (
-                  <div
-                    className={`download-publications-sync-status ${
-                      syncError || syncState?.status === "error"
-                        ? "download-publications-sync-status--error"
-                        : ""
-                    }`}
-                    aria-live="polite"
-                  >
-                    <div className="download-publications-sync-heading">
-                      <span>
-                        {syncError ||
-                          syncState?.last_error ||
-                          syncState?.message ||
-                          "Preparando carga..."}
-                      </span>
-                      <strong>{Number(syncState?.progress || 0)}%</strong>
-                    </div>
-
-                    <div className="download-publications-progress-track">
-                      <span
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.max(0, Number(syncState?.progress || 0))
-                          )}%`,
-                        }}
-                      />
-                    </div>
-
-                    {syncState && (
-                      <div className="download-publications-sync-metrics">
-                        <span>
-                          Listadas:{" "}
-                          {Number(syncState.scanned_count || 0).toLocaleString(
-                            "es-CL"
-                          )}
-                        </span>
-                        <span>
-                          Guardadas:{" "}
-                          {Number(syncState.saved_count || 0).toLocaleString(
-                            "es-CL"
-                          )}
-                        </span>
-                        <span>
-                          Sin detalle:{" "}
-                          {Number(syncState.failed_count || 0).toLocaleString(
-                            "es-CL"
-                          )}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-
+            {(syncState?.status && syncState.status !== "idle") ||
+            syncError ? (
               <div
-                className="download-publications-divider"
-                aria-hidden="true"
-              />
-            </>
-          ) : null}
+                className={`download-publications-sync-status ${
+                  syncError || syncState?.status === "error"
+                    ? "download-publications-sync-status--error"
+                    : ""
+                }`}
+                aria-live="polite"
+              >
+                <div className="download-publications-sync-heading">
+                  <span>
+                    {syncError ||
+                      syncState?.last_error ||
+                      syncState?.message ||
+                      "Preparando carga..."}
+                  </span>
+                  <strong>{Number(syncState?.progress || 0)}%</strong>
+                </div>
+
+                <div className="download-publications-progress-track">
+                  <span
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, Number(syncState?.progress || 0))
+                      )}%`,
+                    }}
+                  />
+                </div>
+
+                {syncState && (
+                  <div className="download-publications-sync-metrics">
+                    <span>
+                      Listadas:{" "}
+                      {Number(syncState.scanned_count || 0).toLocaleString(
+                        "es-CL"
+                      )}
+                    </span>
+                    <span>
+                      Guardadas:{" "}
+                      {Number(syncState.saved_count || 0).toLocaleString(
+                        "es-CL"
+                      )}
+                    </span>
+                    <span>
+                      Sin detalle:{" "}
+                      {Number(syncState.failed_count || 0).toLocaleString(
+                        "es-CL"
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div
+            className="download-publications-divider"
+            aria-hidden="true"
+          />
 
           <div className="download-publications-filter-row">
             <div className="download-publications-date-field">

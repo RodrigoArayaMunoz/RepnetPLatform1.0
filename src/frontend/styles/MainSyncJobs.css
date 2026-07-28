@@ -655,11 +655,20 @@
 }
 
 .progress-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
   white-space: nowrap;
   font-size: 0.78rem;
   font-weight: 700;
   color: #475569;
   min-width: fit-content;
+}
+
+.progress-label__created {
+  color: #15803d;
+  font-size: 0.72rem;
 }
 
 .main-sync-jobs__quick-card {

@@ -1,3 +1,5 @@
+import asyncio
+import json
 import logging
 import re
 from typing import Any
@@ -11,7 +13,33 @@ logger = logging.getLogger(__name__)
 
 class SupabasePublicationsStore:
     UPSERT_BATCH_SIZE = 500
+    UPSERT_MAX_ATTEMPTS = 5
+    UPSERT_RETRY_BASE_DELAY_SECONDS = 1.0
+    UPSERT_RETRY_MAX_DELAY_SECONDS = 8.0
+    UPSERT_SPLIT_MIN_BATCH_SIZE = 50
     READ_PAGE_SIZE = 1000
+    _RETRYABLE_STATUS_CODES = {
+        408,
+        425,
+        429,
+        500,
+        502,
+        503,
+        504,
+        520,
+        522,
+        524,
+    }
+    _SPLITTABLE_STATUS_CODES = {
+        413,
+        500,
+        502,
+        503,
+        504,
+        520,
+        522,
+        524,
+    }
 
     def __init__(self) -> None:
         self.table_name = settings.supabase_publications_table
@@ -199,25 +227,138 @@ class SupabasePublicationsStore:
             return 0
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                self.table_url,
-                headers=self._headers(upsert=True),
-                params={"on_conflict": "seller_id,mlc"},
-                json=rows,
+            return await self._upsert_batch(client, rows)
+
+    async def _upsert_batch(
+        self,
+        client: httpx.AsyncClient,
+        rows: list[dict[str, Any]],
+    ) -> int:
+        last_status: int | None = None
+        last_body = ""
+
+        for attempt in range(1, self.UPSERT_MAX_ATTEMPTS + 1):
+            try:
+                response = await client.post(
+                    self.table_url,
+                    headers=self._headers(upsert=True),
+                    params={"on_conflict": "seller_id,mlc"},
+                    json=rows,
+                )
+            except httpx.TransportError as exc:
+                logger.warning(
+                    "[SUPABASE_PUBLICATIONS][UPSERT_TRANSPORT_RETRY] "
+                    "attempt=%s/%s rows=%s error=%s",
+                    attempt,
+                    self.UPSERT_MAX_ATTEMPTS,
+                    len(rows),
+                    type(exc).__name__,
+                )
+                if attempt >= self.UPSERT_MAX_ATTEMPTS:
+                    raise RuntimeError(
+                        "No se pudo conectar con Supabase después de varios intentos. "
+                        "La carga guardada hasta ahora se conserva; vuelve a ejecutarla."
+                    ) from exc
+
+                await asyncio.sleep(self._retry_delay(attempt))
+                continue
+
+            if response.status_code < 400:
+                return len(rows)
+
+            last_status = response.status_code
+            last_body = response.text[:1000]
+            can_retry = last_status in self._RETRYABLE_STATUS_CODES
+
+            if can_retry and attempt < self.UPSERT_MAX_ATTEMPTS:
+                logger.warning(
+                    "[SUPABASE_PUBLICATIONS][UPSERT_RETRY] "
+                    "status=%s attempt=%s/%s rows=%s body=%s",
+                    last_status,
+                    attempt,
+                    self.UPSERT_MAX_ATTEMPTS,
+                    len(rows),
+                    last_body,
+                )
+                await asyncio.sleep(self._retry_delay(attempt))
+                continue
+
+            break
+
+        if (
+            last_status in self._SPLITTABLE_STATUS_CODES
+            and len(rows) > self.UPSERT_SPLIT_MIN_BATCH_SIZE
+        ):
+            midpoint = len(rows) // 2
+            logger.warning(
+                "[SUPABASE_PUBLICATIONS][UPSERT_SPLIT] "
+                "status=%s rows=%s left=%s right=%s",
+                last_status,
+                len(rows),
+                midpoint,
+                len(rows) - midpoint,
+            )
+            left_count = await self._upsert_batch(client, rows[:midpoint])
+            right_count = await self._upsert_batch(client, rows[midpoint:])
+            return left_count + right_count
+
+        logger.error(
+            "[SUPABASE_PUBLICATIONS][UPSERT_ERROR] status=%s rows=%s body=%s",
+            last_status,
+            len(rows),
+            last_body,
+        )
+        raise RuntimeError(self._upsert_error_message(last_status, last_body))
+
+    def _retry_delay(self, attempt: int) -> float:
+        return min(
+            self.UPSERT_RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1)),
+            self.UPSERT_RETRY_MAX_DELAY_SECONDS,
+        )
+
+    @staticmethod
+    def _response_detail(body: str) -> str:
+        if not body:
+            return ""
+
+        try:
+            parsed = json.loads(body)
+        except (TypeError, json.JSONDecodeError):
+            return body.strip()[:300]
+
+        if not isinstance(parsed, dict):
+            return body.strip()[:300]
+
+        parts = [
+            str(parsed.get(key) or "").strip()
+            for key in ("message", "details", "hint", "code")
+        ]
+        return " ".join(part for part in parts if part)[:300]
+
+    def _upsert_error_message(self, status: int | None, body: str) -> str:
+        if status in {400, 404}:
+            detail = self._response_detail(body)
+            suffix = f" Detalle: {detail}" if detail else ""
+            return (
+                f"Supabase rechazó los datos del lote ({status}). Verifica la "
+                f"estructura de la tabla publicaciones_ml.{suffix}"
             )
 
-        if response.status_code >= 400:
-            logger.error(
-                "[SUPABASE_PUBLICATIONS][UPSERT_ERROR] status=%s body=%s",
-                response.status_code,
-                response.text[:1000],
-            )
-            raise RuntimeError(
-                f"Supabase rechazó el lote de publicaciones ({response.status_code}). "
-                "Verifica que la tabla publicaciones_ml tenga la estructura indicada."
+        if status in {401, 403}:
+            return (
+                f"Supabase rechazó las credenciales del backend ({status}). "
+                "Revisa SUPABASE_SERVICE_ROLE_KEY."
             )
 
-        return len(rows)
+        if status in self._RETRYABLE_STATUS_CODES:
+            return (
+                f"Supabase no pudo procesar un lote después de "
+                f"{self.UPSERT_MAX_ATTEMPTS} intentos ({status}). Es un error "
+                "temporal del servicio; la carga guardada se conserva y puede "
+                "volver a ejecutarse."
+            )
+
+        return f"Supabase rechazó el lote de publicaciones ({status})."
 
     async def delete_stale_rows(self, *, seller_id: str, sync_run_id: str) -> None:
         async with httpx.AsyncClient(timeout=60.0) as client:

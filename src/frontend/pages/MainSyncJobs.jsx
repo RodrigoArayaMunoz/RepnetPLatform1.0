@@ -39,8 +39,11 @@ export default function MainSyncJobs() {
   const [queueButtonText, setQueueButtonText] = useState("Ejecutar procesos");
   const [queueMessage, setQueueMessage] = useState("");
   const [queueCurrentProcessRowId, setQueueCurrentProcessRowId] = useState(null);
+  const [queueCurrentProcessType, setQueueCurrentProcessType] = useState(null);
+  const [jobMessage, setJobMessage] = useState("");
   const [jobProcessedRows, setJobProcessedRows] = useState(0);
   const [jobTotalRows, setJobTotalRows] = useState(0);
+  const [jobCompatibilitiesCreated, setJobCompatibilitiesCreated] = useState(0);
   const [selectedErrorRow, setSelectedErrorRow] = useState(null);
   const [selectedErrorDetails, setSelectedErrorDetails] = useState(null);
   const [isLoadingErrorDetails, setIsLoadingErrorDetails] = useState(false);
@@ -147,7 +150,7 @@ export default function MainSyncJobs() {
 
   const visibleQueueMessage = useMemo(() => {
     if (isQueueRunning) {
-      return queueMessage;
+      return jobMessage || queueMessage;
     }
 
     if (hasPendingProcesses) {
@@ -157,7 +160,13 @@ export default function MainSyncJobs() {
     }
 
     return queueMessage;
-  }, [hasPendingProcesses, isQueueRunning, pendingProcessCount, queueMessage]);
+  }, [
+    hasPendingProcesses,
+    isQueueRunning,
+    jobMessage,
+    pendingProcessCount,
+    queueMessage,
+  ]);
 
   const totalProcessPages = Math.max(
     1,
@@ -366,8 +375,13 @@ export default function MainSyncJobs() {
       setQueueButtonText(data?.button_text || "Ejecutar procesos");
       setQueueMessage(data?.message || "");
       setQueueCurrentProcessRowId(data?.current_process_row_id || null);
+      setQueueCurrentProcessType(data?.current_process_type || null);
+      setJobMessage(data?.job_message || "");
       setJobProcessedRows(data?.job_processed_rows ?? 0);
       setJobTotalRows(data?.job_total_rows ?? 0);
+      setJobCompatibilitiesCreated(
+        data?.job_compatibilities_created ?? 0
+      );
       return data;
     } catch (error) {
       console.error("Error consultando estado de cola:", error);
@@ -875,6 +889,9 @@ export default function MainSyncJobs() {
                   const isExportingCurrentRow = exportingRowId === row.id;
                   const showProgressBar =
                     isCurrentlyProcessing && jobTotalRows > 0;
+                  const showCompatibilityCounter =
+                    isCurrentlyProcessing &&
+                    queueCurrentProcessType === "compatibilities";
                   const progressPercent = showProgressBar
                     ? Math.min(
                         100,
@@ -962,7 +979,14 @@ export default function MainSyncJobs() {
                                 />
                               </div>
                               <span className="progress-label">
-                                {jobProcessedRows} / {jobTotalRows}
+                                <span>
+                                  {jobProcessedRows} / {jobTotalRows} filas
+                                </span>
+                                {showCompatibilityCounter ? (
+                                  <span className="progress-label__created">
+                                    {jobCompatibilitiesCreated} agregadas
+                                  </span>
+                                ) : null}
                               </span>
                             </div>
                           )}

@@ -51,7 +51,11 @@ async def _resolve_products_job(job_id: str, user_id: str, site_id: str) -> None
                 user_id=user_id,
             )
 
-            JobStore.update(job_id, progress=10, message="Resolviendo product_id...")
+            JobStore.update(
+                job_id,
+                progress=10,
+                message="Validando familias de vehículos...",
+            )
 
             outcome = await resolve_products_from_rows(
                 job_id=job_id,
@@ -64,7 +68,10 @@ async def _resolve_products_job(job_id: str, user_id: str, site_id: str) -> None
         finally:
             await ml_client.shutdown()
 
-        result_path = os.path.join(settings.upload_dir, f"{job_id}_resolved_products.json")
+        result_path = os.path.join(
+            settings.upload_dir,
+            f"{job_id}_resolved_families.json",
+        )
         save_json(result_path, outcome["rows"])
 
         JobStore.update(
@@ -74,13 +81,13 @@ async def _resolve_products_job(job_id: str, user_id: str, site_id: str) -> None
             result_path=result_path,
             processed_rows=len(outcome["rows"]),
             summary=outcome["summary"],
-            message="Resolución de product_id finalizada",
+            message="Resolución de familias de vehículos finalizada",
         )
     except Exception as exc:
         JobStore.update(
             job_id,
             status="error",
             progress=0,
-            message=f"Error resolviendo product_id: {str(exc)}",
+            message=f"Error resolviendo familias de vehículos: {str(exc)}",
         )
         raise

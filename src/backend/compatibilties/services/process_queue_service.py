@@ -705,6 +705,7 @@ async def run_process_queue(*, user_id: str) -> None:
     delay_seconds = max(0, int(getattr(settings, "process_queue_delay_seconds", 1200)))
     completed_count = 0
     last_error: str | None = None
+    last_completion_message = ""
 
     await ml_client.startup()
     await supabase_meli_connection_store.restore_token_store()
@@ -713,7 +714,11 @@ async def run_process_queue(*, user_id: str) -> None:
             pending_rows = await supabase_process_store.list_pending_processes()
             if not pending_rows:
                 process_queue_store.finish(
-                    message="Cola finalizada. No hay procesos pendientes.",
+                    message=(
+                        f"Cola finalizada. {last_completion_message}"
+                        if last_completion_message
+                        else "Cola finalizada. No hay procesos pendientes."
+                    ),
                     last_error=last_error,
                 )
                 return
@@ -800,6 +805,23 @@ async def run_process_queue(*, user_id: str) -> None:
                         process_queue_result_store.clear(current_row_id)
                 completed_count += 1
                 last_error = None
+                created_compatibilities = int(
+                    summary.get("total_created_compatibilities", 0) or 0
+                )
+                if process_type == "compatibilities":
+                    last_completion_message = (
+                        f"{created_compatibilities} compatibilidades "
+                        f"agregadas correctamente en {current_filename}."
+                    )
+                elif has_partial_errors:
+                    last_completion_message = (
+                        f"Proceso {current_filename} finalizado con errores "
+                        "en algunos MLC."
+                    )
+                else:
+                    last_completion_message = (
+                        f"Proceso {current_filename} finalizado correctamente."
+                    )
 
                 logger.info(
                     "[PROCESS_QUEUE][OK] row_id=%s proceso_id=%s type=%s internal_job_id=%s result=%s",
@@ -813,11 +835,7 @@ async def run_process_queue(*, user_id: str) -> None:
                 process_queue_store.update(
                     processed_count=completed_count,
                     current_process_type=process_type,
-                    message=(
-                        f"Proceso {current_filename} finalizado con errores en algunos MLC"
-                        if has_partial_errors
-                        else f"Proceso {current_filename} finalizado correctamente"
-                    ),
+                    message=last_completion_message,
                     last_error=None,
                 )
             except Exception as exc:
@@ -830,6 +848,10 @@ async def run_process_queue(*, user_id: str) -> None:
                     process_type=process_queue_store.get_state().get("current_process_type"),
                 )
                 last_error = error_payload["message"]
+                last_completion_message = (
+                    f"Error procesando {current_filename}: "
+                    f"{error_payload['message']}"
+                )
                 logger.exception(
                     "[PROCESS_QUEUE][ERROR] row_id=%s proceso_id=%s",
                     current_row_id,
@@ -841,14 +863,18 @@ async def run_process_queue(*, user_id: str) -> None:
                     process_queue_result_store.clear(current_row_id)
                 process_queue_store.update(
                     processed_count=completed_count,
-                    message=f"Error procesando {current_filename}: {error_payload['message']}",
+                    message=last_completion_message,
                     last_error=error_payload["message"],
                 )
 
             remaining_rows = await supabase_process_store.list_pending_processes()
             if not remaining_rows:
                 process_queue_store.finish(
-                    message="Cola finalizada. No hay procesos pendientes.",
+                    message=(
+                        f"Cola finalizada. {last_completion_message}"
+                        if last_completion_message
+                        else "Cola finalizada. No hay procesos pendientes."
+                    ),
                     last_error=last_error,
                 )
                 return

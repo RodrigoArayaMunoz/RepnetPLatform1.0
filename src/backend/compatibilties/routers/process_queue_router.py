@@ -140,14 +140,23 @@ async def get_process_queue_status():
             state["job_processed_rows"] = job.get("processed_rows", 0)
             state["job_total_rows"] = job.get("total_rows", 0)
             state["job_progress"] = job.get("progress", 0)
+            state["job_compatibilities_created"] = job.get(
+                "compatibilities_created",
+                0,
+            )
+            state["job_message"] = job.get("message", "")
         else:
             state["job_processed_rows"] = 0
             state["job_total_rows"] = 0
             state["job_progress"] = 0
+            state["job_compatibilities_created"] = 0
+            state["job_message"] = ""
     else:
         state["job_processed_rows"] = 0
         state["job_total_rows"] = 0
         state["job_progress"] = 0
+        state["job_compatibilities_created"] = 0
+        state["job_message"] = ""
 
     return state
 

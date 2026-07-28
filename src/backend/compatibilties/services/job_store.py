@@ -28,6 +28,7 @@ class JobStore:
             "total_unique_rows": 0,
             "processed_rows": 0,
             "processed_unique_rows": 0,
+            "compatibilities_created": 0,
             "total_chunks": 0,
             "completed_chunks": 0,
             "result_path": None,

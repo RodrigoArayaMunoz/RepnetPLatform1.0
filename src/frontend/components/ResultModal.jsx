@@ -51,6 +51,19 @@ function flattenResults(results = []) {
             "-",
           ok: !!detail.ok,
           product_id: safeText(detail.product_id, safeText(group.product_id, "")),
+          compatibility_mode: safeText(
+            detail.compatibility_mode,
+            safeText(group.compatibility_mode, "")
+          ),
+          product_family_key: safeText(
+            detail.product_family_key,
+            safeText(group.product_family_key, "")
+          ),
+          matched_products_count: Number(
+            detail.matched_products_count ??
+              group.family_product_count ??
+              0
+          ),
           reason:
             safeText(detail.reason, "") ||
             safeText(detail.error_message, "") ||
@@ -80,6 +93,9 @@ function flattenResults(results = []) {
           "-",
         ok: !!group.ok,
         product_id: safeText(group.product_id, ""),
+        compatibility_mode: safeText(group.compatibility_mode, ""),
+        product_family_key: safeText(group.product_family_key, ""),
+        matched_products_count: Number(group.family_product_count ?? 0),
         reason: groupReason,
         error_code: safeText(group.error_code, ""),
         category_id: categoryId,
@@ -95,8 +111,9 @@ function flattenResults(results = []) {
 }
 
 function buildUniqueCompatKey(row) {
-  if (row.ok && row.item_id && row.product_id) {
-    return `ok::${normalizeText(row.item_id)}::${normalizeText(row.product_id)}`;
+  const resolvedKey = row.product_id || row.product_family_key;
+  if (row.ok && row.item_id && resolvedKey) {
+    return `ok::${normalizeText(row.item_id)}::${normalizeText(resolvedKey)}`;
   }
 
   return [
@@ -142,6 +159,9 @@ function dedupeCompatRows(rows = []) {
 
     if (!existing.product_id && row.product_id) {
       existing.product_id = row.product_id;
+    }
+    if (!existing.product_family_key && row.product_family_key) {
+      existing.product_family_key = row.product_family_key;
     }
     if (!existing.reason && row.reason) {
       existing.reason = row.reason;
@@ -229,7 +249,9 @@ function downloadCsv(rows) {
     "Item ID",
     "Año",
     "Estado",
+    "Tipo compatibilidad",
     "Product ID",
+    "Productos coincidentes",
     "Motivo",
     "Código Error",
     "Motor",
@@ -253,7 +275,13 @@ function downloadCsv(rows) {
         escape(row.item_id),
         escape(row.year),
         escape(row.ok ? "OK" : "ERROR"),
+        escape(
+          row.compatibility_mode === "product_family"
+            ? "Familia de productos"
+            : "Producto"
+        ),
         escape(row.product_id),
+        escape(row.matched_products_count),
         escape(row.reason),
         escape(row.error_code),
         escape(row.engine_name),
@@ -295,7 +323,10 @@ function YearStatusRow({ row }) {
 
         {row.ok ? (
           <div>
-            <strong>Product ID:</strong> {row.product_id || "-"}
+            <strong>Compatibilidad:</strong>{" "}
+            {row.compatibility_mode === "product_family"
+              ? `Familia validada (${row.matched_products_count || 0} producto(s))`
+              : `Product ID ${row.product_id || "-"}`}
           </div>
         ) : (
           <>
@@ -507,6 +538,10 @@ function resolveSummary(summary, compatRows) {
       )
       .filter((v) => !v.endsWith("__"))
   ).size;
+  const hasCreatedCounter = Object.prototype.hasOwnProperty.call(
+    summary || {},
+    "total_created_compatibilities"
+  );
 
   return {
     processedRows:
@@ -532,6 +567,11 @@ function resolveSummary(summary, compatRows) {
       summary?.compatibilities_error ??
       summary?.error_count ??
       fallbackError,
+
+    compatibilitiesCreated:
+      summary?.total_created_compatibilities ?? 0,
+
+    hasCreatedCounter,
 
     brands:
       summary?.brands ??
@@ -585,6 +625,7 @@ export default function ResultModal({ open, onClose, summary, results }) {
         row.item_id,
         row.year,
         row.product_id,
+        row.product_family_key,
         row.reason,
         row.error_code,
       ]
@@ -633,6 +674,13 @@ export default function ResultModal({ open, onClose, summary, results }) {
               <span>Compatibilidades únicas</span>
               <strong>{summaryData.uniqueCompatibilities}</strong>
             </div>
+
+            {summaryData.hasCreatedCounter ? (
+              <div className="rm-summary-card success">
+                <span>Compatibilidades agregadas</span>
+                <strong>{summaryData.compatibilitiesCreated}</strong>
+              </div>
+            ) : null}
 
             <button
               type="button"

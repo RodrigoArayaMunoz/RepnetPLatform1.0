@@ -150,11 +150,11 @@ class Settings(BaseSettings):
     max_row_concurrency: int = 2
     job_progress_update_every: int = 25
 
-    compat_batch_size: int = 200
+    compat_batch_size: int = 100
     compat_batch_concurrency: int = 2
     process_file_chunk_size: int = 100
     process_file_chunk_pause_seconds: int = 2 * 60
-    compatibility_chunk_pause_seconds: int = 2 * 60
+    compatibility_chunk_pause_seconds: int = 3 * 60 + 30
     compatibility_exception_chunk_pause_seconds: int = 2 * 60
     price_stock_chunk_pause_seconds: int = 2 * 60
     item_pictures_chunk_pause_seconds: int = 2 * 60

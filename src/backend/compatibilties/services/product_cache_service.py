@@ -28,7 +28,8 @@ class ProductCacheService:
         return ":".join(
             [
                 "compat",
-                "product",
+                "family",
+                "v1",
                 cls._normalize(site_id),
                 cls._normalize(brand_name),
                 cls._normalize(model_name),
