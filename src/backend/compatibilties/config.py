@@ -86,6 +86,8 @@ class Settings(BaseSettings):
     ml_retry_max_delay_seconds: float = 60.0
     ml_retry_429_min_delay_seconds: float = 12.0
     ml_retry_429_cooldown_seconds: float = 30.0
+    ml_retry_unknown_403_min_delay_seconds: float = 5.0
+    ml_retry_unknown_403_cooldown_seconds: float = 15.0
 
     # Exportacion de publicaciones con descripciones.
     ml_publication_export_requests_per_second: float = Field(

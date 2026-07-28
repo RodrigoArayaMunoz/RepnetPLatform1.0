@@ -38,6 +38,24 @@ def _parse_retry_after_seconds(response: httpx.Response) -> float | None:
     return None
 
 
+def _is_retryable_unknown_forbidden(response: httpx.Response) -> bool:
+    if response.status_code != 403:
+        return False
+
+    try:
+        payload = response.json()
+    except (TypeError, ValueError):
+        return False
+
+    if not isinstance(payload, dict):
+        return False
+
+    return (
+        str(payload.get("message") or "").strip().lower() == "unknown_error"
+        and str(payload.get("error") or "").strip().lower() == "forbidden"
+    )
+
+
 class MercadoLibreClient:
     def __init__(self) -> None:
         self.client: httpx.AsyncClient | None = None
@@ -122,6 +140,10 @@ class MercadoLibreClient:
                     json=json_body,
                     params=params,
                 )
+                retryable_unknown_forbidden = (
+                    method.upper() in {"GET", "HEAD"}
+                    and _is_retryable_unknown_forbidden(response)
+                )
 
                 if response.status_code == 401:
                     if user_id is not None and not refreshed_after_401:
@@ -140,12 +162,21 @@ class MercadoLibreClient:
                         detail="Token inválido o expirado",
                     )
 
-                if response.status_code in retryable_status:
+                if (
+                    response.status_code in retryable_status
+                    or retryable_unknown_forbidden
+                ):
                     retry_after_seconds = _parse_retry_after_seconds(response)
                     response_payload = {
                         "message": f"ML API error {response.status_code}: {response.text}",
                         "status_code": response.status_code,
                         "retry_after_seconds": retry_after_seconds,
+                        "retryable": True,
+                        "retry_reason": (
+                            "unknown_forbidden"
+                            if retryable_unknown_forbidden
+                            else "http_status"
+                        ),
                     }
 
                     logger.warning(
@@ -169,6 +200,32 @@ class MercadoLibreClient:
                                     settings,
                                     "ml_retry_429_cooldown_seconds",
                                     30.0,
+                                )
+                            ),
+                            base_delay,
+                        )
+                        if (
+                            rate_limiter is not None
+                            and hasattr(rate_limiter, "penalize")
+                        ):
+                            await rate_limiter.penalize(limiter_cooldown)
+                    elif retryable_unknown_forbidden:
+                        base_delay = max(
+                            float(
+                                getattr(
+                                    settings,
+                                    "ml_retry_unknown_403_min_delay_seconds",
+                                    5.0,
+                                )
+                            ),
+                            settings.ml_retry_base_delay * (2 ** (attempt - 1)),
+                        )
+                        limiter_cooldown = max(
+                            float(
+                                getattr(
+                                    settings,
+                                    "ml_retry_unknown_403_cooldown_seconds",
+                                    15.0,
                                 )
                             ),
                             base_delay,

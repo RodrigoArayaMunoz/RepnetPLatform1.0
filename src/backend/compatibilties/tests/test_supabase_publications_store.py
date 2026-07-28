@@ -7,15 +7,17 @@ from services.supabase_publications_store import SupabasePublicationsStore
 
 
 class _FakeResponse:
-    def __init__(self, status_code, text=""):
+    def __init__(self, status_code, text="", headers=None):
         self.status_code = status_code
         self.text = text
+        self.headers = headers or {}
 
 
 class _FakeAsyncClient:
     def __init__(self, outcomes):
         self._outcomes = list(outcomes)
         self.row_counts = []
+        self.get_calls = []
 
     async def __aenter__(self):
         return self
@@ -25,6 +27,13 @@ class _FakeAsyncClient:
 
     async def post(self, *args, **kwargs):
         self.row_counts.append(len(kwargs["json"]))
+        outcome = self._outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    async def get(self, *args, **kwargs):
+        self.get_calls.append((args, kwargs))
         outcome = self._outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
@@ -125,6 +134,30 @@ class SupabasePublicationsUpsertTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(count, 4)
         self.assertEqual(client.row_counts, [4, 4])
         sleep.assert_awaited_once_with(1.0)
+
+    async def test_counts_only_rows_from_the_requested_sync_run(self):
+        client = _FakeAsyncClient(
+            [
+                _FakeResponse(
+                    206,
+                    headers={"content-range": "0-0/102708"},
+                )
+            ]
+        )
+
+        with patch(
+            "services.supabase_publications_store.httpx.AsyncClient",
+            return_value=client,
+        ):
+            count = await self.store.count_by_sync_run(
+                seller_id="2682261950",
+                sync_run_id="run-123",
+            )
+
+        self.assertEqual(count, 102708)
+        params = client.get_calls[0][1]["params"]
+        self.assertEqual(params["seller_id"], "eq.2682261950")
+        self.assertEqual(params["sync_run_id"], "eq.run-123")
 
 
 if __name__ == "__main__":

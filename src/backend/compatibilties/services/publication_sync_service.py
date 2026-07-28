@@ -51,6 +51,7 @@ class PublicationSyncService:
         publication_sync_store.update(
             status="scanning",
             seller_id=seller_id,
+            sync_run_id=sync_run_id,
             message="Listando publicaciones en Mercado Libre...",
         )
 
@@ -94,10 +95,17 @@ class PublicationSyncService:
                         sync_run_id=sync_run_id,
                     )
                     for chunk in chunk_group
-                )
+                ),
+                return_exceptions=True,
             )
 
-            for parsed_rows, chunk_failures in responses:
+            group_errors: list[Exception] = []
+            for chunk_response in responses:
+                if isinstance(chunk_response, Exception):
+                    group_errors.append(chunk_response)
+                    continue
+
+                parsed_rows, chunk_failures = chunk_response
                 rows_to_save.extend(parsed_rows)
                 processed_count += len(parsed_rows) + chunk_failures
                 failed_count += chunk_failures
@@ -105,8 +113,18 @@ class PublicationSyncService:
 
             while len(rows_to_save) >= supabase_publications_store.UPSERT_BATCH_SIZE:
                 batch = rows_to_save[: supabase_publications_store.UPSERT_BATCH_SIZE]
-                del rows_to_save[: supabase_publications_store.UPSERT_BATCH_SIZE]
-                saved_count += await supabase_publications_store.upsert_rows(batch)
+                saved_batch_count = (
+                    await supabase_publications_store.upsert_rows(batch)
+                )
+                saved_count += saved_batch_count
+                del rows_to_save[: len(batch)]
+
+            if group_errors and rows_to_save:
+                pending_rows = list(rows_to_save)
+                saved_count += await supabase_publications_store.upsert_rows(
+                    pending_rows
+                )
+                rows_to_save.clear()
 
             progress = 15 + int(
                 (processed_count / max(total_items, 1)) * 80
@@ -124,10 +142,34 @@ class PublicationSyncService:
                 ),
             )
 
+            if group_errors:
+                logger.error(
+                    "[PUBLICATION_SYNC][MULTIGET_GROUP_ERROR] "
+                    "seller_id=%s successful_chunks=%s failed_chunks=%s "
+                    "processed=%s saved=%s",
+                    seller_id,
+                    len(chunk_group) - len(group_errors),
+                    len(group_errors),
+                    processed_count,
+                    saved_count,
+                )
+                raise group_errors[0]
+
         if rows_to_save:
             saved_count += await supabase_publications_store.upsert_rows(rows_to_save)
 
-        if failed_count == 0:
+        verified_count = await supabase_publications_store.count_by_sync_run(
+            seller_id=seller_id,
+            sync_run_id=sync_run_id,
+        )
+        run_is_complete = (
+            failed_count == 0
+            and processed_count == total_items
+            and saved_count == total_items
+            and verified_count == total_items
+        )
+
+        if run_is_complete:
             await supabase_publications_store.delete_stale_rows(
                 seller_id=seller_id,
                 sync_run_id=sync_run_id,
@@ -139,8 +181,9 @@ class PublicationSyncService:
         else:
             final_status = "partial"
             final_message = (
-                f"Carga parcial: {saved_count} publicaciones guardadas y "
-                f"{failed_count} sin detalle. No se eliminaron registros anteriores."
+                f"Carga parcial: {verified_count}/{total_items} publicaciones "
+                f"verificadas en Supabase y {failed_count} sin detalle. "
+                "No se eliminaron registros anteriores."
             )
 
         summary = {
@@ -149,6 +192,7 @@ class PublicationSyncService:
             "scanned_count": total_items,
             "processed_count": processed_count,
             "saved_count": saved_count,
+            "verified_count": verified_count,
             "failed_count": failed_count,
             "multiget_batches": multiget_batches,
             "duration_seconds": round(time.monotonic() - started_at, 2),
@@ -191,12 +235,12 @@ class PublicationSyncService:
         if self._read_rate_limiter is None:
             self.start_request_context()
 
-        await self._read_rate_limiter.acquire()
         return await ml_client.request(
             method,
             path,
             params=params,
             user_id=user_id,
+            rate_limiter=self._read_rate_limiter,
         )
 
     async def _scan_all_item_ids(

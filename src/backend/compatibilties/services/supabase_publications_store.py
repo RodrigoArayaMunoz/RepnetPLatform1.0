@@ -164,6 +164,50 @@ class SupabasePublicationsStore:
         match = re.search(r"/(\d+)$", content_range)
         return int(match.group(1)) if match else 0
 
+    async def count_by_sync_run(
+        self,
+        *,
+        seller_id: str,
+        sync_run_id: str,
+    ) -> int:
+        headers = self._headers()
+        headers.update(
+            {
+                "Prefer": "count=exact",
+                "Range": "0-0",
+                "Range-Unit": "items",
+            }
+        )
+
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(
+                self.table_url,
+                headers=headers,
+                params={
+                    "select": "mlc",
+                    "seller_id": f"eq.{seller_id}",
+                    "sync_run_id": f"eq.{sync_run_id}",
+                },
+            )
+
+        if response.status_code >= 400:
+            logger.error(
+                "[SUPABASE_PUBLICATIONS][COUNT_RUN_ERROR] "
+                "status=%s seller_id=%s sync_run_id=%s body=%s",
+                response.status_code,
+                seller_id,
+                sync_run_id,
+                response.text[:1000],
+            )
+            raise RuntimeError(
+                "No se pudo verificar la cantidad guardada de la carga "
+                f"{sync_run_id} ({response.status_code})."
+            )
+
+        content_range = response.headers.get("content-range", "")
+        match = re.search(r"/(\d+)$", content_range)
+        return int(match.group(1)) if match else 0
+
     async def list_by_creation_date(
         self,
         creation_date: str,
