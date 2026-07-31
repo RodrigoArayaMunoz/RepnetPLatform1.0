@@ -13,6 +13,7 @@ import ProcessQueueErrorModal from "../components/ProcessQueueErrorModal.jsx";
 import "../styles/MainSyncJobs.css";
 import { supabase } from "../../lib/supabase.js";
 import { authFetch } from "../../lib/apiClient.js";
+import { sanitizeStorageFileName } from "../utils/storageFileName.js";
 
 const SYNC_ROUTE = "/procesos/sincronizacion-procesos";
 const PROCESS_BUCKET = "excel-procesos";
@@ -423,7 +424,7 @@ export default function MainSyncJobs() {
         return;
       }
 
-      const safeFileName = selectedFile.name.replace(/\s+/g, "_");
+      const safeFileName = sanitizeStorageFileName(selectedFile.name);
       const uniqueFileName = `${Date.now()}_${safeFileName}`;
       const storagePath = `${user.id}/${uniqueFileName}`;
       const bucketName = PROCESS_BUCKET;
