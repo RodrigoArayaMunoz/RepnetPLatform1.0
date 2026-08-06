@@ -10,7 +10,6 @@ from celery.utils.log import get_task_logger
 from celery_app import celery_app
 from config import settings
 from services.job_store import JobStore
-from services.ml_client import ml_client
 from services.publication_export_service import publication_export_service
 from services.publication_export_store import publication_export_store
 
@@ -160,7 +159,8 @@ def export_publications_task(
                 next_retry_at=time.time() + countdown,
                 heartbeat_at=time.time(),
                 message=(
-                    "Mercado Libre o la red no respondieron correctamente. "
+                    "La base de datos o el almacenamiento no respondieron "
+                    "correctamente. "
                     f"Reintento {retry_number}/"
                     f"{settings.ml_publication_export_task_max_retries} "
                     f"en {countdown} segundos; el avance fue conservado."
@@ -244,7 +244,6 @@ async def _export_publications_task(
 
     heartbeat_task = asyncio.create_task(renew_lock_periodically())
     try:
-        await ml_client.startup()
         await publication_export_service.export(
             job_id=job_id,
             user_id=user_id,
@@ -252,8 +251,6 @@ async def _export_publications_task(
             heartbeat=ensure_lock_and_heartbeat,
         )
     finally:
-        if ml_client.client is not None:
-            await ml_client.shutdown()
         heartbeat_task.cancel()
         with suppress(asyncio.CancelledError):
             await heartbeat_task

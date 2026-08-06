@@ -17,6 +17,7 @@ from tasks.publication_export_tasks import export_publications_task
 from tasks.publication_sync_tasks import sync_publications_task
 
 router = APIRouter(prefix="/publications", tags=["publications"])
+PUBLICATION_EXPORT_SCHEMA_VERSION = 2
 
 
 class PublicationExportRequest(BaseModel):
@@ -86,21 +87,9 @@ def _export_job_response(job: dict) -> dict:
         "publication_date": job.get("publication_date"),
         "total_rows": int(job.get("total_rows") or 0),
         "processed_rows": int(job.get("processed_rows") or 0),
-        "descriptions_found": int(job.get("descriptions_found") or 0),
-        "descriptions_missing": int(job.get("descriptions_missing") or 0),
-        "descriptions_failed": int(job.get("descriptions_failed") or 0),
-        "cache_hits": int(job.get("cache_hits") or 0),
-        "api_items_queried": int(job.get("api_items_queried") or 0),
         "retry_count": int(job.get("retry_count") or 0),
         "recovery_count": int(job.get("recovery_count") or 0),
-        "requests_per_second": float(
-            job.get("requests_per_second")
-            or settings.ml_publication_export_requests_per_second
-        ),
-        "http_concurrency": int(
-            job.get("http_concurrency")
-            or settings.ml_publication_export_concurrency
-        ),
+        "source": "database",
         "filename": job.get("output_filename") or job.get("filename"),
         "download_ready": (
             job.get("status") == "success"
@@ -127,6 +116,17 @@ def _existing_export_job(
         return None
 
     job = JobStore.get(existing_job_id)
+    if int((job or {}).get("export_schema_version") or 0) != (
+        PUBLICATION_EXPORT_SCHEMA_VERSION
+    ):
+        publication_export_store.release_reference(
+            requested_by_user_id=requested_by_user_id,
+            seller_id=seller_id,
+            creation_date=creation_date,
+            job_id=existing_job_id,
+        )
+        return None
+
     active_statuses = {"queued", "processing", "retrying"}
     if job and job.get("status") in active_statuses:
         return job
@@ -316,24 +316,15 @@ async def start_publications_export(
         publication_date=creation_date,
         total_rows=total_rows,
         processed_rows=0,
-        descriptions_found=0,
-        descriptions_missing=0,
-        descriptions_failed=0,
-        cache_hits=0,
-        api_items_queried=0,
         retry_count=0,
         recovery_count=0,
-        requests_per_second=(
-            settings.ml_publication_export_requests_per_second
-        ),
-        http_concurrency=settings.ml_publication_export_concurrency,
-        batch_size=settings.ml_publication_export_batch_size,
         ml_user_id=seller_id,
         requested_by_user_id=requested_by_user_id,
         queued_at=now,
         heartbeat_at=now,
         output_filename=filename,
         job_type="publication_export",
+        export_schema_version=PUBLICATION_EXPORT_SCHEMA_VERSION,
     )
 
     try:

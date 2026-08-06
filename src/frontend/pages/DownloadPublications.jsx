@@ -251,7 +251,7 @@ export default function DownloadPublications({ authUserId }) {
     };
 
     loadExportStatus();
-    const interval = window.setInterval(loadExportStatus, 3000);
+    const interval = window.setInterval(loadExportStatus, 1000);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -378,8 +378,8 @@ export default function DownloadPublications({ authUserId }) {
         <header className="download-publications-header">
           <h1>Descargar Publicaciones</h1>
           <p>
-            Carga las publicaciones disponibles y descarga la información de la
-            fecha seleccionada.
+            Actualiza las publicaciones y descarga un Excel con MLC, SKU y
+            título desde la base de datos para la fecha seleccionada.
           </p>
         </header>
 
@@ -565,47 +565,10 @@ export default function DownloadPublications({ authUserId }) {
                       )}
                     </span>
                     <span>
-                      Con descripcion:{" "}
-                      {Number(
-                        exportJob.descriptions_found || 0
-                      ).toLocaleString("es-CL")}
-                    </span>
-                    <span>
-                      Sin descripcion:{" "}
-                      {Number(
-                        exportJob.descriptions_missing || 0
-                      ).toLocaleString("es-CL")}
-                    </span>
-                    <span>
-                      Con error:{" "}
-                      {Number(
-                        exportJob.descriptions_failed || 0
-                      ).toLocaleString("es-CL")}
-                    </span>
-                    <span>
-                      Desde cache:{" "}
-                      {Number(exportJob.cache_hits || 0).toLocaleString(
-                        "es-CL"
-                      )}
-                    </span>
-                    <span>
                       Reintentos:{" "}
                       {Number(exportJob.retry_count || 0).toLocaleString(
                         "es-CL"
                       )}
-                    </span>
-                    <span>
-                      Ritmo:{" "}
-                      {Number(
-                        exportJob.requests_per_second || 0
-                      ).toLocaleString("es-CL")}{" "}
-                      req/s
-                    </span>
-                    <span>
-                      Concurrencia:{" "}
-                      {Number(
-                        exportJob.http_concurrency || 0
-                      ).toLocaleString("es-CL")}
                     </span>
                   </div>
                 </>
