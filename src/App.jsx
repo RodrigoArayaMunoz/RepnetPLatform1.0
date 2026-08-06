@@ -10,6 +10,7 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import MainSyncJobs from "./frontend/pages/MainSyncJobs.jsx";
 import CompatibilityCopy from "./frontend/pages/CompatibilityCopy.jsx";
 import DownloadPublications from "./frontend/pages/DownloadPublications.jsx";
+import Returns from "./frontend/pages/Returns.jsx";
 
 function AuthLoadingScreen() {
   return <div className="app-root" />;
@@ -218,6 +219,20 @@ export default function App() {
               />
             }
           />
+        </Route>
+
+        <Route
+          path="/gestion/devoluciones"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<Returns />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

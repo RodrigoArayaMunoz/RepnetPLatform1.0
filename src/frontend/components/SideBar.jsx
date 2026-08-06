@@ -9,6 +9,7 @@ import {
   FolderSync,
   FolderTree,
   Download,
+  Undo2,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
 import "../styles/SideBar.css";
@@ -72,11 +73,18 @@ const navItems = [
     key: "gestion",
     label: "GESTION",
     children: [
+
+      {
+        to: "/gestion/devoluciones",
+        label: "Devoluciones",
+        icon: Undo2,
+      },
       {
         to: "/gestion/descargar-publicaciones",
         label: "Descargar Publicaciones",
         icon: Download,
       },
+
     ],
   },
 ];
