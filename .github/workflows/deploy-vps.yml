@@ -5,6 +5,12 @@ on:
     branches:
       - calidad-revision-lc
   workflow_dispatch:
+    inputs:
+      reset_runtime:
+        description: Reiniciar colas y estados operativos antes del deploy
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: deploy-vps
@@ -47,14 +53,58 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
           DEPLOY_BRANCH: calidad-revision-lc
+          RESET_RUNTIME: ${{ github.event_name == 'workflow_dispatch' && inputs.reset_runtime || false }}
         run: |
           ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" "
             set -e
             cd \"$VPS_APP_DIR\"
+
+            PROCESS_QUEUE_STATE=\$(
+              docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
+                exec -T redis redis-cli --raw GET process_queue:state 2>/dev/null || true
+            )
+            PUBLICATION_SYNC_STATE=\$(
+              docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
+                exec -T redis redis-cli --raw GET publication_sync:state 2>/dev/null || true
+            )
+
+            if [ \"$RESET_RUNTIME\" = \"true\" ]; then
+              PROCESS_QUEUE_WAS_RUNNING=false
+              PUBLICATION_SYNC_WAS_RUNNING=false
+              if echo \"\$PROCESS_QUEUE_STATE\" | grep -Eq '\"running\"[[:space:]]*:[[:space:]]*true'; then
+                PROCESS_QUEUE_WAS_RUNNING=true
+              fi
+              if echo \"\$PUBLICATION_SYNC_STATE\" | grep -Eq '\"running\"[[:space:]]*:[[:space:]]*true'; then
+                PUBLICATION_SYNC_WAS_RUNNING=true
+              fi
+              echo '[MAINTENANCE] Deteniendo API y workers...'
+              docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml stop \
+                api worker_dispatch worker_chunks worker_publications worker_publication_exports
+              echo '[MAINTENANCE] Limpiando broker, resultados, locks y estados Redis...'
+              docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
+                exec -T redis redis-cli FLUSHDB
+            else
+              if echo \"\$PROCESS_QUEUE_STATE\" | grep -Eq '\"running\"[[:space:]]*:[[:space:]]*true' || \
+                 echo \"\$PUBLICATION_SYNC_STATE\" | grep -Eq '\"running\"[[:space:]]*:[[:space:]]*true'; then
+                echo '[DEPLOY BLOCKED] Hay procesos activos. Espera a que terminen o ejecuta el workflow manual con reset_runtime=true.'
+                exit 1
+              fi
+            fi
+
             git fetch --prune origin
             git checkout \"$DEPLOY_BRANCH\"
             git reset --hard \"origin/$DEPLOY_BRANCH\"
             docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml build --no-cache frontend
             docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d --build --force-recreate --remove-orphans
+
+            if [ \"$RESET_RUNTIME\" = \"true\" ]; then
+              docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
+                exec -T \
+                -e RESUME_PROCESS_QUEUE=\"\$PROCESS_QUEUE_WAS_RUNNING\" \
+                -e RESUME_PUBLICATION_SYNC=\"\$PUBLICATION_SYNC_WAS_RUNNING\" \
+                api python -m scripts.reset_runtime_state
+            fi
+
+            docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps
             docker image prune -f
           "
