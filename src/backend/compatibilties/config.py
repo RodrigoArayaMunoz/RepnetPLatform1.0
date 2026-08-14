@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     ml_api_base: str = "https://api.mercadolibre.com"
     ml_domain_id: str = "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES"
     ml_site_id: str = "MLC"
+    seller_sales_timezone: str = "America/Santiago"
+    seller_sales_page_limit: int = Field(default=50, ge=1, le=50)
+    seller_sales_note_concurrency: int = Field(default=4, ge=1, le=10)
     supabase_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices("SUPABASE_URL", "VITE_SUPABASE_URL"),

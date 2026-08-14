@@ -20,6 +20,7 @@ const ROUTE_LABELS = {
   "/actualizaciones/precios-stock": ["Actualizaciones", "Precios y Stock"],
   "/gestion/descargar-publicaciones": ["Gestion", "Descargar Publicaciones"],
   "/gestion/devoluciones": ["Gestion", "Devoluciones"],
+  "/gestion/ventas": ["Gestion", "Gestión de Ventas"],
 };
 
 export default function TopMenuBar({ onOpenSidebar }) {

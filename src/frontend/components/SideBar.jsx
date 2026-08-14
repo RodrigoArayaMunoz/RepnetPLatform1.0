@@ -10,6 +10,7 @@ import {
   FolderTree,
   Download,
   Undo2,
+  ShoppingCart,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
 import "../styles/SideBar.css";
@@ -73,6 +74,12 @@ const navItems = [
     key: "gestion",
     label: "GESTION",
     children: [
+
+      {
+        to: "/gestion/ventas",
+        label: "Gestión de Ventas",
+        icon: ShoppingCart,
+      },
 
       {
         to: "/gestion/devoluciones",

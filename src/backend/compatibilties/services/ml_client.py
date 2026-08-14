@@ -562,7 +562,7 @@ class MercadoLibreClient:
         product_ids: list[str],
         restrictions: list | None = None,
         user_id: int | str | None = None,
-        note: str = "Confirmar con vin, ya que pueden existir variaciones con similares caracteristicas técnicas. El vin es lo único que confirma.",
+        note: str = "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
     ) -> dict:
         if not product_ids:
             return {"results": []}

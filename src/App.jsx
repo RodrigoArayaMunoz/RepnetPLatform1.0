@@ -11,6 +11,7 @@ import MainSyncJobs from "./frontend/pages/MainSyncJobs.jsx";
 import CompatibilityCopy from "./frontend/pages/CompatibilityCopy.jsx";
 import DownloadPublications from "./frontend/pages/DownloadPublications.jsx";
 import Returns from "./frontend/pages/Returns.jsx";
+import SellerSales from "./frontend/pages/SellerSales.jsx";
 
 function AuthLoadingScreen() {
   return <div className="app-root" />;
@@ -233,6 +234,20 @@ export default function App() {
           }
         >
           <Route index element={<Returns />} />
+        </Route>
+
+        <Route
+          path="/gestion/ventas"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<SellerSales />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -18,8 +18,8 @@ from services.ml_client import ml_client
 logger = logging.getLogger(__name__)
 
 DEFAULT_COMPATIBILITY_NOTE = (
-    "Confirmar con VIN, ya que pueden existir variaciones con similares "
-    "características técnicas. El VIN es lo único que confirma."
+    "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO "
+    "PARA CORROBORAR APLICACION"
 )
 MAX_PRODUCTS_PER_ML_REQUEST = 200
 MAX_PRODUCT_FAMILIES_PER_ML_REQUEST = 10
