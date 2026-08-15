@@ -125,6 +125,55 @@ class MercadoLibreCompatibilityClientTests(unittest.IsolatedAsyncioTestCase):
             user_id="123",
         )
 
+    async def test_user_product_update_sends_family_note_and_restrictions(self):
+        client = MercadoLibreClient()
+        product_family = {
+            **_family_row()["product_family"],
+            "note": "Nota",
+            "restrictions": [
+                {
+                    "attribute_id": "POSITION",
+                    "attribute_values": [
+                        {
+                            "values": [
+                                {
+                                    "value_id": "13701104",
+                                    "value_name": "Delantera",
+                                }
+                            ]
+                        }
+                    ],
+                }
+            ],
+        }
+
+        with patch.object(
+            client,
+            "request",
+            new=AsyncMock(return_value={"update": {}}),
+        ) as request:
+            await client.update_user_product_compatibility_families_batch(
+                access_token="token",
+                user_product_id="MLCU123",
+                category_id="MLC1748",
+                product_families=[product_family],
+                user_id="123",
+            )
+
+        expected_family = dict(product_family)
+        expected_family.pop("creation_source")
+        request.assert_awaited_once_with(
+            "PUT",
+            "/user-products/MLCU123/compatibilities",
+            access_token="token",
+            json_body={
+                "domain_id": settings.ml_domain_id,
+                "category_id": "MLC1748",
+                "update": {"products_families": [expected_family]},
+            },
+            user_id="123",
+        )
+
 
 class CompatibilityFamilyResolutionTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -376,10 +425,33 @@ class CompatibilityEndToEndOrderTests(unittest.IsolatedAsyncioTestCase):
             return 1
 
         async def post_family(*_args, **kwargs):
-            events.append("post_family")
+            method_name = getattr(_args[0], "__name__", "")
+            events.append(
+                "update_family"
+                if method_name.startswith("update_")
+                else "post_family"
+            )
             self.assertEqual(
                 kwargs["product_families"][0]["attributes"],
                 attributes,
+            )
+            self.assertEqual(
+                kwargs["product_families"][0]["restrictions"],
+                [
+                    {
+                        "attribute_id": "POSITION",
+                        "attribute_values": [
+                            {
+                                "values": [
+                                    {
+                                        "value_id": "13701104",
+                                        "value_name": "Delantera",
+                                    }
+                                ]
+                            }
+                        ],
+                    }
+                ],
             )
             return {"created_compatibilities_count": 1}
 
@@ -396,8 +468,8 @@ class CompatibilityEndToEndOrderTests(unittest.IsolatedAsyncioTestCase):
             "CILINDRADA": "1.5",
             "TRANSMISION": "Manual",
             "AÑO": 2018,
-            "FAMILIA": "",
-            "POSICION_DT": "",
+            "FAMILIA": "MLC-VEHICLE_WHEELS_BEARINGS",
+            "POSICION_DT": "DELANTERA",
             "POSICION_ID": "",
         }
 
@@ -436,6 +508,7 @@ class CompatibilityEndToEndOrderTests(unittest.IsolatedAsyncioTestCase):
                 "resolve_attributes",
                 "count_family",
                 "post_family",
+                "update_family",
             ],
         )
         self.assertEqual(
@@ -593,9 +666,13 @@ class CompatibilityFamilyBatchTests(unittest.IsolatedAsyncioTestCase):
                 on_progress=on_progress,
             )
 
-        self.assertEqual(call_ml.await_count, 1)
+        self.assertEqual(call_ml.await_count, 2)
         self.assertEqual(
-            len(call_ml.await_args.kwargs["product_families"]),
+            len(call_ml.await_args_list[0].kwargs["product_families"]),
+            2,
+        )
+        self.assertEqual(
+            len(call_ml.await_args_list[1].kwargs["product_families"]),
             2,
         )
         self.assertTrue(all(row["ok"] for row in outcome["results"]))

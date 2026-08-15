@@ -632,6 +632,41 @@ class MercadoLibreClient:
 
         return data if isinstance(data, dict) else {"raw_response": data}
 
+    async def update_user_product_compatibility_families_batch(
+        self,
+        access_token: str | None,
+        user_product_id: str,
+        category_id: str,
+        product_families: list[dict[str, Any]],
+        user_id: int | str | None = None,
+    ) -> dict:
+        if not product_families:
+            return {"updated_compatibilities_count": 0}
+
+        update_families = [
+            {
+                key: value
+                for key, value in product_family.items()
+                if key != "creation_source"
+            }
+            for product_family in product_families
+        ]
+        body = {
+            "domain_id": settings.ml_domain_id,
+            "category_id": category_id,
+            "update": {"products_families": update_families},
+        }
+
+        data = await self.request(
+            "PUT",
+            f"/user-products/{user_product_id}/compatibilities",
+            access_token=access_token,
+            json_body=body,
+            user_id=user_id,
+        )
+
+        return data if isinstance(data, dict) else {"raw_response": data}
+
     async def update_item_price_stock(
         self,
         access_token: str | None,

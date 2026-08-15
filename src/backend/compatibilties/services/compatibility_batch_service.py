@@ -72,7 +72,12 @@ POSICION_ID_VALUE_NAMES = {
 
 FAMILIAS_BRAKE_SHOCK = {"MLC-VEHICLE_BRAKE_PADS", "MLC-VEHICLE_SHOCK_ABSORBERS"}
 FAMILIAS_LIGHTS = {"MLC-VEHICLE_TAIL_LIGHTS", "MLC-VEHICLE_HEADLIGHTS"}
-FAMILIAS_BRAKE_DISC = {"MLC-VEHICLE_BRAKE_DISCS","MLC-VEHICLE_DRUM_BRAKE_SHOES","MLC-VEHICLE_BRAKE_DRUMS"}
+FAMILIAS_POSITION_DT_ONLY = {
+    "MLC-VEHICLE_BRAKE_DISCS",
+    "MLC-VEHICLE_DRUM_BRAKE_SHOES",
+    "MLC-VEHICLE_BRAKE_DRUMS",
+    "MLC-VEHICLE_WHEELS_BEARINGS",
+}
 
 
 def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list:
@@ -89,7 +94,9 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
     dt_name = POSICION_DT_VALUE_NAMES.get(dt_lower, _safe_text(posicion_dt))
     id_name = POSICION_ID_VALUE_NAMES.get(id_lower, _safe_text(posicion_id))
 
-    if familia_upper in (FAMILIAS_BRAKE_SHOCK | FAMILIAS_LIGHTS | FAMILIAS_BRAKE_DISC):
+    if familia_upper in (
+        FAMILIAS_BRAKE_SHOCK | FAMILIAS_LIGHTS | FAMILIAS_POSITION_DT_ONLY
+    ):
         if not dt_value_id:
             logger.warning(
                 "[BATCH][RESTRICTION_SKIP] familia=%s posicion_dt=%s posicion_id=%s reason=missing_dt_value_id",
@@ -160,7 +167,7 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
         )
         return restriction
     
-    if familia_upper in FAMILIAS_BRAKE_DISC:
+    if familia_upper in FAMILIAS_POSITION_DT_ONLY:
         restriction = [
             {
                 "attribute_id": "POSITION",
@@ -659,6 +666,31 @@ async def post_compatibility_families_batch(
             limiter=WRITE_RATE_LIMITER,
         )
 
+        extended_information_families = [
+            product_family
+            for product_family in product_families
+            if product_family.get("note") or product_family.get("restrictions")
+        ]
+        update_response = None
+        if extended_information_families:
+            update_response = await call_ml(
+                ml_client.update_user_product_compatibility_families_batch,
+                access_token=access_token,
+                user_product_id=str(user_product_id),
+                category_id=str(category_id),
+                product_families=extended_information_families,
+                user_id=user_id,
+                metrics=metrics,
+                limiter=WRITE_RATE_LIMITER,
+            )
+            logger.info(
+                "[BATCH][FAMILY_UPDATE_RESULT] item_id=%s user_product_id=%s "
+                "families_updated=%s",
+                item_id,
+                user_product_id,
+                len(extended_information_families),
+            )
+
         created_count = 0
         if isinstance(response, dict):
             created_count = int(
@@ -685,6 +717,7 @@ async def post_compatibility_families_batch(
             "families_sent_count": len(product_families),
             "matched_products_count": matched_products_count,
             "response": response,
+            "extended_information_update_response": update_response,
             "created_compatibilities_count": created_count,
         }
     except HTTPException as exc:
