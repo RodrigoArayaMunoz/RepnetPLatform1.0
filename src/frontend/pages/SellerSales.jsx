@@ -10,9 +10,19 @@ import "../styles/SellerSales.css";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-const REPNET_SALES_DATE_FROM = "2026-08-08";
-const REPNET_SALES_DATE_TO = "2026-08-09";
-const columns = ["MLC", "NOTA VENTA"];
+const chileToday = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+const REPNET_SALES_DATE_FROM = chileToday();
+const REPNET_SALES_DATE_TO = REPNET_SALES_DATE_FROM;
+const columns = ["VENTA / PACK", "ENVÍO", "PRODUCTOS", "ESTADO", "NOTA VENTA"];
 
 const readErrorMessage = (data, fallback) => {
   if (typeof data?.detail === "string") return data.detail;
@@ -48,6 +58,7 @@ function SalesGrid({
   isLoading = false,
   error = "",
   onRetry,
+  isSyncing = false,
   disabled = false,
 }) {
   return (
@@ -67,11 +78,15 @@ function SalesGrid({
             type="button"
             className="seller-sales-refresh-button"
             onClick={onRetry}
-            disabled={isLoading}
-            aria-label={`Actualizar ventas de ${title}`}
-            title="Actualizar ventas"
+            disabled={isLoading || isSyncing}
+            aria-label={`Sincronizar ventas de ${title}`}
+            title="Sincronizar ventas con Mercado Libre"
           >
-            <RefreshCw size={17} aria-hidden="true" />
+            <RefreshCw
+              className={isSyncing ? "seller-sales-loading-icon" : ""}
+              size={17}
+              aria-hidden="true"
+            />
           </button>
         ) : null}
       </header>
@@ -148,9 +163,45 @@ function SalesGrid({
               </EmptyGridState>
             ) : (
               rows.map((sale) => (
-                <tr key={sale.order_id}>
-                  <td className="seller-sales-order-cell" title={sale.order_id}>
-                    {sale.mlc}
+                <tr key={sale.sale_id || sale.order_id}>
+                  <td
+                    className="seller-sales-order-cell"
+                    title={(sale.order_ids || [sale.order_id]).join(", ")}
+                  >
+                    {sale.sale_id || sale.mlc}
+                    {sale.order_ids?.length > 1 ? (
+                      <small>{sale.order_ids.length} órdenes</small>
+                    ) : null}
+                  </td>
+                  <td>
+                    <span
+                      className={`seller-sales-shipping-badge seller-sales-shipping-badge--${sale.shipping_type || "pending"}`}
+                    >
+                      {sale.shipping_type === "flex"
+                        ? "Flex"
+                        : sale.shipping_type === "normal"
+                          ? "Normal"
+                          : sale.shipping_type === "no_shipping"
+                            ? "Sin envío"
+                            : "Pendiente"}
+                    </span>
+                    {sale.logistic_type ? <small>{sale.logistic_type}</small> : null}
+                  </td>
+                  <td className="seller-sales-products-cell">
+                    {sale.items?.length ? (
+                      sale.items.map((item) => (
+                        <div key={`${item.order_id}-${item.line_number}`}>
+                          <strong>{item.sku || item.item_id}</strong>
+                          <span> × {item.quantity}</span>
+                          {item.title ? <small>{item.title}</small> : null}
+                        </div>
+                      ))
+                    ) : (
+                      <span className="seller-sales-note-empty">Sin productos cargados</span>
+                    )}
+                  </td>
+                  <td>
+                    <strong>{sale.shipping_status || sale.status || "—"}</strong>
                   </td>
                   <td className="seller-sales-note-cell">
                     {sale.notes_error ? (
@@ -177,6 +228,7 @@ export default function SellerSales() {
   const [repnetSales, setRepnetSales] = useState([]);
   const [salesPeriod, setSalesPeriod] = useState({ from: "", to: "" });
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [loadError, setLoadError] = useState("");
 
   const loadRepnetSales = useCallback(async (signal) => {
@@ -220,6 +272,52 @@ export default function SellerSales() {
     }
   }, []);
 
+  const syncRepnetSales = useCallback(async () => {
+    setIsSyncing(true);
+    setLoadError("");
+    try {
+      const params = new URLSearchParams({
+        date: REPNET_SALES_DATE_FROM,
+        date_to: REPNET_SALES_DATE_TO,
+      });
+      const response = await authFetch(
+        `${API_BASE}/ml/sales/sync?${params.toString()}`,
+        { method: "POST", credentials: "include" }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          readErrorMessage(data, "No se pudo iniciar la sincronización de ventas.")
+        );
+      }
+
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const statusResponse = await authFetch(
+          `${API_BASE}/ml/sales/sync/${data.task_id}`,
+          { method: "GET", credentials: "include" }
+        );
+        const statusData = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok) {
+          throw new Error(
+            readErrorMessage(statusData, "No se pudo revisar la sincronización.")
+          );
+        }
+        if (!statusData.ready) continue;
+        if (!statusData.successful) {
+          throw new Error(statusData.error || "La sincronización de ventas falló.");
+        }
+        await loadRepnetSales();
+        return;
+      }
+      throw new Error("La sincronización continúa ejecutándose. Intenta nuevamente en unos minutos.");
+    } catch (error) {
+      setLoadError(error?.message || "No se pudieron sincronizar las ventas.");
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [loadRepnetSales]);
+
   useEffect(() => {
     const controller = new AbortController();
     loadRepnetSales(controller.signal);
@@ -245,7 +343,8 @@ export default function SellerSales() {
               rows={repnetSales}
               isLoading={isLoading}
               error={loadError}
-              onRetry={() => loadRepnetSales()}
+              onRetry={syncRepnetSales}
+              isSyncing={isSyncing}
             />
           </div>
 

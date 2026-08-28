@@ -27,6 +27,7 @@ from routers.price_stock_router import router as price_stock_router
 from routers.process_queue_router import router as process_queue_router
 from routers.publications_router import router as publications_router
 from routers.seller_sales_router import router as seller_sales_router
+from routers.mercadolibre_webhook_router import router as mercadolibre_webhook_router
 
 
 @asynccontextmanager
@@ -48,6 +49,7 @@ app.include_router(price_stock_router)
 app.include_router(process_queue_router)
 app.include_router(publications_router)
 app.include_router(seller_sales_router)
+app.include_router(mercadolibre_webhook_router)
 
 app.add_middleware(
     CORSMiddleware,

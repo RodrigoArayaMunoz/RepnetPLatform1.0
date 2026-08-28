@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     seller_sales_timezone: str = "America/Santiago"
     seller_sales_page_limit: int = Field(default=50, ge=1, le=50)
     seller_sales_note_concurrency: int = Field(default=4, ge=1, le=10)
+    ml_notifications_enabled: bool = True
+    ml_notification_application_id: str | None = None
+    ml_notification_allowed_user_id: str | None = None
     supabase_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices("SUPABASE_URL", "VITE_SUPABASE_URL"),
@@ -53,6 +56,12 @@ class Settings(BaseSettings):
     supabase_meli_connection_table: str = "meli_global_connection"
     supabase_process_table: str = "procesos"
     supabase_publications_table: str = "publicaciones_ml"
+    supabase_meli_notifications_table: str = "meli_notification_events"
+    supabase_meli_packs_table: str = "meli_packs"
+    supabase_meli_orders_table: str = "meli_orders"
+    supabase_meli_order_items_table: str = "meli_order_items"
+    supabase_meli_shipments_table: str = "meli_shipments"
+    supabase_meli_order_shipments_table: str = "meli_order_shipments"
     backend_auth_enabled: bool = True
     backend_auth_cache_ttl_seconds: int = 60
 

@@ -99,6 +99,8 @@ supabase_auth_verifier = SupabaseAuthVerifier()
 def is_public_path(path: str) -> bool:
     public_paths = {
         "/auth/callback",
+        "/webhooks/mercadolibre",
+        "/webhooks/mercadolibre/health",
         "/docs",
         "/redoc",
         "/openapi.json",

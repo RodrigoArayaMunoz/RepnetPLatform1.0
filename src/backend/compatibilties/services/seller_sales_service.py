@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from config import settings
 from services.ml_client import ml_client
 from services.redis_rate_limiter import RedisWindowRateLimiter
+from services.supabase_meli_sales_store import supabase_meli_sales_store
 
 logger = logging.getLogger(__name__)
 
@@ -297,5 +298,54 @@ class SellerSalesService:
             },
             "total": len(sales),
             "notes_failed": notes_failed,
+            "sales": sales,
+        }
+
+    async def get_stored_daily_sales(
+        self,
+        *,
+        user_id: str,
+        sales_date: date | None = None,
+        sales_date_to: date | None = None,
+    ) -> dict[str, Any]:
+        timezone = ZoneInfo(settings.seller_sales_timezone)
+        requested_date = sales_date or datetime.now(timezone).date()
+        requested_date_to = sales_date_to or requested_date
+        if requested_date_to < requested_date:
+            raise HTTPException(
+                status_code=422,
+                detail="La fecha final no puede ser anterior a la fecha inicial.",
+            )
+        if (requested_date_to - requested_date).days > 31:
+            raise HTTPException(
+                status_code=422,
+                detail="El rango de ventas no puede superar 32 dias.",
+            )
+
+        range_start = datetime.combine(requested_date, time.min, tzinfo=timezone)
+        range_end = datetime.combine(
+            requested_date_to + timedelta(days=1),
+            time.min,
+            tzinfo=timezone,
+        )
+        await supabase_meli_sales_store.ensure_ready()
+        sales = await supabase_meli_sales_store.list_sales(
+            seller_id=user_id,
+            range_start=range_start,
+            range_end=range_end,
+        )
+        return {
+            "account": "repnet",
+            "seller": {"id": user_id, "nickname": "REPNET", "site_id": settings.ml_site_id},
+            "date": requested_date.isoformat(),
+            "date_from": requested_date.isoformat(),
+            "date_to": requested_date_to.isoformat(),
+            "timezone": settings.seller_sales_timezone,
+            "range": {
+                "from": self._format_ml_datetime(range_start),
+                "to_exclusive": self._format_ml_datetime(range_end),
+            },
+            "source": "supabase",
+            "total": len(sales),
             "sales": sales,
         }

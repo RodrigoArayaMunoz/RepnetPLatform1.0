@@ -15,6 +15,7 @@ celery_app = Celery(
         "tasks.process_queue_tasks",
         "tasks.publication_sync_tasks",
         "tasks.publication_export_tasks",
+        "tasks.meli_sales_tasks",
     ],
 )
 
@@ -45,6 +46,8 @@ celery_app.conf.update(
         "tasks.run_process_queue_job": {"queue": "compat_dispatch"},
         "tasks.sync_publications_job": {"queue": "publications_sync"},
         "tasks.export_publications_job": {"queue": "publication_exports"},
+        "tasks.process_meli_notification": {"queue": "meli_notifications"},
+        "tasks.backfill_meli_sales": {"queue": "meli_notifications"},
     },
 )
 
@@ -59,3 +62,4 @@ import tasks.price_stock_tasks  # noqa: E402,F401
 import tasks.process_queue_tasks  # noqa: E402,F401
 import tasks.publication_sync_tasks  # noqa: E402,F401
 import tasks.publication_export_tasks  # noqa: E402,F401
+import tasks.meli_sales_tasks  # noqa: E402,F401

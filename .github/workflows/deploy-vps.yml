@@ -79,7 +79,8 @@ jobs:
               fi
               echo '[MAINTENANCE] Deteniendo API y workers...'
               docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml stop \
-                api worker_dispatch worker_chunks worker_publications worker_publication_exports
+                api worker_dispatch worker_chunks worker_publications worker_publication_exports \
+                worker_meli_notifications
               echo '[MAINTENANCE] Limpiando broker, resultados, locks y estados Redis...'
               docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
                 exec -T redis redis-cli FLUSHDB
@@ -106,5 +107,7 @@ jobs:
             fi
 
             docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps
+            curl --fail --silent --show-error --retry 12 --retry-delay 5 \
+              https://repnet.online/api/webhooks/mercadolibre/health
             docker image prune -f
           "

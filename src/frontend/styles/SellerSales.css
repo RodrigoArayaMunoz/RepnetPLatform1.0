@@ -129,13 +129,11 @@
 
 .seller-sales-grid {
   width: 100%;
-  min-width: 420px;
+  min-width: 900px;
   border-collapse: collapse;
-  table-layout: fixed;
 }
 
 .seller-sales-grid th {
-  width: 50%;
   padding: 15px 18px;
   border-bottom: 1px solid #e3e8f1;
   background: #f8faff;
@@ -175,6 +173,59 @@
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.seller-sales-order-cell small,
+.seller-sales-grid td > small,
+.seller-sales-products-cell small {
+  display: block;
+  margin-top: 4px;
+  color: #8a96a8;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: normal;
+}
+
+.seller-sales-products-cell > div + div {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid #edf1f6;
+}
+
+.seller-sales-products-cell strong {
+  color: #273b66;
+}
+
+.seller-sales-shipping-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #59667b;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.seller-sales-shipping-badge--flex {
+  background: #e8f7ee;
+  color: #157347;
+}
+
+.seller-sales-shipping-badge--normal {
+  background: #edf3ff;
+  color: #315fb5;
+}
+
+.seller-sales-shipping-badge--no_shipping {
+  background: #f3f4f6;
+  color: #667085;
+}
+
+.seller-sales-shipping-badge--pending {
+  background: #fff7e6;
+  color: #9a6700;
 }
 
 .seller-sales-note-cell {
