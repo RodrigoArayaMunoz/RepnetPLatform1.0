@@ -19,6 +19,7 @@ router = APIRouter(prefix="/ml/sales", tags=["seller-sales"])
 class PickingStatusUpdate(BaseModel):
     status: Literal["in_preparation", "packed"]
     scanned_sku: str | None = None
+    scanned_skus: list[str] | None = None
 
 
 async def _get_connected_ml_user_id() -> str:
@@ -72,6 +73,7 @@ async def update_sale_picking_status(
             sale_id=sale_id,
             status=payload.status,
             scanned_sku=payload.scanned_sku,
+            scanned_skus=payload.scanned_skus,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -242,6 +242,69 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
                     scanned_sku="SKU-WRONG",
                 )
 
+    async def test_rejects_incomplete_multi_product_picking(self):
+        store = SupabaseMeliSalesStore()
+        with (
+            patch.object(
+                store,
+                "_list_all",
+                AsyncMock(return_value=[{"order_id": "1"}]),
+            ),
+            patch.object(
+                store,
+                "_list_by_ids",
+                AsyncMock(
+                    return_value=[
+                        {"order_id": "1", "sku": "SKU-ONE", "quantity": 1},
+                        {"order_id": "1", "sku": "SKU-TWO", "quantity": 1},
+                    ]
+                ),
+            ),
+        ):
+            with self.assertRaisesRegex(ValueError, "todos los productos"):
+                await store.set_sale_picking_status(
+                    seller_id="99",
+                    sale_id="100",
+                    status="in_preparation",
+                    scanned_skus=["SKU-ONE"],
+                )
+
+    async def test_accepts_all_skus_and_quantities_for_multi_product_picking(self):
+        store = SupabaseMeliSalesStore()
+        with (
+            patch.object(
+                store,
+                "_list_all",
+                AsyncMock(return_value=[{"order_id": "1"}]),
+            ),
+            patch.object(
+                store,
+                "_list_by_ids",
+                AsyncMock(
+                    return_value=[
+                        {"order_id": "1", "sku": "SKU-ONE", "quantity": 2},
+                        {"order_id": "1", "sku": "SKU-TWO", "quantity": 1},
+                    ]
+                ),
+            ),
+            patch.object(
+                store,
+                "_request",
+                AsyncMock(return_value=SimpleNamespace(json=lambda: [])),
+            ),
+            patch.object(store, "_upsert", AsyncMock()) as upsert,
+        ):
+            result = await store.set_sale_picking_status(
+                seller_id="99",
+                sale_id="100",
+                status="in_preparation",
+                scanned_skus=["sku-one", "SKU-TWO", "SKU-ONE"],
+            )
+
+        self.assertEqual(result["status"], "in_preparation")
+        self.assertEqual(result["last_scanned_sku"], "SKU-ONE")
+        upsert.assert_awaited_once()
+
     async def test_valid_sku_moves_picking_to_packed(self):
         store = SupabaseMeliSalesStore()
         started_at = "2026-08-28T10:05:00-04:00"

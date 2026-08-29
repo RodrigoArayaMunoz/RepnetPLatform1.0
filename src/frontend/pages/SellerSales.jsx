@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { authFetch } from "../../lib/apiClient.js";
 import SaleSkuScanner from "../components/SaleSkuScanner.jsx";
+import { normalizeSkuCode } from "../utils/skuValidation.js";
 import "../styles/SellerSales.css";
 
 const API_BASE =
@@ -64,7 +65,7 @@ const getShippingLabel = (shippingType) => {
   return "Pendiente";
 };
 
-function PickingProducts({ sale }) {
+function PickingProducts({ sale, validatedSkuCounts = {} }) {
   if (!sale.items?.length) {
     return (
       <div className="seller-sales-picking-empty">
@@ -74,24 +75,47 @@ function PickingProducts({ sale }) {
     );
   }
 
+  const allocatedScansBySku = {};
+
   return (
     <div className="seller-sales-picking-products">
-      {sale.items.map((item) => (
-        <article
-          className="seller-sales-picking-product"
-          key={`${item.order_id}-${item.line_number}`}
-        >
-          <div>
-            <span>SKU</span>
-            <strong>{item.sku || item.item_id}</strong>
-          </div>
-          <div>
-            <span>Cantidad</span>
-            <strong>{item.quantity}</strong>
-          </div>
-          {item.title ? <p>{item.title}</p> : null}
-        </article>
-      ))}
+      {sale.items.map((item) => {
+        const sku = normalizeSkuCode(item.sku);
+        const requiredQuantity = Math.max(1, Number(item.quantity) || 1);
+        const previouslyAllocated = allocatedScansBySku[sku] || 0;
+        const availableScans = Math.max(
+          0,
+          Number(validatedSkuCounts[sku] || 0) - previouslyAllocated
+        );
+        const validatedQuantity = Math.min(requiredQuantity, availableScans);
+        allocatedScansBySku[sku] = previouslyAllocated + validatedQuantity;
+        const hasValidation = validatedQuantity > 0;
+        const isComplete = validatedQuantity >= requiredQuantity;
+
+        return (
+          <article
+            className={`seller-sales-picking-product${hasValidation ? " seller-sales-picking-product--validated" : ""}`}
+            key={`${item.order_id}-${item.line_number}`}
+          >
+            <div>
+              <span>SKU</span>
+              <strong>{item.sku || item.item_id}</strong>
+              {hasValidation ? (
+                <small className="seller-sales-product-validation">
+                  {isComplete
+                    ? "Validado"
+                    : `${validatedQuantity} de ${requiredQuantity} validados`}
+                </small>
+              ) : null}
+            </div>
+            <div>
+              <span>Cantidad</span>
+              <strong>{item.quantity}</strong>
+            </div>
+            {item.title ? <p>{item.title}</p> : null}
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -133,6 +157,17 @@ function SalesGrid({
   const [activePickingFilter, setActivePickingFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pickingSale, setPickingSale] = useState(null);
+  const [validatedSkuCounts, setValidatedSkuCounts] = useState({});
+
+  const openPickingModal = (sale) => {
+    setValidatedSkuCounts({});
+    setPickingSale(sale);
+  };
+
+  const closePickingModal = () => {
+    setPickingSale(null);
+    setValidatedSkuCounts({});
+  };
   const dispatchCounts = {
     dispatched: rows.filter((sale) => sale.is_dispatched === true).length,
     pending: rows.filter((sale) => sale.is_dispatched === false).length,
@@ -207,6 +242,7 @@ function SalesGrid({
     setActiveFilter(filterId);
     setCurrentPage(1);
     setPickingSale(null);
+    setValidatedSkuCounts({});
   };
 
   const selectDispatchFilter = (filterId) => {
@@ -215,6 +251,7 @@ function SalesGrid({
     );
     setCurrentPage(1);
     setPickingSale(null);
+    setValidatedSkuCounts({});
   };
 
   const selectPickingFilter = (filterId) => {
@@ -223,6 +260,7 @@ function SalesGrid({
     );
     setCurrentPage(1);
     setPickingSale(null);
+    setValidatedSkuCounts({});
   };
 
   useEffect(() => {
@@ -230,7 +268,10 @@ function SalesGrid({
 
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event) => {
-      if (event.key === "Escape") setPickingSale(null);
+      if (event.key === "Escape") {
+        setPickingSale(null);
+        setValidatedSkuCounts({});
+      }
     };
 
     document.body.style.overflow = "hidden";
@@ -434,7 +475,7 @@ function SalesGrid({
                   <button
                     type="button"
                     className="seller-sales-picking-button"
-                    onClick={() => setPickingSale(sale)}
+                    onClick={() => openPickingModal(sale)}
                     aria-haspopup="dialog"
                   >
                     {sale.picking_status === "in_preparation"
@@ -446,7 +487,7 @@ function SalesGrid({
                   <button
                     type="button"
                     className="seller-sales-picking-button seller-sales-detail-button"
-                    onClick={() => setPickingSale(sale)}
+                    onClick={() => openPickingModal(sale)}
                     aria-haspopup="dialog"
                   >
                     Ver Detalle
@@ -511,7 +552,7 @@ function SalesGrid({
             <div
               className="seller-sales-picking-overlay"
               onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setPickingSale(null);
+                if (event.target === event.currentTarget) closePickingModal();
               }}
             >
               <section
@@ -538,7 +579,7 @@ function SalesGrid({
                     <button
                       type="button"
                       className="seller-sales-picking-close-icon"
-                      onClick={() => setPickingSale(null)}
+                      onClick={closePickingModal}
                       aria-label="Cerrar detalle de picking"
                       autoFocus
                     >
@@ -554,16 +595,18 @@ function SalesGrid({
                       key={getSaleNumber(pickingSale)}
                       items={pickingSale.items}
                       saleNumber={getSaleNumber(pickingSale)}
-                      onValidSku={({ code }) =>
+                      validatedSkuCounts={validatedSkuCounts}
+                      onProgressChange={setValidatedSkuCounts}
+                      onAllItemsValidated={({ scannedSkus }) =>
                         onPickingStatusChange(
                           pickingSale,
                           pickingSale.picking_status === "in_preparation"
                             ? "packed"
                             : "in_preparation",
-                          code
+                          scannedSkus
                         )
                       }
-                      onValidationSuccess={() => setPickingSale(null)}
+                      onValidationSuccess={closePickingModal}
                     />
                   ) : null}
 
@@ -579,11 +622,14 @@ function SalesGrid({
                       {pickingSale.items?.length === 1 ? "producto" : "productos"}
                     </span>
                   </div>
-                  <PickingProducts sale={pickingSale} />
+                  <PickingProducts
+                    sale={pickingSale}
+                    validatedSkuCounts={validatedSkuCounts}
+                  />
                 </div>
 
                 <footer className="seller-sales-picking-modal-footer">
-                  <button type="button" onClick={() => setPickingSale(null)}>
+                  <button type="button" onClick={closePickingModal}>
                     Cerrar
                   </button>
                 </footer>
@@ -645,7 +691,7 @@ export default function SellerSales() {
   }, []);
 
   const updatePickingStatus = useCallback(
-    async (sale, pickingStatus, scannedSku = null) => {
+    async (sale, pickingStatus, scannedSkus = []) => {
       const saleId = getSaleNumber(sale);
       const response = await authFetch(
         `${API_BASE}/ml/sales/${encodeURIComponent(saleId)}/picking-status`,
@@ -655,7 +701,7 @@ export default function SellerSales() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             status: pickingStatus,
-            scanned_sku: scannedSku,
+            scanned_skus: scannedSkus,
           }),
         }
       );

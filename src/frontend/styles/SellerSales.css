@@ -1006,6 +1006,14 @@
   border: 1px solid #dfe6f0;
   border-radius: 11px;
   background: #f8faff;
+  transition: border-color 160ms ease, background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.seller-sales-picking-product--validated {
+  border-color: #5fbd83;
+  background: #eaf8f0;
+  box-shadow: 0 0 0 1px rgba(31, 157, 85, 0.08);
 }
 
 .seller-sales-picking-product > div {
@@ -1031,6 +1039,21 @@
   overflow-wrap: anywhere;
   color: #273b66;
   font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.seller-sales-picking-product--validated strong {
+  color: #146c3a;
+}
+
+.seller-sales-picking-product .seller-sales-product-validation {
+  width: fit-content;
+  margin-top: 3px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #caefd8;
+  color: #146c3a;
+  font-size: 0.65rem;
   font-weight: 900;
 }
 

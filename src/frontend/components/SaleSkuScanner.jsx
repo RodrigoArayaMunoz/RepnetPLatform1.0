@@ -7,7 +7,10 @@ import {
   XCircle,
 } from "lucide-react";
 import {
+  expandValidatedSkuCounts,
   findSaleItemBySku,
+  getSaleSkuRequirements,
+  isSaleSkuValidationComplete,
   normalizeSkuCode,
 } from "../utils/skuValidation.js";
 
@@ -30,7 +33,9 @@ const cameraErrorMessage = (error) => {
 export default function SaleSkuScanner({
   items = [],
   saleNumber,
-  onValidSku,
+  validatedSkuCounts = {},
+  onProgressChange,
+  onAllItemsValidated,
   onValidationSuccess,
 }) {
   const videoRef = useRef(null);
@@ -41,6 +46,11 @@ export default function SaleSkuScanner({
   const [scannerError, setScannerError] = useState("");
   const [validationResult, setValidationResult] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const skuRequirements = getSaleSkuRequirements(items);
+  const validatedUnits = Object.values(validatedSkuCounts).reduce(
+    (total, count) => total + (Number(count) || 0),
+    0
+  );
 
   const stopScanner = () => {
     controlsRef.current?.stop();
@@ -65,25 +75,57 @@ export default function SaleSkuScanner({
 
     if (!matchingItem) {
       setValidationResult({
-          type: "error",
-          code,
-          item: null,
-          message: `El SKU no pertenece a la venta ${saleNumber}.`,
-        });
+        type: "error",
+        code,
+        item: null,
+        message: `El SKU no pertenece a la venta ${saleNumber}.`,
+      });
       if (navigator.vibrate) navigator.vibrate([180, 90, 180]);
       return;
     }
 
+    const validatedQuantity = Number(validatedSkuCounts[code] || 0);
+    const requiredQuantity = Number(skuRequirements[code] || 0);
+    if (validatedQuantity >= requiredQuantity) {
+      setValidationResult({
+        type: "error",
+        code,
+        item: matchingItem,
+        message: "La cantidad requerida de este SKU ya está completa.",
+      });
+      if (navigator.vibrate) navigator.vibrate([180, 90, 180]);
+      return;
+    }
+
+    const nextValidatedSkuCounts = {
+      ...validatedSkuCounts,
+      [code]: validatedQuantity + 1,
+    };
+
     setValidationResult(null);
     setScannerError("");
+    setManualCode("");
+    onProgressChange?.(nextValidatedSkuCounts);
+
+    if (!isSaleSkuValidationComplete(items, nextValidatedSkuCounts)) {
+      if (navigator.vibrate) navigator.vibrate(80);
+      return;
+    }
+
     setIsSaving(true);
     try {
-      await onValidSku?.({ code, item: matchingItem });
+      await onAllItemsValidated?.({
+        code,
+        item: matchingItem,
+        scannedSkus: expandValidatedSkuCounts(nextValidatedSkuCounts),
+      });
       if (navigator.vibrate) navigator.vibrate(120);
       setIsSaving(false);
       onValidationSuccess?.();
     } catch (error) {
       setIsSaving(false);
+      onProgressChange?.(validatedSkuCounts);
+      setManualCode(code);
       setValidationResult({
         type: "error",
         code,
@@ -189,7 +231,9 @@ export default function SaleSkuScanner({
             <Camera size={17} aria-hidden="true" />
             {isSaving
               ? "Guardando estado..."
-              : validationResult
+              : validatedUnits > 0
+                ? "Escanear siguiente producto"
+                : validationResult
                 ? "Escanear otro código"
                 : "Abrir cámara"}
           </>

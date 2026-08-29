@@ -1,4 +1,5 @@
 import logging
+from collections import Counter
 from datetime import UTC, datetime
 from typing import Any
 
@@ -348,6 +349,7 @@ class SupabaseMeliSalesStore:
         sale_id: str,
         status: str,
         scanned_sku: str | None = None,
+        scanned_skus: list[str] | None = None,
     ) -> dict[str, Any]:
         if status not in {"in_preparation", "packed"}:
             raise ValueError("Estado de picking no soportado.")
@@ -364,22 +366,46 @@ class SupabaseMeliSalesStore:
         if not order_ids:
             raise LookupError("La venta no existe para el vendedor conectado.")
 
-        normalized_sku = str(scanned_sku or "").strip()
-        if not normalized_sku:
-            raise ValueError("Debes validar un SKU para actualizar el picking.")
+        received_skus = [
+            str(value or "").strip()
+            for value in (
+                scanned_skus
+                if scanned_skus is not None
+                else [scanned_sku]
+            )
+            if str(value or "").strip()
+        ]
+        if not received_skus:
+            raise ValueError(
+                "Debes validar todos los SKU para actualizar el picking."
+            )
         items = await self._list_by_ids(
             self.order_items_table,
             filter_column="order_id",
             values=order_ids,
-            select="order_id,sku",
+            select="order_id,sku,quantity",
         )
-        belongs_to_sale = any(
-            str(item.get("sku") or "").strip().casefold()
-            == normalized_sku.casefold()
-            for item in items
-        )
-        if not belongs_to_sale:
+
+        expected_skus: Counter[str] = Counter()
+        for item in items:
+            sku = str(item.get("sku") or "").strip().casefold()
+            if not sku:
+                continue
+            try:
+                quantity = max(1, int(item.get("quantity") or 1))
+            except (TypeError, ValueError):
+                quantity = 1
+            expected_skus[sku] += quantity
+
+        received_sku_counts = Counter(sku.casefold() for sku in received_skus)
+        if received_sku_counts - expected_skus:
             raise ValueError("El SKU no pertenece a esta venta.")
+        if received_sku_counts != expected_skus:
+            raise ValueError(
+                "Debes validar todos los productos y cantidades de la venta."
+            )
+
+        normalized_sku = received_skus[-1]
 
         existing_response = await self._request(
             "GET",
