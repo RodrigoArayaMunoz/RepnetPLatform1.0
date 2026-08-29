@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   LoaderCircle,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { authFetch } from "../../lib/apiClient.js";
 import "../styles/SellerSales.css";
@@ -22,7 +26,7 @@ const chileToday = () => {
 };
 const REPNET_SALES_DATE_FROM = chileToday();
 const REPNET_SALES_DATE_TO = REPNET_SALES_DATE_FROM;
-const columns = ["VENTA / PACK", "ENVÍO", "PRODUCTOS", "ESTADO", "NOTA VENTA"];
+const SALES_PER_PAGE = 8;
 
 const readErrorMessage = (data, fallback) => {
   if (typeof data?.detail === "string") return data.detail;
@@ -44,13 +48,63 @@ const formatSalesDate = (value) => {
 
 function EmptyGridState({ children, icon }) {
   return (
-    <tr>
-      <td colSpan={columns.length} className="seller-sales-empty-cell">
-        <div className="seller-sales-empty-state">{icon}{children}</div>
-      </td>
-    </tr>
+    <div className="seller-sales-empty-cell">
+      <div className="seller-sales-empty-state">{icon}{children}</div>
+    </div>
   );
 }
+
+const getSaleNumber = (sale) => sale.sale_id || sale.mlc || sale.order_id;
+
+const getShippingLabel = (shippingType) => {
+  if (shippingType === "flex") return "Flex";
+  if (shippingType === "normal") return "Normal";
+  if (shippingType === "no_shipping") return "Sin envío";
+  return "Pendiente";
+};
+
+function PickingProducts({ sale }) {
+  if (!sale.items?.length) {
+    return (
+      <div className="seller-sales-picking-empty">
+        <ClipboardList size={30} aria-hidden="true" />
+        <span>Esta venta no tiene productos cargados.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="seller-sales-picking-products">
+      {sale.items.map((item) => (
+        <article
+          className="seller-sales-picking-product"
+          key={`${item.order_id}-${item.line_number}`}
+        >
+          <div>
+            <span>SKU</span>
+            <strong>{item.sku || item.item_id}</strong>
+          </div>
+          <div>
+            <span>Cantidad</span>
+            <strong>{item.quantity}</strong>
+          </div>
+          {item.title ? <p>{item.title}</p> : null}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+const salesFilterOptions = [
+  { id: "all", label: "TOTAL PEDIDOS" },
+  { id: "flex", label: "FLEX" },
+  { id: "normal", label: "NORMAL" },
+];
+
+const dispatchFilterOptions = [
+  { id: "dispatched", label: "DESPACHADOS" },
+  { id: "pending", label: "POR DESPACHAR" },
+];
 
 function SalesGrid({
   title,
@@ -61,6 +115,91 @@ function SalesGrid({
   isSyncing = false,
   disabled = false,
 }) {
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeDispatchFilter, setActiveDispatchFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pickingSale, setPickingSale] = useState(null);
+  const dispatchCounts = {
+    dispatched: rows.filter((sale) => sale.is_dispatched === true).length,
+    pending: rows.filter((sale) => sale.is_dispatched === false).length,
+  };
+  const dispatchFilteredRows =
+    activeDispatchFilter === "all"
+      ? rows
+      : rows.filter((sale) =>
+          activeDispatchFilter === "dispatched"
+            ? sale.is_dispatched === true
+            : sale.is_dispatched === false
+        );
+  const counts = {
+    all: dispatchFilteredRows.length,
+    flex: dispatchFilteredRows.filter((sale) => sale.shipping_type === "flex").length,
+    normal: dispatchFilteredRows.filter((sale) => sale.shipping_type === "normal").length,
+  };
+  const filteredRows =
+    activeFilter === "all"
+      ? dispatchFilteredRows
+      : dispatchFilteredRows.filter(
+          (sale) => sale.shipping_type === activeFilter
+        );
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredRows.length / SALES_PER_PAGE)
+  );
+  const visiblePage = Math.min(currentPage, totalPages);
+  const firstRowIndex = (visiblePage - 1) * SALES_PER_PAGE;
+  const paginatedRows = filteredRows.slice(
+    firstRowIndex,
+    firstRowIndex + SALES_PER_PAGE
+  );
+  const activeShippingLabel =
+    activeFilter === "flex"
+      ? " Flex"
+      : activeFilter === "normal"
+        ? " normales"
+        : "";
+  const emptySalesTitle =
+    activeDispatchFilter === "dispatched"
+      ? `No hay pedidos${activeShippingLabel} despachados`
+      : activeDispatchFilter === "pending"
+        ? `No hay pedidos${activeShippingLabel} por despachar`
+        : activeFilter === "all"
+          ? "No hay ventas pagadas en el período"
+          : `No hay envíos${activeShippingLabel}`;
+  const hasActiveFilters =
+    activeDispatchFilter !== "all" || activeFilter !== "all";
+
+  const selectFilter = (filterId) => {
+    setActiveFilter(filterId);
+    setCurrentPage(1);
+    setPickingSale(null);
+  };
+
+  const selectDispatchFilter = (filterId) => {
+    setActiveDispatchFilter((currentFilter) =>
+      currentFilter === filterId ? "all" : filterId
+    );
+    setCurrentPage(1);
+    setPickingSale(null);
+  };
+
+  useEffect(() => {
+    if (!pickingSale) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setPickingSale(null);
+    };
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [pickingSale]);
+
   return (
     <article className="seller-sales-grid-card">
       <header className="seller-sales-grid-header">
@@ -68,7 +207,7 @@ function SalesGrid({
           <h2>{title}</h2>
           {!disabled && !isLoading && !error ? (
             <span className="seller-sales-grid-count">
-              {rows.length} {rows.length === 1 ? "venta" : "ventas"}
+              {filteredRows.length} {filteredRows.length === 1 ? "venta" : "ventas"}
             </span>
           ) : null}
         </div>
@@ -91,135 +230,271 @@ function SalesGrid({
         ) : null}
       </header>
 
-      <div className="seller-sales-grid-scroll">
-        <table className="seller-sales-grid" aria-label={`Ventas ${title}`}>
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <th key={column} scope="col">
-                  {column}
-                </th>
-              ))}
-            </tr>
-          </thead>
+      <div
+        className="seller-sales-dispatch-filters"
+        aria-label={`Filtros por estado de despacho ${title}`}
+      >
+        {dispatchFilterOptions.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            className={`seller-sales-filter seller-sales-dispatch-filter seller-sales-dispatch-filter--${filter.id}${activeDispatchFilter === filter.id ? " seller-sales-filter--active" : ""}`}
+            onClick={() => selectDispatchFilter(filter.id)}
+            aria-pressed={activeDispatchFilter === filter.id}
+            disabled={disabled || isLoading}
+            title={
+              activeDispatchFilter === filter.id
+                ? "Presiona nuevamente para mostrar todos"
+                : undefined
+            }
+          >
+            <span>{filter.label}</span>
+            <strong>{dispatchCounts[filter.id]}</strong>
+          </button>
+        ))}
+      </div>
 
-          <tbody>
-            {isLoading ? (
-              <EmptyGridState
-                icon={
-                  <LoaderCircle
-                    className="seller-sales-loading-icon"
-                    size={32}
-                    aria-hidden="true"
-                  />
-                }
+      <div className="seller-sales-filters" aria-label={`Filtros de ventas ${title}`}>
+        {salesFilterOptions.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            className={`seller-sales-filter${activeFilter === filter.id ? " seller-sales-filter--active" : ""}`}
+            onClick={() => selectFilter(filter.id)}
+            aria-pressed={activeFilter === filter.id}
+            disabled={disabled || isLoading}
+          >
+            <span>{filter.label}</span>
+            <strong>{counts[filter.id]}</strong>
+          </button>
+        ))}
+      </div>
+
+      <div className="seller-sales-cards" aria-label={`Ventas ${title}`}>
+        {isLoading ? (
+          <EmptyGridState
+            icon={
+              <LoaderCircle
+                className="seller-sales-loading-icon"
+                size={32}
+                aria-hidden="true"
+              />
+            }
+          >
+            <strong>Cargando ventas del período...</strong>
+            <span>Consultando órdenes y notas en Mercado Libre.</span>
+          </EmptyGridState>
+        ) : error ? (
+          <EmptyGridState
+            icon={
+              <span
+                className="seller-sales-empty-icon seller-sales-error-icon"
+                aria-hidden="true"
               >
-                <strong>Cargando ventas del período...</strong>
-                <span>Consultando órdenes y notas en Mercado Libre.</span>
-              </EmptyGridState>
-            ) : error ? (
-              <EmptyGridState
-                icon={
-                  <span
-                    className="seller-sales-empty-icon seller-sales-error-icon"
-                    aria-hidden="true"
-                  >
-                    <AlertCircle size={27} strokeWidth={1.8} />
-                  </span>
-                }
-              >
-                <strong>No fue posible cargar las ventas</strong>
-                <span>{error}</span>
-                <button
-                  type="button"
-                  className="seller-sales-retry-button"
-                  onClick={onRetry}
-                >
-                  <RefreshCw size={16} aria-hidden="true" />
-                  Reintentar
-                </button>
-              </EmptyGridState>
-            ) : disabled ? (
-              <EmptyGridState
-                icon={
-                  <span className="seller-sales-empty-icon" aria-hidden="true">
-                    <ClipboardList size={27} strokeWidth={1.8} />
-                  </span>
-                }
-              >
-                <strong>Integración pendiente</strong>
-                <span>La cuenta EMILIA se conectará en una siguiente etapa.</span>
-              </EmptyGridState>
-            ) : rows.length === 0 ? (
-              <EmptyGridState
-                icon={
-                  <span className="seller-sales-empty-icon" aria-hidden="true">
-                    <ClipboardList size={27} strokeWidth={1.8} />
-                  </span>
-                }
-              >
-                <strong>No hay ventas pagadas en el período</strong>
-                <span>Se muestran órdenes cerradas durante las fechas seleccionadas.</span>
-              </EmptyGridState>
-            ) : (
-              rows.map((sale) => (
-                <tr key={sale.sale_id || sale.order_id}>
-                  <td
-                    className="seller-sales-order-cell"
+                <AlertCircle size={27} strokeWidth={1.8} />
+              </span>
+            }
+          >
+            <strong>No fue posible cargar las ventas</strong>
+            <span>{error}</span>
+            <button
+              type="button"
+              className="seller-sales-retry-button"
+              onClick={onRetry}
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+              Reintentar
+            </button>
+          </EmptyGridState>
+        ) : disabled ? (
+          <EmptyGridState
+            icon={
+              <span className="seller-sales-empty-icon" aria-hidden="true">
+                <ClipboardList size={27} strokeWidth={1.8} />
+              </span>
+            }
+          >
+            <strong>Integración pendiente</strong>
+            <span>La cuenta EMILIA se conectará en una siguiente etapa.</span>
+          </EmptyGridState>
+        ) : filteredRows.length === 0 ? (
+          <EmptyGridState
+            icon={
+              <span className="seller-sales-empty-icon" aria-hidden="true">
+                <ClipboardList size={27} strokeWidth={1.8} />
+              </span>
+            }
+          >
+            <strong>{emptySalesTitle}</strong>
+            <span>
+              {hasActiveFilters
+                ? "Selecciona otra combinación de filtros para revisar los demás pedidos."
+                : "Se muestran órdenes cerradas durante las fechas seleccionadas."}
+            </span>
+          </EmptyGridState>
+        ) : (
+          paginatedRows.map((sale) => (
+            <article
+              className="seller-sales-sale-card"
+              key={getSaleNumber(sale)}
+            >
+              <header className="seller-sales-sale-card-header">
+                <div className="seller-sales-sale-summary">
+                  <div
+                    className="seller-sales-sale-number"
                     title={(sale.order_ids || [sale.order_id]).join(", ")}
                   >
-                    {sale.sale_id || sale.mlc}
+                    <span>Venta:</span>
+                    <strong>{getSaleNumber(sale)}</strong>
                     {sale.order_ids?.length > 1 ? (
                       <small>{sale.order_ids.length} órdenes</small>
                     ) : null}
-                  </td>
-                  <td>
-                    <span
-                      className={`seller-sales-shipping-badge seller-sales-shipping-badge--${sale.shipping_type || "pending"}`}
-                    >
-                      {sale.shipping_type === "flex"
-                        ? "Flex"
-                        : sale.shipping_type === "normal"
-                          ? "Normal"
-                          : sale.shipping_type === "no_shipping"
-                            ? "Sin envío"
-                            : "Pendiente"}
-                    </span>
-                    {sale.logistic_type ? <small>{sale.logistic_type}</small> : null}
-                  </td>
-                  <td className="seller-sales-products-cell">
-                    {sale.items?.length ? (
-                      sale.items.map((item) => (
-                        <div key={`${item.order_id}-${item.line_number}`}>
-                          <strong>{item.sku || item.item_id}</strong>
-                          <span> × {item.quantity}</span>
-                          {item.title ? <small>{item.title}</small> : null}
-                        </div>
-                      ))
-                    ) : (
-                      <span className="seller-sales-note-empty">Sin productos cargados</span>
-                    )}
-                  </td>
-                  <td>
-                    <strong>{sale.shipping_status || sale.status || "—"}</strong>
-                  </td>
-                  <td className="seller-sales-note-cell">
-                    {sale.notes_error ? (
-                      <span className="seller-sales-note-error">
-                        No fue posible consultar la nota.
-                      </span>
-                    ) : sale.sale_note ? (
-                      sale.sale_note
-                    ) : (
-                      <span className="seller-sales-note-empty">Sin nota de venta</span>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  </div>
+                  <span
+                    className={`seller-sales-shipping-badge seller-sales-shipping-badge--${sale.shipping_type || "pending"}`}
+                  >
+                    {getShippingLabel(sale.shipping_type)}
+                  </span>
+                </div>
+                {sale.is_dispatched === false ? (
+                  <button
+                    type="button"
+                    className="seller-sales-picking-button"
+                    onClick={() => setPickingSale(sale)}
+                    aria-haspopup="dialog"
+                  >
+                    Iniciar Picking
+                  </button>
+                ) : sale.is_dispatched === true ? (
+                  <button
+                    type="button"
+                    className="seller-sales-picking-button seller-sales-detail-button"
+                    onClick={() => setPickingSale(sale)}
+                    aria-haspopup="dialog"
+                  >
+                    Ver Detalle
+                  </button>
+                ) : null}
+              </header>
+
+              <div className="seller-sales-sale-note">
+                <span>Nota de venta</span>
+                {sale.notes_error ? (
+                  <strong className="seller-sales-note-error">
+                    No fue posible consultar la nota.
+                  </strong>
+                ) : sale.sale_note ? (
+                  <p>{sale.sale_note}</p>
+                ) : (
+                  <p className="seller-sales-note-empty">Sin nota de venta</p>
+                )}
+              </div>
+            </article>
+          ))
+        )}
       </div>
+
+      {!disabled && !isLoading && !error && filteredRows.length > SALES_PER_PAGE ? (
+        <nav
+          className="seller-sales-pagination"
+          aria-label={`Paginación de ventas ${title}`}
+        >
+          <span className="seller-sales-pagination-summary">
+            Mostrando {firstRowIndex + 1}-{Math.min(firstRowIndex + SALES_PER_PAGE, filteredRows.length)} de{" "}
+            {filteredRows.length}
+          </span>
+          <div className="seller-sales-pagination-controls">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(Math.max(1, visiblePage - 1))}
+              disabled={visiblePage === 1}
+              aria-label="Página anterior"
+            >
+              <ChevronLeft size={17} aria-hidden="true" />
+            </button>
+            <span>
+              Página {visiblePage} de {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage(Math.min(totalPages, visiblePage + 1))
+              }
+              disabled={visiblePage === totalPages}
+              aria-label="Página siguiente"
+            >
+              <ChevronRight size={17} aria-hidden="true" />
+            </button>
+          </div>
+        </nav>
+      ) : null}
+
+      {pickingSale
+        ? createPortal(
+            <div
+              className="seller-sales-picking-overlay"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setPickingSale(null);
+              }}
+            >
+              <section
+                className="seller-sales-picking-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="seller-sales-picking-title"
+              >
+                <header className="seller-sales-picking-modal-header">
+                  <div>
+                    <span className="seller-sales-picking-modal-eyebrow">
+                      Venta
+                    </span>
+                    <h3 id="seller-sales-picking-title">
+                      {getSaleNumber(pickingSale)}
+                    </h3>
+                    <span
+                      className={`seller-sales-shipping-badge seller-sales-picking-modal-sale-type seller-sales-shipping-badge--${pickingSale.shipping_type || "pending"}`}
+                    >
+                      {getShippingLabel(pickingSale.shipping_type)}
+                    </span>
+                  </div>
+                  <div className="seller-sales-picking-modal-actions">
+                    <button
+                      type="button"
+                      className="seller-sales-picking-close-icon"
+                      onClick={() => setPickingSale(null)}
+                      aria-label="Cerrar detalle de picking"
+                      autoFocus
+                    >
+                      <X size={20} aria-hidden="true" />
+                    </button>
+                  </div>
+                </header>
+
+                <div className="seller-sales-picking-modal-body">
+                  <div className="seller-sales-picking-modal-section-title">
+                    <h4>
+                      {pickingSale.is_dispatched
+                        ? "Productos de la venta"
+                        : "Productos para picking"}
+                    </h4>
+                    <span>
+                      {pickingSale.items?.length || 0}{" "}
+                      {pickingSale.items?.length === 1 ? "producto" : "productos"}
+                    </span>
+                  </div>
+                  <PickingProducts sale={pickingSale} />
+                </div>
+
+                <footer className="seller-sales-picking-modal-footer">
+                  <button type="button" onClick={() => setPickingSale(null)}>
+                    Cerrar
+                  </button>
+                </footer>
+              </section>
+            </div>,
+            document.body
+          )
+        : null}
     </article>
   );
 }
@@ -328,7 +603,7 @@ export default function SellerSales() {
     <section className="seller-sales-page">
       <div className="seller-sales-layout">
         <header className="seller-sales-header">
-          <h1>Gestión de Ventas</h1>
+          <h1>Gestión de Pedidos</h1>
           <p>
             Ventas pagadas entre el {formatSalesDate(salesPeriod.from)} y el{" "}
             {formatSalesDate(salesPeriod.to)}, según la fecha de cierre

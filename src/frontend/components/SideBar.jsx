@@ -77,7 +77,7 @@ const navItems = [
 
       {
         to: "/gestion/ventas",
-        label: "Gestión de Ventas",
+        label: "Gestión de Pedidos",
         icon: ShoppingCart,
       },
 

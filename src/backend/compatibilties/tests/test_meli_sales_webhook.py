@@ -13,7 +13,10 @@ from routers.mercadolibre_webhook_router import (
     validate_meli_notification,
 )
 from services.meli_sales_sync_service import MeliSalesSyncService
-from services.supabase_meli_sales_store import SupabaseMeliSalesStore
+from services.supabase_meli_sales_store import (
+    SupabaseMeliSalesStore,
+    is_shipment_dispatched,
+)
 
 
 class MercadoLibreWebhookValidationTests(unittest.TestCase):
@@ -88,6 +91,22 @@ class MercadoLibreWebhookValidationTests(unittest.TestCase):
         )
 
 
+class MercadoLibreShipmentDispatchTests(unittest.TestCase):
+    def test_classifies_shipment_states_from_mercado_libre(self):
+        self.assertFalse(is_shipment_dispatched("pending"))
+        self.assertFalse(is_shipment_dispatched("handling"))
+        self.assertFalse(is_shipment_dispatched("ready_to_ship", "printed"))
+        self.assertTrue(is_shipment_dispatched("shipped"))
+        self.assertTrue(is_shipment_dispatched("delivered"))
+        self.assertTrue(is_shipment_dispatched("not_delivered"))
+        self.assertIsNone(is_shipment_dispatched("cancelled"))
+        self.assertIsNone(is_shipment_dispatched(None))
+
+    def test_cross_docking_pickup_is_already_dispatched(self):
+        self.assertTrue(is_shipment_dispatched("ready_to_ship", "picked_up"))
+        self.assertTrue(is_shipment_dispatched("ready_to_ship", "in_hub"))
+
+
 class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
     async def test_stored_sales_groups_pack_orders_and_items(self):
         store = SupabaseMeliSalesStore()
@@ -149,6 +168,7 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sales[0]["order_ids"], ["1", "2"])
         self.assertEqual([item["sku"] for item in sales[0]["items"]], ["A", "B"])
         self.assertEqual(sales[0]["shipping_type"], "flex")
+        self.assertFalse(sales[0]["is_dispatched"])
         self.assertEqual(sales[0]["total_amount"], 3000)
 
     async def test_hydrates_all_pack_orders_with_skus_quantities_and_flex(self):

@@ -8,6 +8,29 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+DISPATCHED_SHIPPING_STATUSES = frozenset(
+    {"shipped", "delivered", "not_delivered"}
+)
+DISPATCHED_READY_TO_SHIP_SUBSTATUSES = frozenset(
+    {"picked_up", "authorized_by_carrier", "in_hub"}
+)
+PENDING_DISPATCH_SHIPPING_STATUSES = frozenset(
+    {"pending", "handling", "ready_to_ship"}
+)
+
+
+def is_shipment_dispatched(status: Any, substatus: Any = None) -> bool | None:
+    normalized_status = str(status or "").strip().lower()
+    normalized_substatus = str(substatus or "").strip().lower()
+    if normalized_status in DISPATCHED_SHIPPING_STATUSES or (
+        normalized_status == "ready_to_ship"
+        and normalized_substatus in DISPATCHED_READY_TO_SHIP_SUBSTATUSES
+    ):
+        return True
+    if normalized_status in PENDING_DISPATCH_SHIPPING_STATUSES:
+        return False
+    return None
+
 
 class SupabaseMeliSalesStore:
     READ_PAGE_SIZE = 1000
@@ -384,14 +407,23 @@ class SupabaseMeliSalesStore:
                 sale["shipping_type"] = shipment.get("shipping_type") or "normal"
                 sale["logistic_type"] = shipment.get("logistic_type")
                 sale["shipping_status"] = shipment.get("status")
+                sale["shipping_substatus"] = shipment.get("substatus")
+                sale["is_dispatched"] = is_shipment_dispatched(
+                    shipment.get("status"),
+                    shipment.get("substatus"),
+                )
             elif shipment_id:
                 sale["shipping_type"] = "pending"
                 sale["logistic_type"] = None
                 sale["shipping_status"] = None
+                sale["shipping_substatus"] = None
+                sale["is_dispatched"] = None
             else:
                 sale["shipping_type"] = "no_shipping"
                 sale["logistic_type"] = None
                 sale["shipping_status"] = None
+                sale["shipping_substatus"] = None
+                sale["is_dispatched"] = None
 
         return list(grouped.values())
 
