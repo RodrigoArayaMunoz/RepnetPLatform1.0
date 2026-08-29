@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { authFetch } from "../../lib/apiClient.js";
+import SaleSkuScanner from "../components/SaleSkuScanner.jsx";
 import "../styles/SellerSales.css";
 
 const API_BASE =
@@ -471,6 +472,14 @@ function SalesGrid({
                 </header>
 
                 <div className="seller-sales-picking-modal-body">
+                  {pickingSale.is_dispatched === false ? (
+                    <SaleSkuScanner
+                      key={getSaleNumber(pickingSale)}
+                      items={pickingSale.items}
+                      saleNumber={getSaleNumber(pickingSale)}
+                    />
+                  ) : null}
+
                   <div className="seller-sales-picking-modal-section-title">
                     <h4>
                       {pickingSale.is_dispatched
