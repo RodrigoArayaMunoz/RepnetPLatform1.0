@@ -2,13 +2,16 @@
   width: 100%;
   height: 100%;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: auto;
   background: #f6f8fc;
   box-sizing: border-box;
 }
 
 .seller-sales-layout {
-  width: min(100%, 1500px);
+  width: min(100%, 920px);
+  flex: 1 0 auto;
   margin: 0 auto;
   padding: 38px 48px;
   box-sizing: border-box;
@@ -34,31 +37,65 @@
   line-height: 1.45;
 }
 
-.seller-sales-grids {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.seller-sales-grid-section {
-  position: relative;
+.seller-sales-account-content {
+  width: 100%;
   min-width: 0;
 }
 
-.seller-sales-grid-section:first-child {
-  padding-right: 28px;
-}
-
-.seller-sales-grid-section:last-child {
-  padding-left: 28px;
-}
-
-.seller-sales-divider {
-  position: absolute;
-  top: 0;
+.seller-sales-account-tabs {
+  position: sticky;
+  z-index: 40;
   bottom: 0;
-  left: 0;
-  width: 1px;
-  background: #d8e0ec;
+  flex: 0 0 auto;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #d8e0ec;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.seller-sales-account-tabs-inner {
+  width: min(100%, 620px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 auto;
+  padding: 5px;
+  border: 1px solid #dbe3ef;
+  border-radius: 15px;
+  background: #f3f6fb;
+}
+
+.seller-sales-account-tab {
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #667085;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease,
+    border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.seller-sales-account-tab:hover {
+  color: #315fb5;
+  background: #edf3ff;
+}
+
+.seller-sales-account-tab--active {
+  border-color: #9dbaf1;
+  background: #ffffff;
+  color: #2459bd;
+  box-shadow: 0 2px 8px rgba(49, 95, 181, 0.14);
+}
+
+.seller-sales-account-tab:focus-visible {
+  outline: 3px solid rgba(52, 131, 250, 0.28);
+  outline-offset: 2px;
 }
 
 .seller-sales-grid-card {
@@ -347,7 +384,6 @@
 .seller-sales-picking-button:focus-visible,
 .seller-sales-picking-close-icon:focus-visible,
 .seller-sales-picking-modal-footer button:focus-visible,
-.seller-sales-scanner-camera-button:focus-visible,
 .seller-sales-manual-sku input:focus-visible,
 .seller-sales-manual-sku button:focus-visible {
   outline: 3px solid rgba(52, 131, 250, 0.28);
@@ -830,41 +866,6 @@
   animation: sellerSalesScanLine 1.8s ease-in-out infinite;
 }
 
-.seller-sales-scanner-camera-button {
-  width: 100%;
-  min-height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 0 16px;
-  border: none;
-  border-radius: 9px;
-  background: #3483fa;
-  color: #ffffff;
-  font-size: 0.8rem;
-  font-weight: 850;
-  cursor: pointer;
-}
-
-.seller-sales-scanner-camera-button:hover {
-  background: #2968c8;
-}
-
-.seller-sales-scanner-camera-button--stop {
-  background: #475467;
-}
-
-.seller-sales-scanner-camera-button--stop:hover {
-  background: #344054;
-}
-
-.seller-sales-scanner-camera-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-
 .seller-sales-scan-feedback {
   display: flex;
   align-items: flex-start;
@@ -1121,33 +1122,9 @@
   }
 }
 
-@media (max-width: 960px) {
-  .seller-sales-grids {
-    grid-template-columns: 1fr;
-  }
-
-  .seller-sales-grid-section:first-child {
-    padding-right: 0;
-    padding-bottom: 28px;
-  }
-
-  .seller-sales-grid-section:last-child {
-    padding-top: 28px;
-    padding-left: 0;
-  }
-
-  .seller-sales-divider {
-    top: 0;
-    right: 0;
-    bottom: auto;
-    width: auto;
-    height: 1px;
-  }
-}
-
 @media (max-width: 767px) {
   .seller-sales-layout {
-    padding: 16px 4px 28px;
+    padding: 16px 4px 20px;
   }
 
   .seller-sales-header {
@@ -1158,12 +1135,16 @@
     border-radius: 12px;
   }
 
-  .seller-sales-grid-section:first-child {
-    padding-bottom: 20px;
+  .seller-sales-account-tabs {
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
   }
 
-  .seller-sales-grid-section:last-child {
-    padding-top: 20px;
+  .seller-sales-account-tabs-inner {
+    border-radius: 13px;
+  }
+
+  .seller-sales-account-tab {
+    min-height: 46px;
   }
 
   .seller-sales-dispatch-filters {

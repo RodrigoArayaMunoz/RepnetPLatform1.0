@@ -3,7 +3,6 @@ import {
   Camera,
   Keyboard,
   ScanLine,
-  Square,
   XCircle,
 } from "lucide-react";
 import {
@@ -41,30 +40,15 @@ export default function SaleSkuScanner({
   const videoRef = useRef(null);
   const controlsRef = useRef(null);
   const handledResultRef = useRef(false);
+  const validationFinishedRef = useRef(true);
+  const emptyFrameCountRef = useRef(0);
+  const validateCodeRef = useRef(null);
   const [isScanning, setIsScanning] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [scannerError, setScannerError] = useState("");
   const [validationResult, setValidationResult] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const skuRequirements = getSaleSkuRequirements(items);
-  const validatedUnits = Object.values(validatedSkuCounts).reduce(
-    (total, count) => total + (Number(count) || 0),
-    0
-  );
-
-  const stopScanner = () => {
-    controlsRef.current?.stop();
-    controlsRef.current = null;
-    setIsScanning(false);
-  };
-
-  useEffect(
-    () => () => {
-      controlsRef.current?.stop();
-      controlsRef.current = null;
-    },
-    []
-  );
 
   const validateCode = async (rawCode) => {
     const code = normalizeSkuCode(rawCode);
@@ -136,57 +120,99 @@ export default function SaleSkuScanner({
     }
   };
 
-  const startScanner = async () => {
-    setScannerError("");
-    setValidationResult(null);
-    handledResultRef.current = false;
+  validateCodeRef.current = validateCode;
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setScannerError(
-        "Este navegador no permite acceder a la cámara. Ingresa el SKU manualmente."
-      );
-      return;
-    }
+  useEffect(() => {
+    let cancelled = false;
 
-    setIsScanning(true);
+    const startScanner = async () => {
+      setScannerError("");
+      handledResultRef.current = false;
 
-    try {
-      const { BrowserMultiFormatReader } = await import("@zxing/browser");
-      const reader = new BrowserMultiFormatReader();
-      const controls = await reader.decodeFromConstraints(
-        {
-          audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setScannerError(
+          "Este navegador no permite acceder a la cámara. Ingresa el SKU manualmente."
+        );
+        return;
+      }
+
+      setIsScanning(true);
+
+      try {
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const reader = new BrowserMultiFormatReader();
+        const controls = await reader.decodeFromConstraints(
+          {
+            audio: false,
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
           },
-        },
-        videoRef.current,
-        (result, _error, scannerControls) => {
-          if (!result || handledResultRef.current) return;
+          videoRef.current,
+          (result) => {
+            if (cancelled) return;
 
-          handledResultRef.current = true;
-          scannerControls.stop();
-          controlsRef.current = null;
-          setIsScanning(false);
-          void validateCode(result.getText());
+            if (!result) {
+              if (
+                handledResultRef.current &&
+                validationFinishedRef.current
+              ) {
+                emptyFrameCountRef.current += 1;
+                if (emptyFrameCountRef.current >= 8) {
+                  handledResultRef.current = false;
+                  emptyFrameCountRef.current = 0;
+                }
+              }
+              return;
+            }
+
+            emptyFrameCountRef.current = 0;
+            if (handledResultRef.current) return;
+
+            handledResultRef.current = true;
+            validationFinishedRef.current = false;
+            void Promise.resolve(
+              validateCodeRef.current?.(result.getText())
+            ).finally(() => {
+              validationFinishedRef.current = true;
+            });
+          }
+        );
+
+        if (cancelled) {
+          controls.stop();
+          return;
         }
-      );
-      controlsRef.current = controls;
-    } catch (error) {
+        controlsRef.current = controls;
+      } catch (error) {
+        controlsRef.current?.stop();
+        controlsRef.current = null;
+        if (cancelled) return;
+        setIsScanning(false);
+        setScannerError(cameraErrorMessage(error));
+      }
+    };
+
+    void startScanner();
+
+    return () => {
+      cancelled = true;
       controlsRef.current?.stop();
       controlsRef.current = null;
-      setIsScanning(false);
-      setScannerError(cameraErrorMessage(error));
-    }
-  };
+    };
+  }, []);
 
   const submitManualCode = (event) => {
     event.preventDefault();
-    stopScanner();
     setScannerError("");
-    void validateCode(manualCode);
+    handledResultRef.current = true;
+    validationFinishedRef.current = false;
+    emptyFrameCountRef.current = 0;
+    void validateCode(manualCode).finally(() => {
+      validationFinishedRef.current = true;
+    });
   };
 
   return (
@@ -210,35 +236,14 @@ export default function SaleSkuScanner({
         ) : (
           <div className="seller-sales-scanner-placeholder">
             <Camera size={30} aria-hidden="true" />
-            <span>Abre la cámara y apunta al código de barras o QR.</span>
+            <span>
+              {scannerError
+                ? "La cámara no está disponible. Usa el ingreso manual."
+                : "Iniciando cámara..."}
+            </span>
           </div>
         )}
       </div>
-
-      <button
-        type="button"
-        className={`seller-sales-scanner-camera-button${isScanning ? " seller-sales-scanner-camera-button--stop" : ""}`}
-        onClick={isScanning ? stopScanner : startScanner}
-        disabled={isSaving}
-      >
-        {isScanning ? (
-          <>
-            <Square size={16} aria-hidden="true" />
-            Detener cámara
-          </>
-        ) : (
-          <>
-            <Camera size={17} aria-hidden="true" />
-            {isSaving
-              ? "Guardando estado..."
-              : validatedUnits > 0
-                ? "Escanear siguiente producto"
-                : validationResult
-                ? "Escanear otro código"
-                : "Abrir cámara"}
-          </>
-        )}
-      </button>
 
       {scannerError ? (
         <div className="seller-sales-scan-feedback seller-sales-scan-feedback--error" role="alert">

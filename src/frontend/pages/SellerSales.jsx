@@ -37,17 +37,6 @@ const readErrorMessage = (data, fallback) => {
   return fallback;
 };
 
-const formatSalesDate = (value) => {
-  const [year, month, day] = String(value || "").split("-").map(Number);
-  if (!year || !month || !day) return "hoy";
-
-  return new Intl.DateTimeFormat("es-CL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(year, month - 1, day));
-};
-
 function EmptyGridState({ children, icon }) {
   return (
     <div className="seller-sales-empty-cell">
@@ -421,8 +410,10 @@ function SalesGrid({
               </span>
             }
           >
-            <strong>Integración pendiente</strong>
-            <span>La cuenta EMILIA se conectará en una siguiente etapa.</span>
+            <strong>Cuenta no conectada</strong>
+            <span>
+              Conecta la cuenta {title} de Mercado Libre para cargar sus ventas.
+            </span>
           </EmptyGridState>
         ) : filteredRows.length === 0 ? (
           <EmptyGridState
@@ -643,8 +634,8 @@ function SalesGrid({
 }
 
 export default function SellerSales() {
+  const [activeAccount, setActiveAccount] = useState("repnet");
   const [repnetSales, setRepnetSales] = useState([]);
-  const [salesPeriod, setSalesPeriod] = useState({ from: "", to: "" });
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -675,10 +666,6 @@ export default function SellerSales() {
       }
 
       setRepnetSales(Array.isArray(data?.sales) ? data.sales : []);
-      setSalesPeriod({
-        from: data?.date_from || REPNET_SALES_DATE_FROM,
-        to: data?.date_to || REPNET_SALES_DATE_TO,
-      });
     } catch (error) {
       if (error?.name === "AbortError") return;
       setRepnetSales([]);
@@ -787,16 +774,17 @@ export default function SellerSales() {
       <div className="seller-sales-layout">
         <header className="seller-sales-header">
           <h1>Gestión de Pedidos</h1>
-          <p>
-            Ventas pagadas entre el {formatSalesDate(salesPeriod.from)} y el{" "}
-            {formatSalesDate(salesPeriod.to)}, según la fecha de cierre
-            registrada por Mercado Libre Chile.
-          </p>
         </header>
 
-        <div className="seller-sales-grids">
-          <div className="seller-sales-grid-section">
+        <div
+          id="seller-sales-account-panel"
+          className="seller-sales-account-content"
+          role="tabpanel"
+          aria-labelledby={`seller-sales-tab-${activeAccount}`}
+        >
+          {activeAccount === "repnet" ? (
             <SalesGrid
+              key="repnet"
               title="REPNET"
               rows={repnetSales}
               isLoading={isLoading}
@@ -805,14 +793,42 @@ export default function SellerSales() {
               onPickingStatusChange={updatePickingStatus}
               isSyncing={isSyncing}
             />
-          </div>
-
-          <div className="seller-sales-grid-section">
-            <span className="seller-sales-divider" aria-hidden="true" />
-            <SalesGrid title="EMILIA" disabled />
-          </div>
+          ) : (
+            <SalesGrid key="emilia" title="EMILIA" disabled />
+          )}
         </div>
       </div>
+
+      <nav
+        className="seller-sales-account-tabs"
+        aria-label="Seleccionar cuenta de ventas"
+        role="tablist"
+      >
+        <div className="seller-sales-account-tabs-inner">
+          <button
+            id="seller-sales-tab-repnet"
+            type="button"
+            role="tab"
+            className={`seller-sales-account-tab${activeAccount === "repnet" ? " seller-sales-account-tab--active" : ""}`}
+            aria-selected={activeAccount === "repnet"}
+            aria-controls="seller-sales-account-panel"
+            onClick={() => setActiveAccount("repnet")}
+          >
+            REPNET
+          </button>
+          <button
+            id="seller-sales-tab-emilia"
+            type="button"
+            role="tab"
+            className={`seller-sales-account-tab${activeAccount === "emilia" ? " seller-sales-account-tab--active" : ""}`}
+            aria-selected={activeAccount === "emilia"}
+            aria-controls="seller-sales-account-panel"
+            onClick={() => setActiveAccount("emilia")}
+          >
+            EMILIA
+          </button>
+        </div>
+      </nav>
     </section>
   );
 }
