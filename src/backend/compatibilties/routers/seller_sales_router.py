@@ -1,16 +1,24 @@
 from datetime import date, datetime, time, timedelta
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from celery.result import AsyncResult
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel
 
 from celery_app import celery_app
 from config import settings
 from services.seller_sales_service import SellerSalesService
 from services.supabase_meli_connection_store import supabase_meli_connection_store
+from services.supabase_meli_sales_store import supabase_meli_sales_store
 from tasks.meli_sales_tasks import backfill_meli_sales_task
 
 router = APIRouter(prefix="/ml/sales", tags=["seller-sales"])
+
+
+class PickingStatusUpdate(BaseModel):
+    status: Literal["in_preparation", "packed"]
+    scanned_sku: str | None = None
 
 
 async def _get_connected_ml_user_id() -> str:
@@ -47,6 +55,35 @@ async def get_repnet_daily_sales(
         )
     finally:
         await seller_sales_service.close_request_context()
+
+
+@router.put("/{sale_id}/picking-status")
+async def update_sale_picking_status(
+    sale_id: str,
+    payload: PickingStatusUpdate,
+):
+    if not sale_id.isdigit():
+        raise HTTPException(status_code=422, detail="El ID de venta no es valido.")
+
+    user_id = await _get_connected_ml_user_id()
+    try:
+        picking = await supabase_meli_sales_store.set_sale_picking_status(
+            seller_id=user_id,
+            sale_id=sale_id,
+            status=payload.status,
+            scanned_sku=payload.scanned_sku,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="No fue posible guardar el estado de picking.",
+        ) from exc
+
+    return {"ok": True, **picking}
 
 
 def _sales_range(

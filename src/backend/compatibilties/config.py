@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     supabase_meli_order_items_table: str = "meli_order_items"
     supabase_meli_shipments_table: str = "meli_shipments"
     supabase_meli_order_shipments_table: str = "meli_order_shipments"
+    supabase_meli_sale_pickings_table: str = "meli_sale_pickings"
     backend_auth_enabled: bool = True
     backend_auth_cache_ttl_seconds: int = 60
 

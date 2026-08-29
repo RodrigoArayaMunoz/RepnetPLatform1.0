@@ -107,17 +107,30 @@ const dispatchFilterOptions = [
   { id: "pending", label: "POR DESPACHAR" },
 ];
 
+const pickingFilterOptions = [
+  { id: "in_preparation", label: "EN PREPARACIÓN" },
+  { id: "packed", label: "EMBALADO" },
+];
+
+const getPickingStatusLabel = (status) => {
+  if (status === "in_preparation") return "En preparación";
+  if (status === "packed") return "Embalado";
+  return "";
+};
+
 function SalesGrid({
   title,
   rows = [],
   isLoading = false,
   error = "",
   onRetry,
+  onPickingStatusChange,
   isSyncing = false,
   disabled = false,
 }) {
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeDispatchFilter, setActiveDispatchFilter] = useState("all");
+  const [activePickingFilter, setActivePickingFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pickingSale, setPickingSale] = useState(null);
   const dispatchCounts = {
@@ -137,11 +150,25 @@ function SalesGrid({
     flex: dispatchFilteredRows.filter((sale) => sale.shipping_type === "flex").length,
     normal: dispatchFilteredRows.filter((sale) => sale.shipping_type === "normal").length,
   };
-  const filteredRows =
+  const shippingFilteredRows =
     activeFilter === "all"
       ? dispatchFilteredRows
       : dispatchFilteredRows.filter(
           (sale) => sale.shipping_type === activeFilter
+        );
+  const pickingCounts = {
+    in_preparation: shippingFilteredRows.filter(
+      (sale) => sale.picking_status === "in_preparation"
+    ).length,
+    packed: shippingFilteredRows.filter(
+      (sale) => sale.picking_status === "packed"
+    ).length,
+  };
+  const filteredRows =
+    activePickingFilter === "all"
+      ? shippingFilteredRows
+      : shippingFilteredRows.filter(
+          (sale) => sale.picking_status === activePickingFilter
         );
   const totalPages = Math.max(
     1,
@@ -160,7 +187,11 @@ function SalesGrid({
         ? " normales"
         : "";
   const emptySalesTitle =
-    activeDispatchFilter === "dispatched"
+    activePickingFilter === "in_preparation"
+      ? `No hay pedidos${activeShippingLabel} en preparación`
+      : activePickingFilter === "packed"
+        ? `No hay pedidos${activeShippingLabel} embalados`
+        : activeDispatchFilter === "dispatched"
       ? `No hay pedidos${activeShippingLabel} despachados`
       : activeDispatchFilter === "pending"
         ? `No hay pedidos${activeShippingLabel} por despachar`
@@ -168,7 +199,9 @@ function SalesGrid({
           ? "No hay ventas pagadas en el período"
           : `No hay envíos${activeShippingLabel}`;
   const hasActiveFilters =
-    activeDispatchFilter !== "all" || activeFilter !== "all";
+    activeDispatchFilter !== "all" ||
+    activeFilter !== "all" ||
+    activePickingFilter !== "all";
 
   const selectFilter = (filterId) => {
     setActiveFilter(filterId);
@@ -178,6 +211,14 @@ function SalesGrid({
 
   const selectDispatchFilter = (filterId) => {
     setActiveDispatchFilter((currentFilter) =>
+      currentFilter === filterId ? "all" : filterId
+    );
+    setCurrentPage(1);
+    setPickingSale(null);
+  };
+
+  const selectPickingFilter = (filterId) => {
+    setActivePickingFilter((currentFilter) =>
       currentFilter === filterId ? "all" : filterId
     );
     setCurrentPage(1);
@@ -271,6 +312,30 @@ function SalesGrid({
         ))}
       </div>
 
+      <div
+        className="seller-sales-picking-filters"
+        aria-label={`Filtros por estado de picking ${title}`}
+      >
+        {pickingFilterOptions.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            className={`seller-sales-filter seller-sales-picking-filter seller-sales-picking-filter--${filter.id}${activePickingFilter === filter.id ? " seller-sales-filter--active" : ""}`}
+            onClick={() => selectPickingFilter(filter.id)}
+            aria-pressed={activePickingFilter === filter.id}
+            disabled={disabled || isLoading}
+            title={
+              activePickingFilter === filter.id
+                ? "Presiona nuevamente para mostrar todos"
+                : undefined
+            }
+          >
+            <span>{filter.label}</span>
+            <strong>{pickingCounts[filter.id]}</strong>
+          </button>
+        ))}
+      </div>
+
       <div className="seller-sales-cards" aria-label={`Ventas ${title}`}>
         {isLoading ? (
           <EmptyGridState
@@ -356,17 +421,28 @@ function SalesGrid({
                   >
                     {getShippingLabel(sale.shipping_type)}
                   </span>
+                  {sale.picking_status ? (
+                    <span
+                      className={`seller-sales-picking-status-badge seller-sales-picking-status-badge--${sale.picking_status}`}
+                    >
+                      {getPickingStatusLabel(sale.picking_status)}
+                    </span>
+                  ) : null}
                 </div>
-                {sale.is_dispatched === false ? (
+                {sale.is_dispatched === false &&
+                sale.picking_status !== "packed" ? (
                   <button
                     type="button"
                     className="seller-sales-picking-button"
                     onClick={() => setPickingSale(sale)}
                     aria-haspopup="dialog"
                   >
-                    Iniciar Picking
+                    {sale.picking_status === "in_preparation"
+                      ? "Continuar Picking"
+                      : "Iniciar Picking"}
                   </button>
-                ) : sale.is_dispatched === true ? (
+                ) : sale.is_dispatched === true ||
+                  sale.picking_status === "packed" ? (
                   <button
                     type="button"
                     className="seller-sales-picking-button seller-sales-detail-button"
@@ -472,17 +548,27 @@ function SalesGrid({
                 </header>
 
                 <div className="seller-sales-picking-modal-body">
-                  {pickingSale.is_dispatched === false ? (
+                  {pickingSale.is_dispatched === false &&
+                  pickingSale.picking_status !== "packed" ? (
                     <SaleSkuScanner
                       key={getSaleNumber(pickingSale)}
                       items={pickingSale.items}
                       saleNumber={getSaleNumber(pickingSale)}
+                      onValidSku={({ code }) =>
+                        onPickingStatusChange(
+                          pickingSale,
+                          "in_preparation",
+                          code
+                        )
+                      }
+                      onValidationSuccess={() => setPickingSale(null)}
                     />
                   ) : null}
 
                   <div className="seller-sales-picking-modal-section-title">
                     <h4>
-                      {pickingSale.is_dispatched
+                      {pickingSale.is_dispatched ||
+                      pickingSale.picking_status === "packed"
                         ? "Productos de la venta"
                         : "Productos para picking"}
                     </h4>
@@ -556,6 +642,46 @@ export default function SellerSales() {
     }
   }, []);
 
+  const updatePickingStatus = useCallback(
+    async (sale, pickingStatus, scannedSku = null) => {
+      const saleId = getSaleNumber(sale);
+      const response = await authFetch(
+        `${API_BASE}/ml/sales/${encodeURIComponent(saleId)}/picking-status`,
+        {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: pickingStatus,
+            scanned_sku: scannedSku,
+          }),
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          readErrorMessage(data, "No fue posible guardar el estado de picking.")
+        );
+      }
+
+      setRepnetSales((currentSales) =>
+        currentSales.map((currentSale) =>
+          getSaleNumber(currentSale) === saleId
+            ? {
+                ...currentSale,
+                picking_status: data.status,
+                picking_started_at: data.started_at,
+                packed_at: data.packed_at,
+                last_scanned_sku: data.last_scanned_sku,
+              }
+            : currentSale
+        )
+      );
+      return data;
+    },
+    []
+  );
+
   const syncRepnetSales = useCallback(async () => {
     setIsSyncing(true);
     setLoadError("");
@@ -628,6 +754,7 @@ export default function SellerSales() {
               isLoading={isLoading}
               error={loadError}
               onRetry={syncRepnetSales}
+              onPickingStatusChange={updatePickingStatus}
               isSyncing={isSyncing}
             />
           </div>

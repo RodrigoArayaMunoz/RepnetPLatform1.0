@@ -157,6 +157,22 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(store, "_list_all", AsyncMock(return_value=orders)),
             patch.object(store, "_list_by_ids", AsyncMock(side_effect=list_by_ids)),
+            patch.object(
+                store,
+                "_list_pickings",
+                AsyncMock(
+                    return_value=[
+                        {
+                            "seller_id": "99",
+                            "sale_id": "100",
+                            "status": "in_preparation",
+                            "last_scanned_sku": "A",
+                            "started_at": "2026-08-28T10:05:00-04:00",
+                            "packed_at": None,
+                        }
+                    ]
+                ),
+            ),
         ):
             sales = await store.list_sales(
                 seller_id="99",
@@ -169,7 +185,62 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item["sku"] for item in sales[0]["items"]], ["A", "B"])
         self.assertEqual(sales[0]["shipping_type"], "flex")
         self.assertFalse(sales[0]["is_dispatched"])
+        self.assertEqual(sales[0]["picking_status"], "in_preparation")
+        self.assertEqual(sales[0]["last_scanned_sku"], "A")
         self.assertEqual(sales[0]["total_amount"], 3000)
+
+    async def test_valid_sku_starts_picking_and_persists_status(self):
+        store = SupabaseMeliSalesStore()
+        with (
+            patch.object(
+                store,
+                "_list_all",
+                AsyncMock(return_value=[{"order_id": "1"}]),
+            ),
+            patch.object(
+                store,
+                "_list_by_ids",
+                AsyncMock(return_value=[{"order_id": "1", "sku": "SKU-ONE"}]),
+            ),
+            patch.object(
+                store,
+                "_request",
+                AsyncMock(return_value=SimpleNamespace(json=lambda: [])),
+            ),
+            patch.object(store, "_upsert", AsyncMock()) as upsert,
+        ):
+            result = await store.set_sale_picking_status(
+                seller_id="99",
+                sale_id="100",
+                status="in_preparation",
+                scanned_sku="sku-one",
+            )
+
+        self.assertEqual(result["status"], "in_preparation")
+        self.assertEqual(result["last_scanned_sku"], "sku-one")
+        upsert.assert_awaited_once()
+
+    async def test_rejects_sku_that_does_not_belong_to_sale(self):
+        store = SupabaseMeliSalesStore()
+        with (
+            patch.object(
+                store,
+                "_list_all",
+                AsyncMock(return_value=[{"order_id": "1"}]),
+            ),
+            patch.object(
+                store,
+                "_list_by_ids",
+                AsyncMock(return_value=[{"order_id": "1", "sku": "SKU-ONE"}]),
+            ),
+        ):
+            with self.assertRaisesRegex(ValueError, "no pertenece"):
+                await store.set_sale_picking_status(
+                    seller_id="99",
+                    sale_id="100",
+                    status="in_preparation",
+                    scanned_sku="SKU-WRONG",
+                )
 
     async def test_hydrates_all_pack_orders_with_skus_quantities_and_flex(self):
         service = MeliSalesSyncService()

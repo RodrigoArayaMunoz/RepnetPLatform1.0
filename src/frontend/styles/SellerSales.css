@@ -123,7 +123,8 @@
 }
 
 .seller-sales-dispatch-filters,
-.seller-sales-filters {
+.seller-sales-filters,
+.seller-sales-picking-filters {
   display: grid;
   gap: 10px;
   background: #f8faff;
@@ -136,6 +137,11 @@
 
 .seller-sales-filters {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 10px 16px 0;
+}
+
+.seller-sales-picking-filters {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 10px 16px 14px;
   border-bottom: 1px solid #e3e8f1;
 }
@@ -216,6 +222,26 @@
 
 .seller-sales-dispatch-filter--pending.seller-sales-filter--active strong {
   background: #d88b18;
+}
+
+.seller-sales-picking-filter--in_preparation.seller-sales-filter--active {
+  border-color: #8b72dc;
+  background: #f3f0ff;
+  color: #6447bd;
+}
+
+.seller-sales-picking-filter--in_preparation.seller-sales-filter--active strong {
+  background: #7658ce;
+}
+
+.seller-sales-picking-filter--packed.seller-sales-filter--active {
+  border-color: #31a6a0;
+  background: #eaf9f8;
+  color: #16746f;
+}
+
+.seller-sales-picking-filter--packed.seller-sales-filter--active strong {
+  background: #238d87;
 }
 
 .seller-sales-filter:disabled {
@@ -457,6 +483,27 @@
 .seller-sales-shipping-badge--pending {
   background: #fff7e6;
   color: #9a6700;
+}
+
+.seller-sales-picking-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 0.69rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.seller-sales-picking-status-badge--in_preparation {
+  background: #f0ebff;
+  color: #6447bd;
+}
+
+.seller-sales-picking-status-badge--packed {
+  background: #e3f7f5;
+  color: #16746f;
 }
 
 .seller-sales-note-cell {
@@ -813,6 +860,11 @@
   background: #344054;
 }
 
+.seller-sales-scanner-camera-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .seller-sales-scan-feedback {
   display: flex;
   align-items: flex-start;
@@ -1097,6 +1149,11 @@
   }
 
   .seller-sales-filters {
+    gap: 6px;
+    padding: 8px 10px 0;
+  }
+
+  .seller-sales-picking-filters {
     gap: 6px;
     padding: 8px 10px 10px;
   }

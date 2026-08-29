@@ -42,6 +42,7 @@ class SupabaseMeliSalesStore:
         self.order_items_table = settings.supabase_meli_order_items_table
         self.shipments_table = settings.supabase_meli_shipments_table
         self.order_shipments_table = settings.supabase_meli_order_shipments_table
+        self.sale_pickings_table = settings.supabase_meli_sale_pickings_table
 
     def _table_url(self, table_name: str) -> str:
         if not settings.supabase_url or not settings.supabase_service_role_key:
@@ -307,6 +308,117 @@ class SupabaseMeliSalesStore:
             )
         return result
 
+    async def _list_pickings(
+        self,
+        *,
+        seller_id: str,
+        sale_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        try:
+            for start in range(0, len(sale_ids), 100):
+                chunk = sale_ids[start : start + 100]
+                if not chunk:
+                    continue
+                result.extend(
+                    await self._list_all(
+                        self.sale_pickings_table,
+                        params={
+                            "select": (
+                                "seller_id,sale_id,status,last_scanned_sku,"
+                                "started_at,packed_at,updated_at"
+                            ),
+                            "seller_id": f"eq.{seller_id}",
+                            "sale_id": self._in_filter(chunk),
+                        },
+                    )
+                )
+        except RuntimeError:
+            logger.warning(
+                "[SUPABASE_MELI_SALES][PICKINGS_UNAVAILABLE] "
+                "Aplica la migracion de meli_sale_pickings."
+            )
+            return []
+        return result
+
+    async def set_sale_picking_status(
+        self,
+        *,
+        seller_id: str,
+        sale_id: str,
+        status: str,
+        scanned_sku: str | None = None,
+    ) -> dict[str, Any]:
+        if status not in {"in_preparation", "packed"}:
+            raise ValueError("Estado de picking no soportado.")
+
+        orders = await self._list_all(
+            self.orders_table,
+            params={
+                "select": "order_id",
+                "seller_id": f"eq.{seller_id}",
+                "sale_id": f"eq.{sale_id}",
+            },
+        )
+        order_ids = [str(order["order_id"]) for order in orders]
+        if not order_ids:
+            raise LookupError("La venta no existe para el vendedor conectado.")
+
+        normalized_sku = str(scanned_sku or "").strip()
+        if status == "in_preparation":
+            if not normalized_sku:
+                raise ValueError("Debes validar un SKU para iniciar el picking.")
+            items = await self._list_by_ids(
+                self.order_items_table,
+                filter_column="order_id",
+                values=order_ids,
+                select="order_id,sku",
+            )
+            belongs_to_sale = any(
+                str(item.get("sku") or "").strip().casefold()
+                == normalized_sku.casefold()
+                for item in items
+            )
+            if not belongs_to_sale:
+                raise ValueError("El SKU no pertenece a esta venta.")
+
+        existing_response = await self._request(
+            "GET",
+            self.sale_pickings_table,
+            params={
+                "select": "started_at,last_scanned_sku",
+                "seller_id": f"eq.{seller_id}",
+                "sale_id": f"eq.{sale_id}",
+                "limit": "1",
+            },
+        )
+        existing_rows = existing_response.json()
+        existing = (
+            existing_rows[0]
+            if isinstance(existing_rows, list) and existing_rows
+            else {}
+        )
+        now = datetime.now(UTC).isoformat()
+        row = {
+            "seller_id": seller_id,
+            "sale_id": sale_id,
+            "status": status,
+            "last_scanned_sku": (
+                normalized_sku
+                or str(existing.get("last_scanned_sku") or "").strip()
+                or None
+            ),
+            "started_at": existing.get("started_at") or now,
+            "packed_at": now if status == "packed" else None,
+            "updated_at": now,
+        }
+        await self._upsert(
+            self.sale_pickings_table,
+            [row],
+            on_conflict="seller_id,sale_id",
+        )
+        return row
+
     async def list_sales(
         self,
         *,
@@ -359,6 +471,13 @@ class SupabaseMeliSalesStore:
                 "tracking_number,last_updated"
             ),
         )
+        sale_ids = sorted(
+            {str(order.get("sale_id") or order["order_id"]) for order in orders}
+        )
+        pickings = await self._list_pickings(
+            seller_id=seller_id,
+            sale_ids=sale_ids,
+        )
         items_by_order: dict[str, list[dict[str, Any]]] = {}
         for item in items:
             items_by_order.setdefault(str(item["order_id"]), []).append(item)
@@ -367,6 +486,9 @@ class SupabaseMeliSalesStore:
 
         shipments_by_id = {
             str(shipment["shipment_id"]): shipment for shipment in shipments
+        }
+        pickings_by_sale_id = {
+            str(picking["sale_id"]): picking for picking in pickings
         }
         grouped: dict[str, dict[str, Any]] = {}
         for order in orders:
@@ -424,6 +546,17 @@ class SupabaseMeliSalesStore:
                 sale["shipping_status"] = None
                 sale["shipping_substatus"] = None
                 sale["is_dispatched"] = None
+
+        for sale_id, sale in grouped.items():
+            picking = pickings_by_sale_id.get(sale_id)
+            sale["picking_status"] = picking.get("status") if picking else None
+            sale["picking_started_at"] = (
+                picking.get("started_at") if picking else None
+            )
+            sale["packed_at"] = picking.get("packed_at") if picking else None
+            sale["last_scanned_sku"] = (
+                picking.get("last_scanned_sku") if picking else None
+            )
 
         return list(grouped.values())
 

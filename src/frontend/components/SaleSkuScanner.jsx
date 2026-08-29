@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Camera,
-  CheckCircle2,
   Keyboard,
   ScanLine,
   Square,
@@ -28,7 +27,12 @@ const cameraErrorMessage = (error) => {
   return "No fue posible iniciar la cámara. Puedes ingresar el SKU manualmente.";
 };
 
-export default function SaleSkuScanner({ items = [], saleNumber }) {
+export default function SaleSkuScanner({
+  items = [],
+  saleNumber,
+  onValidSku,
+  onValidationSuccess,
+}) {
   const videoRef = useRef(null);
   const controlsRef = useRef(null);
   const handledResultRef = useRef(false);
@@ -36,6 +40,7 @@ export default function SaleSkuScanner({ items = [], saleNumber }) {
   const [manualCode, setManualCode] = useState("");
   const [scannerError, setScannerError] = useState("");
   const [validationResult, setValidationResult] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const stopScanner = () => {
     controlsRef.current?.stop();
@@ -51,30 +56,41 @@ export default function SaleSkuScanner({ items = [], saleNumber }) {
     []
   );
 
-  const validateCode = (rawCode) => {
+  const validateCode = async (rawCode) => {
     const code = normalizeSkuCode(rawCode);
     if (!code) return;
 
     const matchingItem = findSaleItemBySku(items, code);
-    const nextResult = matchingItem
-      ? {
-          type: "success",
-          code,
-          item: matchingItem,
-          message: `El SKU pertenece a la venta ${saleNumber}.`,
-        }
-      : {
+    setManualCode(code);
+
+    if (!matchingItem) {
+      setValidationResult({
           type: "error",
           code,
           item: null,
           message: `El SKU no pertenece a la venta ${saleNumber}.`,
-        };
+        });
+      if (navigator.vibrate) navigator.vibrate([180, 90, 180]);
+      return;
+    }
 
-    setValidationResult(nextResult);
-    setManualCode(code);
-
-    if (navigator.vibrate) {
-      navigator.vibrate(matchingItem ? 120 : [180, 90, 180]);
+    setValidationResult(null);
+    setScannerError("");
+    setIsSaving(true);
+    try {
+      await onValidSku?.({ code, item: matchingItem });
+      if (navigator.vibrate) navigator.vibrate(120);
+      setIsSaving(false);
+      onValidationSuccess?.();
+    } catch (error) {
+      setIsSaving(false);
+      setValidationResult({
+        type: "error",
+        code,
+        item: matchingItem,
+        message:
+          error?.message || "No fue posible guardar el estado de picking.",
+      });
     }
   };
 
@@ -112,7 +128,7 @@ export default function SaleSkuScanner({ items = [], saleNumber }) {
           scannerControls.stop();
           controlsRef.current = null;
           setIsScanning(false);
-          validateCode(result.getText());
+          void validateCode(result.getText());
         }
       );
       controlsRef.current = controls;
@@ -128,7 +144,7 @@ export default function SaleSkuScanner({ items = [], saleNumber }) {
     event.preventDefault();
     stopScanner();
     setScannerError("");
-    validateCode(manualCode);
+    void validateCode(manualCode);
   };
 
   return (
@@ -161,6 +177,7 @@ export default function SaleSkuScanner({ items = [], saleNumber }) {
         type="button"
         className={`seller-sales-scanner-camera-button${isScanning ? " seller-sales-scanner-camera-button--stop" : ""}`}
         onClick={isScanning ? stopScanner : startScanner}
+        disabled={isSaving}
       >
         {isScanning ? (
           <>
@@ -170,7 +187,11 @@ export default function SaleSkuScanner({ items = [], saleNumber }) {
         ) : (
           <>
             <Camera size={17} aria-hidden="true" />
-            {validationResult ? "Escanear otro código" : "Abrir cámara"}
+            {isSaving
+              ? "Guardando estado..."
+              : validationResult
+                ? "Escanear otro código"
+                : "Abrir cámara"}
           </>
         )}
       </button>
@@ -184,14 +205,10 @@ export default function SaleSkuScanner({ items = [], saleNumber }) {
 
       {validationResult ? (
         <div
-          className={`seller-sales-scan-feedback seller-sales-scan-feedback--${validationResult.type}`}
-          role="status"
+          className="seller-sales-scan-feedback seller-sales-scan-feedback--error"
+          role="alert"
         >
-          {validationResult.type === "success" ? (
-            <CheckCircle2 size={22} aria-hidden="true" />
-          ) : (
-            <XCircle size={22} aria-hidden="true" />
-          )}
+          <XCircle size={22} aria-hidden="true" />
           <div>
             <strong>{validationResult.code}</strong>
             <span>{validationResult.message}</span>
@@ -216,8 +233,9 @@ export default function SaleSkuScanner({ items = [], saleNumber }) {
             placeholder="Escribe o pega el SKU"
             autoComplete="off"
             autoCapitalize="characters"
+            disabled={isSaving}
           />
-          <button type="submit" disabled={!manualCode.trim()}>
+          <button type="submit" disabled={!manualCode.trim() || isSaving}>
             Validar
           </button>
         </div>
