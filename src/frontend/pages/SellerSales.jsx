@@ -16,18 +16,8 @@ import "../styles/SellerSales.css";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-const chileToday = () => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Santiago",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-};
-const REPNET_SALES_DATE_FROM = chileToday();
-const REPNET_SALES_DATE_TO = REPNET_SALES_DATE_FROM;
+const REPNET_SALES_DATE_FROM = "2026-08-28";
+const REPNET_SALES_DATE_TO = "2026-08-31";
 const SALES_PER_PAGE = 8;
 
 const readErrorMessage = (data, fallback) => {
@@ -774,6 +764,7 @@ export default function SellerSales() {
       <div className="seller-sales-layout">
         <header className="seller-sales-header">
           <h1>Gestión de Pedidos</h1>
+          <p>Ventas desde el 28 de agosto hasta el 31 de agosto de 2026.</p>
         </header>
 
         <div
