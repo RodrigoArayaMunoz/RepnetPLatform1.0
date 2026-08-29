@@ -557,7 +557,9 @@ function SalesGrid({
                       onValidSku={({ code }) =>
                         onPickingStatusChange(
                           pickingSale,
-                          "in_preparation",
+                          pickingSale.picking_status === "in_preparation"
+                            ? "packed"
+                            : "in_preparation",
                           code
                         )
                       }

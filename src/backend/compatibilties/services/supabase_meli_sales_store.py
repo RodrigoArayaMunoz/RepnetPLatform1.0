@@ -365,22 +365,21 @@ class SupabaseMeliSalesStore:
             raise LookupError("La venta no existe para el vendedor conectado.")
 
         normalized_sku = str(scanned_sku or "").strip()
-        if status == "in_preparation":
-            if not normalized_sku:
-                raise ValueError("Debes validar un SKU para iniciar el picking.")
-            items = await self._list_by_ids(
-                self.order_items_table,
-                filter_column="order_id",
-                values=order_ids,
-                select="order_id,sku",
-            )
-            belongs_to_sale = any(
-                str(item.get("sku") or "").strip().casefold()
-                == normalized_sku.casefold()
-                for item in items
-            )
-            if not belongs_to_sale:
-                raise ValueError("El SKU no pertenece a esta venta.")
+        if not normalized_sku:
+            raise ValueError("Debes validar un SKU para actualizar el picking.")
+        items = await self._list_by_ids(
+            self.order_items_table,
+            filter_column="order_id",
+            values=order_ids,
+            select="order_id,sku",
+        )
+        belongs_to_sale = any(
+            str(item.get("sku") or "").strip().casefold()
+            == normalized_sku.casefold()
+            for item in items
+        )
+        if not belongs_to_sale:
+            raise ValueError("El SKU no pertenece a esta venta.")
 
         existing_response = await self._request(
             "GET",

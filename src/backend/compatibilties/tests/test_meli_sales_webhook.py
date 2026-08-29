@@ -242,6 +242,48 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
                     scanned_sku="SKU-WRONG",
                 )
 
+    async def test_valid_sku_moves_picking_to_packed(self):
+        store = SupabaseMeliSalesStore()
+        started_at = "2026-08-28T10:05:00-04:00"
+        with (
+            patch.object(
+                store,
+                "_list_all",
+                AsyncMock(return_value=[{"order_id": "1"}]),
+            ),
+            patch.object(
+                store,
+                "_list_by_ids",
+                AsyncMock(return_value=[{"order_id": "1", "sku": "SKU-ONE"}]),
+            ),
+            patch.object(
+                store,
+                "_request",
+                AsyncMock(
+                    return_value=SimpleNamespace(
+                        json=lambda: [
+                            {
+                                "started_at": started_at,
+                                "last_scanned_sku": "SKU-ONE",
+                            }
+                        ]
+                    )
+                ),
+            ),
+            patch.object(store, "_upsert", AsyncMock()) as upsert,
+        ):
+            result = await store.set_sale_picking_status(
+                seller_id="99",
+                sale_id="100",
+                status="packed",
+                scanned_sku="SKU-ONE",
+            )
+
+        self.assertEqual(result["status"], "packed")
+        self.assertEqual(result["started_at"], started_at)
+        self.assertIsNotNone(result["packed_at"])
+        upsert.assert_awaited_once()
+
     async def test_hydrates_all_pack_orders_with_skus_quantities_and_flex(self):
         service = MeliSalesSyncService()
         order_one = {
