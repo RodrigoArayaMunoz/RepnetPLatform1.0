@@ -90,6 +90,25 @@ class MercadoLibreWebhookValidationTests(unittest.TestCase):
             notification_event_key({**base, "attempts": 8}),
         )
 
+    def test_accepts_items_notifications(self):
+        payload = {
+            "_id": "event-item-1",
+            "application_id": "1234",
+            "user_id": 99,
+            "topic": "items",
+            "resource": "/items/MLC123456789",
+            "attempts": 1,
+        }
+        with (
+            patch.object(settings, "ml_client_id", "1234"),
+            patch.object(settings, "ml_notification_application_id", None),
+            patch.object(settings, "ml_notification_allowed_user_id", None),
+        ):
+            normalized = validate_meli_notification(payload)
+
+        self.assertEqual(normalized["topic"], "items")
+        self.assertEqual(normalized["resource"], "/items/MLC123456789")
+
 
 class MercadoLibreShipmentDispatchTests(unittest.TestCase):
     def test_classifies_shipment_states_from_mercado_libre(self):
@@ -108,6 +127,51 @@ class MercadoLibreShipmentDispatchTests(unittest.TestCase):
 
 
 class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_items_notification_upserts_created_or_modified_publication(self):
+        service = MeliSalesSyncService()
+        item_payload = {
+            "id": "MLC123456789",
+            "seller_id": 99,
+            "title": "Publicacion creada o modificada",
+            "date_created": "2026-09-26T11:30:00.000Z",
+            "attributes": [
+                {
+                    "id": "SELLER_SKU",
+                    "value_name": "SKU-ITEM",
+                }
+            ],
+        }
+
+        async def request_ml(path, *, user_id, params=None):
+            self.assertEqual(path, "/items/MLC123456789")
+            self.assertEqual(user_id, "99")
+            self.assertEqual(params["attributes"], "id,title,attributes,date_created")
+            return item_payload
+
+        with (
+            patch.object(service, "_request_ml", AsyncMock(side_effect=request_ml)),
+            patch(
+                "services.meli_sales_sync_service."
+                "supabase_publications_store.upsert_incremental_rows",
+                new=AsyncMock(return_value=1),
+            ) as upsert_publications,
+        ):
+            await service.process_notification(
+                {
+                    "topic": "items",
+                    "resource": "/items/MLC123456789",
+                    "user_id": "99",
+                }
+            )
+
+        upsert_publications.assert_awaited_once()
+        row = upsert_publications.await_args.args[0][0]
+        self.assertEqual(row["seller_id"], 99)
+        self.assertEqual(row["mlc"], "MLC123456789")
+        self.assertEqual(row["sku"], "SKU-ITEM")
+        self.assertEqual(row["titulo"], "Publicacion creada o modificada")
+        self.assertEqual(row["fecha_creacion"], "2026-09-26")
+
     async def test_orders_v2_upserts_publication_details(self):
         service = MeliSalesSyncService()
         order = {

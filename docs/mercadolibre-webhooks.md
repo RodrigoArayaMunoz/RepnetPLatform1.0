@@ -76,6 +76,7 @@ Configurar:
 - Permiso Venta y envios de un producto: Lectura
 - Topico Orders: `Orders_v2`
 - Topico Shipments: `Shipments`
+- Topico Items: `Items`
 
 No activar `Flex-Handshakes` para la pantalla de ventas. El worker identifica
 Flex con `logistic_type = self_service` en el recurso shipment.
@@ -91,10 +92,11 @@ una nueva notificacion.
 
 Despues de activar Dev Center:
 
-1. Hacer una venta o modificar una orden de prueba.
+1. Crear o modificar una publicacion y hacer una venta u orden de prueba.
 2. Verificar una fila `processed` en `meli_notification_events`.
 3. Verificar la orden y SKU en `meli_orders` y `meli_order_items`.
-4. Verificar el MLC, SKU, titulo y fecha en `publicaciones_ml`.
+4. Verificar el evento `items` y el MLC, SKU, titulo y fecha actualizados en
+   `publicaciones_ml`.
 5. Verificar `shipping_type = flex` para envios `self_service` o `normal` para
    las demas modalidades.
 6. Abrir Gestion de Ventas y confirmar SKU y cantidad.

@@ -315,6 +315,40 @@ class MeliSalesSyncService:
 
         await supabase_publications_store.upsert_incremental_rows(publication_rows)
 
+    async def hydrate_publication(self, *, item_id: str, user_id: str) -> None:
+        payload = await self._request_ml(
+            f"/items/{item_id}",
+            user_id=user_id,
+            params={"attributes": PUBLICATION_DETAIL_ATTRIBUTES},
+        )
+        if not isinstance(payload, dict):
+            raise ValueError("Mercado Libre devolvio una publicacion invalida.")
+
+        resolved_item_id = str(payload.get("id") or "").strip()
+        if resolved_item_id != item_id:
+            raise ValueError("Mercado Libre devolvio un ID de publicacion inesperado.")
+
+        seller_id = self._id(payload.get("seller_id")) or user_id
+        if seller_id != user_id:
+            raise ValueError(
+                "La publicacion notificada no pertenece al vendedor conectado."
+            )
+
+        await supabase_publications_store.upsert_incremental_rows(
+            [
+                {
+                    "seller_id": int(seller_id),
+                    "mlc": resolved_item_id,
+                    "sku": extract_publication_sku(payload),
+                    "titulo": str(payload.get("title") or ""),
+                    "fecha_creacion": extract_publication_creation_date(
+                        payload.get("date_created")
+                    ),
+                    "sincronizado_at": self._now(),
+                }
+            ]
+        )
+
     async def _load_pack(self, pack_id: str, user_id: str) -> dict[str, Any] | None:
         try:
             payload = await self._request_ml(f"/packs/{pack_id}", user_id=user_id)
@@ -478,6 +512,9 @@ class MeliSalesSyncService:
             return
         if topic == "shipments":
             await self.hydrate_shipment(shipment_id=resource_id, user_id=user_id)
+            return
+        if topic == "items":
+            await self.hydrate_publication(item_id=resource_id, user_id=user_id)
             return
         raise ValueError(f"Topico de Mercado Libre no soportado: {topic}")
 

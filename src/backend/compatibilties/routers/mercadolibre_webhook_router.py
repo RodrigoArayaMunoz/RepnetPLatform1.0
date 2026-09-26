@@ -13,6 +13,7 @@ router = APIRouter(prefix="/webhooks", tags=["mercadolibre-webhooks"])
 RESOURCE_PATTERNS = {
     "orders_v2": re.compile(r"^/orders/(?P<resource_id>\d+)$"),
     "shipments": re.compile(r"^/shipments/(?P<resource_id>\d+)$"),
+    "items": re.compile(r"^/items/(?P<resource_id>[A-Z]{3}\d+)$"),
 }
 
 
