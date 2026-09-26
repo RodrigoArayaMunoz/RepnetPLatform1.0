@@ -108,6 +108,86 @@ class MercadoLibreShipmentDispatchTests(unittest.TestCase):
 
 
 class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_orders_v2_upserts_publication_details(self):
+        service = MeliSalesSyncService()
+        order = {
+            "id": 2000000000000001,
+            "status": "paid",
+            "seller": {"id": 99},
+            "order_items": [
+                {
+                    "item": {
+                        "id": "MLC123456789",
+                        "title": "Titulo desde la orden",
+                        "seller_sku": "SKU-ORDER",
+                    },
+                    "quantity": 1,
+                }
+            ],
+        }
+
+        async def request_ml(path, *, user_id, params=None):
+            self.assertEqual(user_id, "99")
+            if path == "/orders/2000000000000001":
+                return order
+            if path == "/orders/2000000000000001/notes":
+                return []
+            if path == "/items":
+                self.assertEqual(params["ids"], "MLC123456789")
+                return [
+                    {
+                        "code": 200,
+                        "body": {
+                            "id": "MLC123456789",
+                            "title": "Titulo actualizado",
+                            "date_created": "2026-09-25T12:30:00.000Z",
+                            "attributes": [
+                                {
+                                    "id": "SELLER_SKU",
+                                    "value_name": "SKU-DETAIL",
+                                }
+                            ],
+                        },
+                    }
+                ]
+            raise AssertionError(path)
+
+        with (
+            patch.object(service, "_request_ml", AsyncMock(side_effect=request_ml)),
+            patch(
+                "services.meli_sales_sync_service."
+                "supabase_meli_sales_store.upsert_order",
+                new=AsyncMock(),
+            ),
+            patch(
+                "services.meli_sales_sync_service."
+                "supabase_publications_store.upsert_incremental_rows",
+                new=AsyncMock(return_value=1),
+            ) as upsert_publications,
+        ):
+            await service.process_notification(
+                {
+                    "topic": "orders_v2",
+                    "resource": "/orders/2000000000000001",
+                    "user_id": "99",
+                }
+            )
+
+        upsert_publications.assert_awaited_once()
+        rows = upsert_publications.await_args.args[0]
+        self.assertEqual(
+            rows[0],
+            {
+                "seller_id": 99,
+                "mlc": "MLC123456789",
+                "sku": "SKU-DETAIL",
+                "titulo": "Titulo actualizado",
+                "fecha_creacion": "2026-09-25",
+                "sincronizado_at": rows[0]["sincronizado_at"],
+            },
+        )
+        self.assertNotIn("sync_run_id", rows[0])
+
     async def test_stored_sales_groups_pack_orders_and_items(self):
         store = SupabaseMeliSalesStore()
         orders = [

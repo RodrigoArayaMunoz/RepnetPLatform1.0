@@ -18,6 +18,7 @@ class _FakeAsyncClient:
         self._outcomes = list(outcomes)
         self.row_counts = []
         self.get_calls = []
+        self.post_calls = []
 
     async def __aenter__(self):
         return self
@@ -26,7 +27,14 @@ class _FakeAsyncClient:
         return None
 
     async def post(self, *args, **kwargs):
-        self.row_counts.append(len(kwargs["json"]))
+        self.post_calls.append((args, kwargs))
+        payload = kwargs["json"]
+        rows = (
+            payload["publication_rows"]
+            if isinstance(payload, dict) and "publication_rows" in payload
+            else payload
+        )
+        self.row_counts.append(len(rows))
         outcome = self._outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
@@ -158,6 +166,33 @@ class SupabasePublicationsUpsertTests(unittest.IsolatedAsyncioTestCase):
         params = client.get_calls[0][1]["params"]
         self.assertEqual(params["seller_id"], "eq.2682261950")
         self.assertEqual(params["sync_run_id"], "eq.run-123")
+
+    async def test_incremental_upsert_uses_rpc_without_sync_run_id(self):
+        client = _FakeAsyncClient([_FakeResponse(200)])
+        row = {
+            "seller_id": 99,
+            "mlc": "MLC123",
+            "sku": "SKU-1",
+            "titulo": "Publicacion",
+            "fecha_creacion": "2026-09-25",
+            "sync_run_id": "must-not-be-overwritten",
+            "sincronizado_at": "2026-09-26T10:00:00Z",
+        }
+
+        with patch(
+            "services.supabase_publications_store.httpx.AsyncClient",
+            return_value=client,
+        ):
+            count = await self.store.upsert_incremental_rows([row])
+
+        self.assertEqual(count, 1)
+        args, kwargs = client.post_calls[0]
+        self.assertTrue(
+            args[0].endswith("/rest/v1/rpc/upsert_publicaciones_ml_incremental")
+        )
+        sent_row = kwargs["json"]["publication_rows"][0]
+        self.assertNotIn("sync_run_id", sent_row)
+        self.assertEqual(sent_row["mlc"], "MLC123")
 
 
 if __name__ == "__main__":

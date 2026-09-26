@@ -6,14 +6,21 @@ from fastapi import HTTPException
 
 from config import settings
 from services.ml_client import ml_client
+from services.ml_publication_fields import (
+    PUBLICATION_DETAIL_ATTRIBUTES,
+    extract_publication_creation_date,
+    extract_publication_sku,
+)
 from services.redis_rate_limiter import RedisWindowRateLimiter
 from services.supabase_meli_sales_store import supabase_meli_sales_store
+from services.supabase_publications_store import supabase_publications_store
 
 logger = logging.getLogger(__name__)
 
 
 class MeliSalesSyncService:
     MAX_PAGES = 200
+    PUBLICATION_MULTIGET_CHUNK_SIZE = 20
 
     def __init__(self) -> None:
         self._read_rate_limiter: RedisWindowRateLimiter | None = None
@@ -239,6 +246,75 @@ class MeliSalesSyncService:
             "synced_at": self._now(),
         }
 
+    async def _upsert_order_publications(
+        self,
+        *,
+        item_rows: list[dict[str, Any]],
+        seller_id: str,
+        user_id: str,
+    ) -> None:
+        fallback_by_item_id: dict[str, dict[str, Any]] = {}
+        for item_row in item_rows:
+            item_id = str(item_row.get("item_id") or "").strip()
+            if item_id:
+                fallback_by_item_id[item_id] = item_row
+
+        item_ids = list(fallback_by_item_id)
+        if not item_ids:
+            return
+
+        publication_rows: list[dict[str, Any]] = []
+        synchronized_at = self._now()
+        for start in range(0, len(item_ids), self.PUBLICATION_MULTIGET_CHUNK_SIZE):
+            chunk = item_ids[start : start + self.PUBLICATION_MULTIGET_CHUNK_SIZE]
+            response = await self._request_ml(
+                "/items",
+                user_id=user_id,
+                params={
+                    "ids": ",".join(chunk),
+                    "attributes": PUBLICATION_DETAIL_ATTRIBUTES,
+                },
+            )
+            if not isinstance(response, list):
+                raise RuntimeError(
+                    "Mercado Libre devolvio un multiget invalido para las "
+                    "publicaciones de la orden."
+                )
+
+            details_by_item_id: dict[str, dict[str, Any]] = {}
+            for result in response:
+                if not isinstance(result, dict) or str(result.get("code") or "") != "200":
+                    continue
+                body = result.get("body")
+                if not isinstance(body, dict):
+                    continue
+                item_id = str(body.get("id") or "").strip()
+                if item_id:
+                    details_by_item_id[item_id] = body
+
+            for item_id in chunk:
+                fallback = fallback_by_item_id[item_id]
+                detail = details_by_item_id.get(item_id, {})
+                publication_rows.append(
+                    {
+                        "seller_id": int(seller_id),
+                        "mlc": item_id,
+                        "sku": extract_publication_sku(
+                            detail,
+                            fallback=str(fallback.get("sku") or "") or None,
+                        ),
+                        "titulo": str(
+                            detail.get("title") or fallback.get("title") or ""
+                        ),
+                        "fecha_creacion": extract_publication_creation_date(
+                            detail.get("date_created")
+                        ),
+                        "sincronizado_at": synchronized_at,
+                    }
+                )
+
+        await supabase_publications_store.upsert_incremental_rows(publication_rows)
+
     async def _load_pack(self, pack_id: str, user_id: str) -> dict[str, Any] | None:
         try:
             payload = await self._request_ml(f"/packs/{pack_id}", user_id=user_id)
@@ -259,6 +335,7 @@ class MeliSalesSyncService:
         order_id: str,
         user_id: str,
         shipment_payload: dict[str, Any] | None = None,
+        persist_publications: bool = False,
     ) -> set[str]:
         initial = await self._request_ml(f"/orders/{order_id}", user_id=user_id)
         if not isinstance(initial, dict):
@@ -321,6 +398,7 @@ class MeliSalesSyncService:
                         orders_to_save.append(candidate)
 
         saved_order_ids: set[str] = set()
+        publication_item_rows: list[dict[str, Any]] = []
         resolved_shipment_id = pack_shipment_id
         for order in orders_to_save:
             current_order_id = self._id(order.get("id"))
@@ -335,6 +413,7 @@ class MeliSalesSyncService:
                 notes_error=notes_error,
             )
             await supabase_meli_sales_store.upsert_order(order_row, item_rows)
+            publication_item_rows.extend(item_rows)
             saved_order_ids.add(current_order_id)
             resolved_shipment_id = resolved_shipment_id or order_row.get("shipment_id")
 
@@ -361,6 +440,13 @@ class MeliSalesSyncService:
                     relation_type=relation_type,
                 )
 
+        if persist_publications:
+            await self._upsert_order_publications(
+                item_rows=publication_item_rows,
+                seller_id=user_id,
+                user_id=user_id,
+            )
+
         return saved_order_ids
 
     async def hydrate_shipment(self, *, shipment_id: str, user_id: str) -> None:
@@ -384,7 +470,11 @@ class MeliSalesSyncService:
         user_id = str(payload.get("user_id") or "")
         resource_id = resource.rstrip("/").rsplit("/", 1)[-1]
         if topic == "orders_v2":
-            await self.hydrate_order(order_id=resource_id, user_id=user_id)
+            await self.hydrate_order(
+                order_id=resource_id,
+                user_id=user_id,
+                persist_publications=True,
+            )
             return
         if topic == "shipments":
             await self.hydrate_shipment(shipment_id=resource_id, user_id=user_id)

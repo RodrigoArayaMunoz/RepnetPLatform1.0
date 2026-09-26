@@ -21,6 +21,7 @@ const ROUTE_LABELS = {
   "/gestion/descargar-publicaciones": ["Gestion", "Descargar Publicaciones"],
   "/gestion/devoluciones": ["Gestion", "Devoluciones"],
   "/gestion/ventas": ["Gestion", "Gestión de Ventas"],
+  "/integraciones/proveedores": ["Integraciones", "Integración Proveedores"],
 };
 
 export default function TopMenuBar({ onOpenSidebar }) {

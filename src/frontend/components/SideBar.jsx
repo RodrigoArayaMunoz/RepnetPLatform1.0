@@ -11,6 +11,7 @@ import {
   Download,
   Undo2,
   ShoppingCart,
+  Plug,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
 import "../styles/SideBar.css";
@@ -94,6 +95,17 @@ const navItems = [
 
     ],
   },
+  {
+    key: "integraciones",
+    label: "INTEGRACIONES",
+    children: [
+      {
+        to: "/integraciones/proveedores",
+        label: "Integración Proveedores",
+        icon: Plug,
+      },
+    ],
+  },
 ];
 
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
@@ -101,6 +113,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const isChildActive = (to) => location.pathname === to;
   const processItems = navItems.find((group) => group.key === "procesos")?.children || [];
   const gestionItems = navItems.find((group) => group.key === "gestion")?.children || [];
+  const integrationItems =
+    navItems.find((group) => group.key === "integraciones")?.children || [];
 
   return (
     <>
@@ -155,6 +169,31 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
           </span>
 
           {gestionItems.map((item) => {
+            const ItemIcon = item.icon;
+            const active = isChildActive(item.to);
+
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setSidebarOpen(false)}
+                className={`sidebar__sublink ${
+                  active ? "sidebar__sublink--active" : ""
+                }`}
+              >
+                <span className="sidebar__sublink-icon">
+                  <ItemIcon size={17} strokeWidth={2} />
+                </span>
+                <span className="sidebar__sublink-text">{item.label}</span>
+              </NavLink>
+            );
+          })}
+
+          <span className="sidebar__section-label sidebar__section-label--spaced">
+            INTEGRACIONES
+          </span>
+
+          {integrationItems.map((item) => {
             const ItemIcon = item.icon;
             const active = isChildActive(item.to);
 

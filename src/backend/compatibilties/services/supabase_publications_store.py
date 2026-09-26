@@ -50,6 +50,15 @@ class SupabasePublicationsStore:
             return None
         return f"{settings.supabase_url.rstrip('/')}/rest/v1/{self.table_name}"
 
+    @property
+    def incremental_upsert_url(self) -> str | None:
+        if not settings.supabase_url:
+            return None
+        return (
+            f"{settings.supabase_url.rstrip('/')}/rest/v1/rpc/"
+            "upsert_publicaciones_ml_incremental"
+        )
+
     def _headers(self, *, upsert: bool = False) -> dict[str, str]:
         service_key = settings.supabase_service_role_key
         if not self.table_url or not service_key:
@@ -273,6 +282,37 @@ class SupabasePublicationsStore:
         async with httpx.AsyncClient(timeout=60.0) as client:
             return await self._upsert_batch(client, rows)
 
+    async def upsert_incremental_rows(self, rows: list[dict[str, Any]]) -> int:
+        if not rows:
+            return 0
+
+        payload_rows = [
+            {key: value for key, value in row.items() if key != "sync_run_id"}
+            for row in rows
+        ]
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                self.incremental_upsert_url,
+                headers=self._headers(),
+                json={"publication_rows": payload_rows},
+            )
+
+        if response.status_code >= 400:
+            logger.error(
+                "[SUPABASE_PUBLICATIONS][INCREMENTAL_UPSERT_ERROR] "
+                "status=%s rows=%s body=%s",
+                response.status_code,
+                len(payload_rows),
+                response.text[:1000],
+            )
+            raise RuntimeError(
+                "No se pudieron guardar las publicaciones notificadas por "
+                "Mercado Libre. Verifica que la migracion de upsert incremental "
+                f"este aplicada ({response.status_code})."
+            )
+
+        return len(payload_rows)
+
     async def _upsert_batch(
         self,
         client: httpx.AsyncClient,
@@ -404,15 +444,25 @@ class SupabasePublicationsStore:
 
         return f"Supabase rechazó el lote de publicaciones ({status})."
 
-    async def delete_stale_rows(self, *, seller_id: str, sync_run_id: str) -> None:
+    async def delete_stale_rows(
+        self,
+        *,
+        seller_id: str,
+        sync_run_id: str,
+        synchronized_before: str | None = None,
+    ) -> None:
+        params = {
+            "seller_id": f"eq.{seller_id}",
+            "sync_run_id": f"neq.{sync_run_id}",
+        }
+        if synchronized_before:
+            params["sincronizado_at"] = f"lt.{synchronized_before}"
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.delete(
                 self.table_url,
                 headers=self._headers(),
-                params={
-                    "seller_id": f"eq.{seller_id}",
-                    "sync_run_id": f"neq.{sync_run_id}",
-                },
+                params=params,
             )
 
         if response.status_code >= 400:

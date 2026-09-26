@@ -1,16 +1,20 @@
 import asyncio
 import logging
 import math
-import re
 import time
 import uuid
-from datetime import date
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException
 
 from config import settings
 from services.ml_client import ml_client
+from services.ml_publication_fields import (
+    PUBLICATION_DETAIL_ATTRIBUTES,
+    extract_publication_creation_date,
+    extract_publication_sku,
+)
 from services.publication_sync_store import publication_sync_store
 from services.redis_rate_limiter import RedisWindowRateLimiter
 from services.supabase_publications_store import supabase_publications_store
@@ -22,7 +26,7 @@ class PublicationSyncService:
     SCAN_LIMIT = 100
     MULTIGET_CHUNK_SIZE = 20
     MULTIGET_CONCURRENCY = 4
-    MULTIGET_ATTRIBUTES = "id,title,attributes,date_created"
+    MULTIGET_ATTRIBUTES = PUBLICATION_DETAIL_ATTRIBUTES
     MAX_SCAN_PAGES = 5000
 
     def __init__(self) -> None:
@@ -44,6 +48,7 @@ class PublicationSyncService:
 
     async def sync_publications(self, *, user_id: str) -> dict[str, Any]:
         started_at = time.monotonic()
+        sync_started_at = datetime.now(UTC).isoformat()
         sync_run_id = str(uuid.uuid4())
         await supabase_publications_store.ensure_ready()
         seller_id = await self._resolve_seller_id(user_id)
@@ -173,6 +178,7 @@ class PublicationSyncService:
             await supabase_publications_store.delete_stale_rows(
                 seller_id=seller_id,
                 sync_run_id=sync_run_id,
+                synchronized_before=sync_started_at,
             )
             final_status = "success"
             final_message = (
@@ -397,9 +403,9 @@ class PublicationSyncService:
                 {
                     "seller_id": int(seller_id),
                     "mlc": str(body["id"]),
-                    "sku": self._extract_sku(body),
+                    "sku": extract_publication_sku(body),
                     "titulo": str(body.get("title") or ""),
-                    "fecha_creacion": self._extract_creation_date(
+                    "fecha_creacion": extract_publication_creation_date(
                         body.get("date_created")
                     ),
                     "sync_run_id": sync_run_id,
@@ -412,32 +418,11 @@ class PublicationSyncService:
 
     @staticmethod
     def _extract_sku(item: dict[str, Any]) -> str | None:
-        attributes = item.get("attributes")
-        if not isinstance(attributes, list):
-            return None
-
-        for attribute in attributes:
-            if not isinstance(attribute, dict) or attribute.get("id") != "SELLER_SKU":
-                continue
-
-            value = str(attribute.get("value_name") or "").strip()
-            if value:
-                return value
-
-        return None
+        return extract_publication_sku(item)
 
     @staticmethod
     def _extract_creation_date(raw_value: Any) -> str | None:
-        date_text = str(raw_value or "")[:10]
-        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_text):
-            return None
-
-        try:
-            date.fromisoformat(date_text)
-        except ValueError:
-            return None
-
-        return date_text
+        return extract_publication_creation_date(raw_value)
 
 
 publication_sync_service = PublicationSyncService()

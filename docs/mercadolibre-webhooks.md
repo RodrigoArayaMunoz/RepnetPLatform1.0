@@ -14,6 +14,11 @@ Ejecutar en Supabase SQL Editor, una sola vez, el contenido de:
 
 `supabase/migrations/202608280001_create_meli_sales_webhooks.sql`
 
+Ejecutar tambien la migracion que permite actualizar `publicaciones_ml` desde
+las notificaciones `orders_v2` sin alterar el control de las cargas completas:
+
+`supabase/migrations/202609260001_upsert_publicaciones_ml_from_orders.sql`
+
 La migracion crea las tablas de eventos, packs, ordenes, lineas/SKU, envios y
 relaciones. Todas tienen RLS habilitado y solo el backend con
 `SUPABASE_SERVICE_ROLE_KEY` puede acceder.
@@ -89,9 +94,10 @@ Despues de activar Dev Center:
 1. Hacer una venta o modificar una orden de prueba.
 2. Verificar una fila `processed` en `meli_notification_events`.
 3. Verificar la orden y SKU en `meli_orders` y `meli_order_items`.
-4. Verificar `shipping_type = flex` para envios `self_service` o `normal` para
+4. Verificar el MLC, SKU, titulo y fecha en `publicaciones_ml`.
+5. Verificar `shipping_type = flex` para envios `self_service` o `normal` para
    las demas modalidades.
-5. Abrir Gestion de Ventas y confirmar SKU y cantidad.
+6. Abrir Gestion de Ventas y confirmar SKU y cantidad.
 
 Si un evento queda `failed`, revisar `processing_error` y los logs del worker.
 Celery reintenta automaticamente con espera incremental.
