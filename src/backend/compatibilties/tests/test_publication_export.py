@@ -93,8 +93,8 @@ class PublicationExcelTests(unittest.IsolatedAsyncioTestCase):
     async def test_export_writes_only_required_columns_from_database(self):
         service = PublicationExportService()
         publications = [
-            {"mlc": "MLC123", "sku": "SKU-1", "titulo": "Titulo 1"},
-            {"mlc": "MLC456", "sku": "SKU-2", "titulo": "Titulo 2"},
+            {"mlc": "MLC123", "sku": "SKU-1", "part_number": "00123-A", "titulo": "Titulo 1"},
+            {"mlc": "MLC456", "sku": "SKU-2", "part_number": None, "titulo": "Titulo 2"},
         ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -133,9 +133,9 @@ class PublicationExcelTests(unittest.IsolatedAsyncioTestCase):
             )
             workbook.close()
 
-        self.assertEqual(rows[0], ("MLC", "SKU", "TITULO"))
-        self.assertEqual(rows[1], ("MLC123", "SKU-1", "Titulo 1"))
-        self.assertEqual(rows[2], ("MLC456", "SKU-2", "Titulo 2"))
+        self.assertEqual(rows[0], ("MLC", "SKU", "NUMERO_PIEZA", "TITULO"))
+        self.assertEqual(rows[1], ("MLC123", "SKU-1", "00123-A", "Titulo 1"))
+        self.assertEqual(rows[2], ("MLC456", "SKU-2", None, "Titulo 2"))
         self.assertEqual(summary["total_rows"], 2)
         self.assertEqual(summary["source"], "database")
         self.assertEqual(summary["api_items_queried"], 0)
@@ -233,11 +233,12 @@ class PublicationExportOwnershipTests(unittest.TestCase):
 
         self.assertIs(result, job)
 
-    def test_legacy_four_column_export_is_not_reused(self):
+    def test_legacy_three_column_export_is_not_reused(self):
         legacy_job = {
             "id": "legacy-job",
             "status": "success",
             "total_rows": 2,
+            "export_schema_version": 2,
         }
 
         with (
@@ -266,6 +267,18 @@ class PublicationExportOwnershipTests(unittest.TestCase):
             creation_date="2026-07-24",
             job_id="legacy-job",
         )
+
+    def test_legacy_export_is_not_offered_for_download(self):
+        legacy_job = {
+            "id": "legacy-job",
+            "status": "success",
+            "result_path": "old-publications.xlsx",
+            "export_schema_version": 2,
+        }
+        with patch("routers.publications_router.os.path.exists", return_value=True):
+            response = publications_router._export_job_response(legacy_job)
+
+        self.assertFalse(response["download_ready"])
 
 
 class PublicationExportRecoveryTests(unittest.TestCase):

@@ -138,7 +138,11 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "id": "SELLER_SKU",
                     "value_name": "SKU-ITEM",
-                }
+                },
+                {
+                    "id": "PART_NUMBER",
+                    "value_name": " PN-123 ",
+                },
             ],
         }
 
@@ -169,6 +173,7 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row["seller_id"], 99)
         self.assertEqual(row["mlc"], "MLC123456789")
         self.assertEqual(row["sku"], "SKU-ITEM")
+        self.assertEqual(row["part_number"], "PN-123")
         self.assertEqual(row["titulo"], "Publicacion creada o modificada")
         self.assertEqual(row["fecha_creacion"], "2026-09-26")
 
@@ -209,7 +214,11 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
                                 {
                                     "id": "SELLER_SKU",
                                     "value_name": "SKU-DETAIL",
-                                }
+                                },
+                                {
+                                    "id": "PART_NUMBER",
+                                    "value_name": "PN-ORDER",
+                                },
                             ],
                         },
                     }
@@ -245,6 +254,7 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
                 "seller_id": 99,
                 "mlc": "MLC123456789",
                 "sku": "SKU-DETAIL",
+                "part_number": "PN-ORDER",
                 "titulo": "Titulo actualizado",
                 "fecha_creacion": "2026-09-25",
                 "sincronizado_at": rows[0]["sincronizado_at"],

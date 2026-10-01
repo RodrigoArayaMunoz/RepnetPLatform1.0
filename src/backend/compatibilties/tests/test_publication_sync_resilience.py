@@ -160,6 +160,32 @@ class PublicationSyncTaskErrorTests(unittest.TestCase):
 
 
 class PublicationSyncResilienceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_multiget_extracts_part_number_from_item_attributes(self):
+        service = PublicationSyncService()
+        payload = [
+            {
+                "code": 200,
+                "body": {
+                    "id": "MLC123",
+                    "title": "Producto",
+                    "date_created": "2026-09-30T10:00:00Z",
+                    "attributes": [
+                        {"id": "SELLER_SKU", "value_name": "SKU-123"},
+                        {"id": "PART_NUMBER", "value_name": "PN-123"},
+                    ],
+                },
+            }
+        ]
+        with patch.object(service, "_request_ml", new=AsyncMock(return_value=payload)) as request:
+            rows, failed_count = await service._fetch_multiget_chunk(
+                chunk=["MLC123"], user_id="99", seller_id="99", sync_run_id="run-1"
+            )
+
+        self.assertEqual(failed_count, 0)
+        self.assertEqual(rows[0]["part_number"], "PN-123")
+        self.assertEqual(rows[0]["sku"], "SKU-123")
+        self.assertEqual(request.await_args.kwargs["params"]["attributes"], "id,title,attributes,date_created")
+
     async def test_sync_requests_delegate_every_attempt_to_shared_limiter(self):
         service = PublicationSyncService()
         limiter = _FakeLimiter()

@@ -16,6 +16,7 @@ from schemas import JobResponse
 from services.auth_guard import is_public_path, verify_supabase_request
 from services.ml_publicationswithout_service import ml_publications_service
 from services.supabase_meli_connection_store import supabase_meli_connection_store
+from services.refax_connection_service import refax_connection_service
 from services.token_store import token_store, require_ml_env
 from services.job_store import JobStore
 from services.ml_client import ml_client
@@ -28,6 +29,7 @@ from routers.process_queue_router import router as process_queue_router
 from routers.publications_router import router as publications_router
 from routers.seller_sales_router import router as seller_sales_router
 from routers.mercadolibre_webhook_router import router as mercadolibre_webhook_router
+from routers.refax_router import router as refax_router
 
 
 @asynccontextmanager
@@ -35,7 +37,9 @@ async def lifespan(app: FastAPI):
     os.makedirs(settings.upload_dir, exist_ok=True)
     await ml_client.startup()
     await supabase_meli_connection_store.restore_token_store()
+    await refax_connection_service.startup()
     yield
+    await refax_connection_service.shutdown()
     await ml_client.shutdown()
 
 
@@ -50,6 +54,7 @@ app.include_router(process_queue_router)
 app.include_router(publications_router)
 app.include_router(seller_sales_router)
 app.include_router(mercadolibre_webhook_router)
+app.include_router(refax_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,6 +65,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 

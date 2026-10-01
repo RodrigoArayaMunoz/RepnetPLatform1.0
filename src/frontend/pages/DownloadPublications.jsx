@@ -378,8 +378,8 @@ export default function DownloadPublications({ authUserId }) {
         <header className="download-publications-header">
           <h1>Descargar Publicaciones</h1>
           <p>
-            Actualiza las publicaciones y descarga un Excel con MLC, SKU y
-            título desde la base de datos para la fecha seleccionada.
+            Actualiza las publicaciones y descarga un Excel con MLC, SKU,
+            NUMERO_PIEZA y TÍTULO desde la base de datos para la fecha seleccionada.
           </p>
         </header>
 

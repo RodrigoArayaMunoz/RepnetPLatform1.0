@@ -54,6 +54,7 @@ class Settings(BaseSettings):
         ),
     )
     supabase_meli_connection_table: str = "meli_global_connection"
+    supabase_refax_connection_table: str = "refax_global_connection"
     supabase_process_table: str = "procesos"
     supabase_publications_table: str = "publicaciones_ml"
     supabase_meli_notifications_table: str = "meli_notification_events"
@@ -65,6 +66,20 @@ class Settings(BaseSettings):
     supabase_meli_sale_pickings_table: str = "meli_sale_pickings"
     backend_auth_enabled: bool = True
     backend_auth_cache_ttl_seconds: int = 60
+
+    # REFAX. Las credenciales solo deben existir en el backend.
+    refax_api_base_url: str = "https://api.refax.com"
+    refax_provider_code: str | None = None
+    refax_api_key: str | None = None
+    refax_country_code: int = 1
+    refax_token_lifetime_seconds: int = Field(default=8 * 60 * 60, ge=60)
+    refax_token_refresh_after_seconds: int = Field(
+        default=7 * 60 * 60 + 45 * 60,
+        ge=60,
+    )
+    refax_refresh_check_interval_seconds: int = Field(default=60, ge=15)
+    refax_http_timeout_seconds: float = Field(default=30.0, gt=0)
+    refax_products_http_timeout_seconds: float = Field(default=120.0, gt=0)
 
     ml_compatibility_exception_comment: str = (
         "No aparecen detalles técnicos del modelo correspondiente."

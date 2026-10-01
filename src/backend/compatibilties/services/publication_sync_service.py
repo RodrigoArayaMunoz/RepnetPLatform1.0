@@ -13,6 +13,7 @@ from services.ml_client import ml_client
 from services.ml_publication_fields import (
     PUBLICATION_DETAIL_ATTRIBUTES,
     extract_publication_creation_date,
+    extract_publication_part_number,
     extract_publication_sku,
 )
 from services.publication_sync_store import publication_sync_store
@@ -404,6 +405,7 @@ class PublicationSyncService:
                     "seller_id": int(seller_id),
                     "mlc": str(body["id"]),
                     "sku": extract_publication_sku(body),
+                    "part_number": extract_publication_part_number(body),
                     "titulo": str(body.get("title") or ""),
                     "fecha_creacion": extract_publication_creation_date(
                         body.get("date_created")

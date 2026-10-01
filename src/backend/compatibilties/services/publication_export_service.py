@@ -119,12 +119,13 @@ class PublicationExportService:
                 [
                     _excel_text(publication.get("mlc")),
                     _excel_text(publication.get("sku")),
+                    _excel_text(publication.get("part_number")),
                     _excel_text(publication.get("titulo")),
                 ]
             )
 
         os.makedirs(settings.upload_dir, exist_ok=True)
-        worksheet.auto_filter.ref = f"A1:C{len(publications) + 1}"
+        worksheet.auto_filter.ref = f"A1:D{len(publications) + 1}"
         temporary_output_path = f"{output_path}.tmp"
         try:
             workbook.save(temporary_output_path)
@@ -168,7 +169,8 @@ class PublicationExportService:
         worksheet.freeze_panes = "A2"
         worksheet.column_dimensions["A"].width = 20
         worksheet.column_dimensions["B"].width = 24
-        worksheet.column_dimensions["C"].width = 55
+        worksheet.column_dimensions["C"].width = 24
+        worksheet.column_dimensions["D"].width = 55
 
         header_fill = PatternFill("solid", fgColor="3483FA")
         header_font = Font(color="FFFFFF", bold=True)
@@ -177,7 +179,7 @@ class PublicationExportService:
             vertical="center",
         )
         header = []
-        for value in ("MLC", "SKU", "TITULO"):
+        for value in ("MLC", "SKU", "NUMERO_PIEZA", "TITULO"):
             cell = WriteOnlyCell(worksheet, value=value)
             cell.fill = header_fill
             cell.font = header_font

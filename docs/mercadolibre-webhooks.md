@@ -19,6 +19,16 @@ las notificaciones `orders_v2` sin alterar el control de las cargas completas:
 
 `supabase/migrations/202609260001_upsert_publicaciones_ml_from_orders.sql`
 
+Para guardar el numero de pieza de cada publicacion, aplicar tambien antes de
+desplegar el backend y sus workers:
+
+`supabase/migrations/202609300001_add_part_number_to_publicaciones_ml.sql`
+
+El nuevo campo `part_number` es texto y se obtiene de
+`attributes[id=PART_NUMBER].value_name` en `/items`. Las filas antiguas quedan
+con `NULL` hasta que llegue una notificacion `items` o se ejecute una nueva
+carga de publicaciones.
+
 La migracion crea las tablas de eventos, packs, ordenes, lineas/SKU, envios y
 relaciones. Todas tienen RLS habilitado y solo el backend con
 `SUPABASE_SERVICE_ROLE_KEY` puede acceder.

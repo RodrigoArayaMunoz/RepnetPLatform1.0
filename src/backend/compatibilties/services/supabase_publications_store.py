@@ -86,7 +86,7 @@ class SupabasePublicationsStore:
                 headers=self._headers(),
                 params={
                     "select": (
-                        "seller_id,mlc,sku,titulo,fecha_creacion,"
+                        "seller_id,mlc,sku,part_number,titulo,fecha_creacion,"
                         "sync_run_id,sincronizado_at"
                     ),
                     "limit": "1",
@@ -237,7 +237,7 @@ class SupabasePublicationsStore:
                     }
                 )
                 params = {
-                    "select": "mlc,sku,titulo",
+                    "select": "mlc,sku,part_number,titulo",
                     "fecha_creacion": f"eq.{creation_date}",
                     "order": "mlc.asc",
                 }

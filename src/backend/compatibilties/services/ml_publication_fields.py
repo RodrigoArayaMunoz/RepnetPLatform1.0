@@ -25,6 +25,22 @@ def extract_publication_sku(
     return fallback_value or None
 
 
+def extract_publication_part_number(item: dict[str, Any]) -> str | None:
+    attributes = item.get("attributes")
+    if not isinstance(attributes, list):
+        return None
+
+    for attribute in attributes:
+        if not isinstance(attribute, dict) or attribute.get("id") != "PART_NUMBER":
+            continue
+        value = attribute.get("value_name")
+        if value is None:
+            return None
+        return str(value).strip() or None
+
+    return None
+
+
 def extract_publication_creation_date(raw_value: Any) -> str | None:
     date_text = str(raw_value or "")[:10]
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_text):

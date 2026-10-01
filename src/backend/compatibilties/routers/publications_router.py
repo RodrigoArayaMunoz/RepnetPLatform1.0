@@ -17,7 +17,7 @@ from tasks.publication_export_tasks import export_publications_task
 from tasks.publication_sync_tasks import sync_publications_task
 
 router = APIRouter(prefix="/publications", tags=["publications"])
-PUBLICATION_EXPORT_SCHEMA_VERSION = 2
+PUBLICATION_EXPORT_SCHEMA_VERSION = 3
 
 
 class PublicationExportRequest(BaseModel):
@@ -95,6 +95,8 @@ def _export_job_response(job: dict) -> dict:
             job.get("status") == "success"
             and bool(result_path)
             and os.path.exists(result_path)
+            and int(job.get("export_schema_version") or 0)
+            == PUBLICATION_EXPORT_SCHEMA_VERSION
         ),
         "last_error": job.get("last_error"),
     }
@@ -366,6 +368,11 @@ async def get_publications_export(job_id: str, request: Request):
 @router.get("/export/{job_id}/download")
 async def download_publications_export(job_id: str, request: Request):
     job = _owned_export_job(request, job_id)
+    if int(job.get("export_schema_version") or 0) != PUBLICATION_EXPORT_SCHEMA_VERSION:
+        raise HTTPException(
+            status_code=409,
+            detail="El formato de este Excel cambió. Genera una nueva exportación.",
+        )
     if job.get("status") != "success":
         raise HTTPException(
             status_code=409,

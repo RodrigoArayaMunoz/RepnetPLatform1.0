@@ -1,0 +1,115 @@
+.refax-download-modal {
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  box-sizing: border-box;
+  margin: auto;
+  padding: 32px;
+  border: 1px solid #e3e8f1;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.25);
+}
+
+.refax-download-modal::backdrop {
+  background: rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(4px);
+}
+
+.refax-download-modal__content {
+  text-align: center;
+}
+
+.refax-download-modal__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+  background: #edf3ff;
+  color: #5f82f4;
+}
+
+.refax-download-modal h2 {
+  margin: 22px 0 10px;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.refax-download-modal p {
+  min-height: 44px;
+  margin: 0 0 26px;
+  color: #6b7688;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.refax-download-modal__progress-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: #6b7688;
+  font-size: 0.8rem;
+}
+
+.refax-download-modal__progress-label strong {
+  color: #5f82f4;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.refax-download-modal__progress {
+  display: block;
+  width: 100%;
+  height: 9px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: #edf3ff;
+  accent-color: #6b8cff;
+}
+
+.refax-download-modal__progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: #edf3ff;
+}
+
+.refax-download-modal__progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: #6b8cff;
+  transition: width 0.15s ease;
+}
+
+.refax-download-modal__progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: #6b8cff;
+}
+
+.refax-download-modal small {
+  display: block;
+  margin-top: 18px;
+  color: #7a8598;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.refax-download-modal__spinner {
+  animation: refaxDownloadSpin 0.85s linear infinite;
+}
+
+@keyframes refaxDownloadSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refax-download-modal__spinner {
+    animation-duration: 2s;
+  }
+
+  .refax-download-modal__progress::-webkit-progress-value {
+    transition: none;
+  }
+}
