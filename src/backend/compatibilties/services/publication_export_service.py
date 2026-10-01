@@ -20,6 +20,18 @@ _ILLEGAL_EXCEL_CHARACTERS = re.compile(
     r"[\x00-\x08\x0B\x0C\x0E-\x1F]"
 )
 _MAX_EXCEL_CELL_LENGTH = 32_767
+# Status values documented by Mercado Libre; sub_status values are separate.
+# https://developers.mercadolibre.cl/producto-sincroniza-modifica-publicaciones
+# https://developers.mercadolibre.com.ar/es_ar/descripcion-de-articulos/moderaciones-con-pausado
+_PUBLICATION_STATUS_LABELS = {
+    "active": "activa",
+    "paused": "pausada/inactiva",
+    "closed": "cerrada",
+    "under_review": "bajo revisión",
+    "inactive": "inactiva",
+    "payment_required": "pago requerido",
+    "not_yet_active": "pendiente de activación",
+}
 _EXPORT_ARTIFACT_NAME = re.compile(
     r"^[0-9a-fA-F-]{36}_publicaciones_\d{4}-\d{2}-\d{2}"
     r"(?:\.xlsx(?:\.tmp)?|\.checkpoint\.jsonl)$"
@@ -29,6 +41,12 @@ _EXPORT_ARTIFACT_NAME = re.compile(
 def _excel_text(value: Any) -> str:
     text = _ILLEGAL_EXCEL_CHARACTERS.sub("", str(value or ""))
     return text[:_MAX_EXCEL_CELL_LENGTH]
+
+
+def _excel_publication_status(value: Any) -> str:
+    status = _excel_text(value).strip()
+    # Keep new or unrecognized codes visible instead of guessing their meaning.
+    return _PUBLICATION_STATUS_LABELS.get(status.casefold(), status)
 
 
 class PublicationExportService:
@@ -121,7 +139,7 @@ class PublicationExportService:
                     _excel_text(publication.get("sku")),
                     _excel_text(publication.get("part_number")),
                     _excel_text(publication.get("titulo")),
-                    _excel_text(publication.get("status")),
+                    _excel_publication_status(publication.get("status")),
                     (
                         "Sí" if publication.get("has_compatibilities") is True
                         else "No" if publication.get("has_compatibilities") is False

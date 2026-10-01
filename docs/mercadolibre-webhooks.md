@@ -222,8 +222,29 @@ La exportacion por fecha lee estos valores desde Supabase y agrega al final de
 `¿POSEE COMPATIBILIDADES?`. Esta ultima muestra `Sí`, `No` o una celda vacia si
 no se conoce el valor. No consulta Mercado Libre durante la exportacion.
 
-El formato de exportacion usa la version 4 para impedir que se reutilicen
-archivos antiguos sin las dos columnas nuevas. Al iniciar una carga, la pantalla
+La columna `ESTADO` traduce el codigo de `publicaciones_ml.status` al exportar;
+en la base de datos se conserva el codigo original:
+
+| status guardado | ESTADO en Excel |
+| --- | --- |
+| `active` | activa |
+| `paused` | pausada/inactiva |
+| `closed` | cerrada |
+| `under_review` | bajo revisión |
+| `inactive` | inactiva |
+| `payment_required` | pago requerido |
+| `not_yet_active` | pendiente de activación |
+
+Los estados se verificaron en la documentacion oficial de Mercado Libre sobre
+[flujo de publicaciones](https://developers.mercadolibre.cl/producto-sincroniza-modifica-publicaciones)
+y [activacion pendiente durante la carga de imagenes](https://developers.mercadolibre.com.ar/es_ar/descripcion-de-articulos/moderaciones-con-pausado).
+Los valores de `sub_status` como `deleted`, `out_of_stock` o `forbidden` no son
+estados principales. Si el estado esta vacio se exporta una celda vacia; si llega
+un codigo desconocido, se exporta el codigo original para conservar la informacion.
+
+El formato de exportacion usa la version 5 para impedir que se reutilicen
+archivos antiguos sin las columnas nuevas o con estados sin traducir.
+Al iniciar una carga, la pantalla
 descarta la descarga anterior; la siguiente exportacion solicita `refresh: true`
 para generar un archivo con los datos actuales aunque no cambie la cantidad de
 publicaciones. Mientras se carga, la descarga queda deshabilitada; mientras se
@@ -233,3 +254,7 @@ en curso sigue reutilizando la tarea activa para evitar duplicados.
 Para desplegar todo este cambio, actualizar frontend, API, `worker_meli_notifications`,
 `worker_publications` y `worker_publication_exports` despues de aplicar la
 migracion. El despliegue de solo notificaciones no actualiza los otros workers.
+
+Para desplegar solamente la traduccion de estados en Excel, actualizar API y
+`worker_publication_exports`. No requiere una nueva migracion ni volver a cargar
+las publicaciones: la siguiente exportacion traduce los estados ya guardados.

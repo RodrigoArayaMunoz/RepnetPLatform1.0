@@ -139,14 +139,47 @@ class PublicationExcelTests(unittest.IsolatedAsyncioTestCase):
             workbook.close()
 
         self.assertEqual(rows[0], ("MLC", "SKU", "NUMERO_PIEZA", "TITULO", "ESTADO", "¿POSEE COMPATIBILIDADES?"))
-        self.assertEqual(rows[1], ("MLC123", "SKU-1", "00123-A", "Titulo 1", "active", "Sí"))
-        self.assertEqual(rows[2], ("MLC456", "SKU-2", None, "Titulo 2", "paused", "No"))
+        self.assertEqual(rows[1], ("MLC123", "SKU-1", "00123-A", "Titulo 1", "activa", "Sí"))
+        self.assertEqual(rows[2], ("MLC456", "SKU-2", None, "Titulo 2", "pausada/inactiva", "No"))
         self.assertEqual(rows[3], ("MLC789", None, None, "Historica", None, None))
         self.assertEqual(summary["total_rows"], 3)
         self.assertEqual(summary["source"], "database")
         self.assertEqual(summary["api_items_queried"], 0)
         ml_request.assert_not_awaited()
         upsert_rows.assert_not_awaited()
+
+    def test_excel_translates_all_documented_statuses_without_changing_source_rows(self):
+        cases = (
+            ("active", "activa"),
+            ("paused", "pausada/inactiva"),
+            ("closed", "cerrada"),
+            ("under_review", "bajo revisión"),
+            ("inactive", "inactiva"),
+            ("payment_required", "pago requerido"),
+            ("not_yet_active", "pendiente de activación"),
+            (None, None),
+            ("", None),
+            ("new_status", "new_status"),
+        )
+        publications = [
+            {"mlc": f"MLC{index}", "status": status}
+            for index, (status, _) in enumerate(cases)
+        ]
+        original_rows = [row.copy() for row in publications]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = os.path.join(temp_dir, "translated.xlsx")
+            with patch.object(settings, "upload_dir", temp_dir):
+                PublicationExportService()._build_excel_atomically(
+                    publications=publications, output_path=output_path,
+                )
+            workbook = load_workbook(output_path, read_only=True)
+            try:
+                rows = list(workbook["Publicaciones"].iter_rows(values_only=True))
+            finally:
+                workbook.close()
+        self.assertEqual(rows[0][4], "ESTADO")
+        self.assertEqual([row[4] for row in rows[1:]], [label for _, label in cases])
+        self.assertEqual(publications, original_rows)
 
     async def test_export_rejects_empty_database_result(self):
         service = PublicationExportService()
@@ -291,6 +324,23 @@ class PublicationExportOwnershipTests(unittest.TestCase):
                "export_schema_version": 3, "result_path": "old.xlsx"}
         with (
             patch.object(publications_router.publication_export_store, "get_referenced_job_id", return_value="old-job"),
+            patch.object(publications_router.publication_export_store, "release_reference") as release,
+            patch.object(JobStore, "get", return_value=job),
+            patch("routers.publications_router.os.path.exists", return_value=True),
+        ):
+            result = publications_router._existing_export_job(
+                requested_by_user_id="user-a", seller_id="99",
+                creation_date="2026-10-01", total_rows=2,
+            )
+            self.assertFalse(publications_router._export_job_response(job)["download_ready"])
+        self.assertIsNone(result)
+        release.assert_called_once()
+
+    def test_export_with_untranslated_statuses_is_not_reused_or_downloaded(self):
+        job = {"id": "untranslated-job", "status": "success", "total_rows": 2,
+               "export_schema_version": 4, "result_path": "old.xlsx"}
+        with (
+            patch.object(publications_router.publication_export_store, "get_referenced_job_id", return_value=job["id"]),
             patch.object(publications_router.publication_export_store, "release_reference") as release,
             patch.object(JobStore, "get", return_value=job),
             patch("routers.publications_router.os.path.exists", return_value=True),

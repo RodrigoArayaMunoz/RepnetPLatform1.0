@@ -17,7 +17,7 @@ from tasks.publication_export_tasks import export_publications_task
 from tasks.publication_sync_tasks import sync_publications_task
 
 router = APIRouter(prefix="/publications", tags=["publications"])
-PUBLICATION_EXPORT_SCHEMA_VERSION = 4
+PUBLICATION_EXPORT_SCHEMA_VERSION = 5
 
 
 class PublicationExportRequest(BaseModel):
