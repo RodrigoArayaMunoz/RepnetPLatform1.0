@@ -96,6 +96,55 @@
   display: none;
 }
 
+.layout--projection .sidebar__brand-logo {
+  max-width: 190px;
+}
+
+.sidebar__account {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px 20px;
+  border-top: 1px solid #263449;
+}
+
+.sidebar__account-caption {
+  color: #8797b2;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.sidebar__account-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #e4eaf5;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.sidebar__account-status::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+}
+
+.sidebar__account-status--success::before { background: #4ade80; }
+.sidebar__account-status--pending::before { background: #facc15; }
+.sidebar__account-status--danger::before { background: #ef4444; }
+
+.sidebar__account-email {
+  overflow: hidden;
+  color: #b5c1d4;
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sidebar__section-label {
   display: block;
   margin: 0 12px 18px;
@@ -253,6 +302,19 @@
   .sidebar__close {
     display: none;
   }
+
+  .layout--projection .sidebar-overlay { display: block; }
+
+  .layout--projection .sidebar {
+    position: fixed;
+    transform: translateX(-100%);
+  }
+
+  .layout--projection .sidebar--open {
+    transform: translateX(0);
+  }
+
+  .layout--projection .sidebar__close { display: flex; }
 }
 
 @media (max-width: 420px) {

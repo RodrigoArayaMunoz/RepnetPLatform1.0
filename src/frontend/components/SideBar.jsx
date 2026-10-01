@@ -14,6 +14,7 @@ import {
   Plug,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
+import useAccountStatus from "../hooks/useAccountStatus.js";
 import "../styles/SideBar.css";
 
 const navItems = [
@@ -108,7 +109,30 @@ const navItems = [
   },
 ];
 
-export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
+function SidebarAccountStatus() {
+  const { userLabel, mlStatusLabel, mlStatusLoading, isMlConnected } =
+    useAccountStatus({ refreshInterval: 300000 });
+
+  return (
+    <div className="sidebar__account">
+      <span className="sidebar__account-caption">ESTADO DE CONEXIÓN</span>
+      <span
+        className={`sidebar__account-status ${
+          mlStatusLoading
+            ? "sidebar__account-status--pending"
+            : isMlConnected
+              ? "sidebar__account-status--success"
+              : "sidebar__account-status--danger"
+        }`}
+      >
+        {mlStatusLabel}
+      </span>
+      <span className="sidebar__account-email" title={userLabel}>{userLabel}</span>
+    </div>
+  );
+}
+
+export default function Sidebar({ sidebarOpen, setSidebarOpen, projectionMode = false }) {
   const location = useLocation();
   const isChildActive = (to) => location.pathname === to;
   const processItems = navItems.find((group) => group.key === "procesos")?.children || [];
@@ -123,7 +147,10 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
         onClick={() => setSidebarOpen(false)}
       />
 
-      <aside className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}>
+      <aside
+        className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}
+        inert={projectionMode && !sidebarOpen ? true : undefined}
+      >
         <div className="sidebar__header">
           <div className="sidebar__branding">
             <div className="sidebar__brand-stack">
@@ -134,7 +161,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
           <button
             className="sidebar__close"
             onClick={() => setSidebarOpen(false)}
-            aria-label="Cerrar menu"
+            aria-label={projectionMode ? "Ocultar menú lateral" : "Cerrar menú"}
+            title={projectionMode ? "Ocultar menú lateral" : "Cerrar menú"}
             type="button"
           >
             <X size={19} />
@@ -215,6 +243,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
           })}
 
         </nav>
+        {projectionMode && <SidebarAccountStatus />}
       </aside>
     </>
   );

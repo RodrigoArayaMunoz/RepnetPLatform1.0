@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Bell, Menu } from "lucide-react";
-import { supabase } from "../../lib/supabase.js";
-import { readMlConnectionStatus } from "../../lib/meliConnection.js";
+import useAccountStatus from "../hooks/useAccountStatus.js";
 
 const ROUTE_LABELS = {
   "/menu": ["Inicio"],
@@ -26,133 +24,7 @@ const ROUTE_LABELS = {
 
 export default function TopMenuBar({ onOpenSidebar }) {
   const location = useLocation();
-  const [userEmail, setUserEmail] = useState("");
-  const [authLoading, setAuthLoading] = useState(true);
-  const [isMlConnected, setIsMlConnected] = useState(false);
-  const [mlStatusLoading, setMlStatusLoading] = useState(true);
-
-  useEffect(() => {
-    if (!supabase) {
-      setAuthLoading(false);
-      setMlStatusLoading(false);
-      return undefined;
-    }
-
-    let mounted = true;
-
-    const loadUser = async () => {
-      setAuthLoading(true);
-
-      const { data, error } = await supabase.auth.getUser();
-
-      if (!mounted) {
-        return;
-      }
-
-      if (error) {
-        console.error("No se pudo obtener el usuario autenticado:", error);
-        setUserEmail("");
-        setAuthLoading(false);
-        return;
-      }
-
-      setUserEmail(data?.user?.email || "");
-      setAuthLoading(false);
-    };
-
-    loadUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) {
-        return;
-      }
-
-      setUserEmail(session?.user?.email || "");
-      setAuthLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!supabase) {
-      setMlStatusLoading(false);
-      setIsMlConnected(false);
-      return;
-    }
-
-    if (authLoading || !userEmail) {
-      if (!authLoading && !userEmail) {
-        setIsMlConnected(false);
-        setMlStatusLoading(false);
-      }
-      return;
-    }
-
-    let cancelled = false;
-
-    const checkMlConnection = async () => {
-      setMlStatusLoading(true);
-
-      try {
-        const connection = await readMlConnectionStatus();
-
-        if (!cancelled) {
-          setIsMlConnected(connection.connected);
-        }
-      } catch (error) {
-        console.error("Error inesperado verificando conexion ML:", error);
-
-        if (!cancelled) {
-          setIsMlConnected(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setMlStatusLoading(false);
-        }
-      }
-    };
-
-    checkMlConnection();
-
-    const handleWindowFocus = () => {
-      checkMlConnection();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        checkMlConnection();
-      }
-    };
-
-    window.addEventListener("focus", handleWindowFocus);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener("focus", handleWindowFocus);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [authLoading, location.pathname, location.search, userEmail]);
-
-  const userLabel = useMemo(() => {
-    if (authLoading) {
-      return "Cargando...";
-    }
-
-    return userEmail || "No se encontro usuario autenticado";
-  }, [authLoading, userEmail]);
-
-  const mlStatusLabel = mlStatusLoading
-    ? "ML VERIFICANDO"
-    : isMlConnected
-    ? "MERCADOLIBRE CONECTADO"
-    : "MERCADOLIBRE NO CONECTADO";
+  const { userLabel, mlStatusLabel, mlStatusLoading, isMlConnected } = useAccountStatus();
   const breadcrumbs = ROUTE_LABELS[location.pathname] || ["Repnet"];
 
   return (

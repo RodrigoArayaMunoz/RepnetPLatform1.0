@@ -1,42 +1,60 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, ClipboardList, LoaderCircle, RefreshCw } from "lucide-react";
+import { supabase, supabaseConfigErrorMessage } from "../../lib/supabase.js";
 import {
-  AlertCircle,
-  ClipboardList,
-  LoaderCircle,
-  RefreshCw,
-} from "lucide-react";
-import {
-  supabase,
-  supabaseConfigErrorMessage,
-} from "../../lib/supabase.js";
+  formatChileClock,
+  formatChileDateTime,
+  getDeadlineStatus,
+  isPendingReturn,
+} from "../utils/returnsProjection.js";
 import "../styles/Returns.css";
 
-const columns = [
-  { key: "mlc", label: "MLC" },
-  { key: "sku", label: "SKU" },
-  { key: "notas", label: "NOTAS" },
-  { key: "fecha_ingreso", label: "FECHA DE INGRESO", type: "date" },
-  { key: "fecha_revision", label: "FECHA DE REVISIÓN", type: "date" },
-  { key: "estado_producto", label: "ESTADO DE PRODUCTO" },
-  { key: "estado_nc", label: "ESTADO DE NC" },
-  { key: "folio_nc", label: "FOLIO NC" },
-  { key: "estado", label: "ESTADO" },
-  { key: "mediacion", label: "MEDIACIÓN" },
-];
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const PAGE_SIZE = 1000;
 
-const selectedFields = ["id", ...columns.map(({ key }) => key)].join(",");
+function LiveClock() {
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
-const formatDate = (value) => {
-  if (!value) return "—";
+  useEffect(() => {
+    let timeoutId;
+    const tick = () => {
+      setCurrentTime(new Date());
+      timeoutId = window.setTimeout(tick, 1000 - (Date.now() % 1000));
+    };
+    const syncWhenVisible = () => {
+      if (document.visibilityState === "visible") setCurrentTime(new Date());
+    };
 
-  const [year, month, day] = value.split("-");
-  return year && month && day ? `${day}-${month}-${year}` : value;
-};
+    timeoutId = window.setTimeout(tick, 1000 - (Date.now() % 1000));
+    document.addEventListener("visibilitychange", syncWhenVisible);
+    return () => {
+      window.clearTimeout(timeoutId);
+      document.removeEventListener("visibilitychange", syncWhenVisible);
+    };
+  }, []);
 
-const displayValue = (value) => {
-  if (value === null || value === undefined || value === "") return "—";
-  return String(value);
-};
+  return (
+    <time className="returns-board__clock" dateTime={currentTime.toISOString()}>
+      {formatChileClock(currentTime)}
+    </time>
+  );
+}
+
+async function fetchReturns() {
+  const result = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    // The optional fecha_limite_revision is read when the ML integration stores it.
+    // Selecting * keeps the board compatible with the current database schema.
+    const { data, error } = await supabase
+      .from("devoluciones")
+      .select("*")
+      .order("id", { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    result.push(...(data || []));
+    if (!data || data.length < PAGE_SIZE) return result;
+  }
+}
 
 export default function Returns() {
   const [returns, setReturns] = useState([]);
@@ -44,144 +62,140 @@ export default function Returns() {
   const [loadError, setLoadError] = useState(
     supabase ? "" : supabaseConfigErrorMessage
   );
-  const [reloadVersion, setReloadVersion] = useState(0);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const clockId = window.setInterval(() => setNow(new Date()), 30000);
+    return () => window.clearInterval(clockId);
+  }, []);
 
   useEffect(() => {
     if (!supabase) return undefined;
-
     let cancelled = false;
+    let fetching = false;
 
-    supabase
-      .from("devoluciones")
-      .select(selectedFields)
-      .order("id", { ascending: false })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-
-        if (error) {
-          console.error("No se pudieron cargar las devoluciones:", error);
-          setReturns([]);
-          setLoadError(
-            "No se pudieron cargar las devoluciones desde Supabase."
-          );
-        } else {
-          setReturns(data || []);
+    const load = async () => {
+      if (fetching) return;
+      fetching = true;
+      try {
+        const data = await fetchReturns();
+        if (!cancelled) {
+          setReturns(data);
           setLoadError("");
         }
+      } catch (error) {
+        console.error("No se pudieron cargar las devoluciones:", error);
+        if (!cancelled) {
+          setLoadError("No se pudieron actualizar las devoluciones desde Supabase.");
+        }
+      } finally {
+        fetching = false;
+        if (!cancelled) setIsLoading(false);
+      }
+    };
 
-        setIsLoading(false);
-      });
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") load();
+    };
 
+    load();
+    const intervalId = window.setInterval(load, REFRESH_INTERVAL_MS);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [reloadVersion]);
+  }, [refreshVersion]);
+
+  const pendingReturns = useMemo(() =>
+    returns
+      .filter(isPendingReturn)
+      .sort((left, right) => {
+        const leftTime = Date.parse(left.fecha_limite_revision || "");
+        const rightTime = Date.parse(right.fecha_limite_revision || "");
+        return (Number.isNaN(leftTime) ? Infinity : leftTime) -
+          (Number.isNaN(rightTime) ? Infinity : rightTime);
+      }), [returns]);
 
   const handleRetry = () => {
-    setIsLoading(true);
     setLoadError("");
-    setReloadVersion((currentVersion) => currentVersion + 1);
+    setIsLoading(true);
+    setRefreshVersion((version) => version + 1);
   };
-
-  const recordLabel = isLoading
-    ? "Cargando..."
-    : `${returns.length} ${returns.length === 1 ? "registro" : "registros"}`;
 
   return (
     <section className="returns-page">
-      <div className="returns-layout">
-        <header className="returns-header">
-          <div>
-            <h1>Devoluciones</h1>
-            <p>Consulta y realiza el seguimiento de las devoluciones.</p>
+      <div className="returns-board">
+        <header className="returns-board__header">
+          <div className="returns-board__heading">
+            <h1>DEVOLUCIONES POR VENCER</h1>
+            <p>Para el equipo de almacén. Muestra el plazo de revisión después de la recepción física del producto.</p>
           </div>
-
-          <span className="returns-counter">{recordLabel}</span>
+          <div className="returns-board__summary">
+            <LiveClock />
+            <div className="returns-board__pending" aria-live="polite">
+              Pendientes: <strong>{isLoading ? "…" : pendingReturns.length}</strong>
+            </div>
+          </div>
         </header>
 
-        <div className="returns-grid-card">
-          <div className="returns-grid-scroll">
-            <table className="returns-grid" aria-label="Listado de devoluciones">
-              <thead>
-                <tr>
-                  {columns.map(({ key, label }) => (
-                    <th key={key} scope="col">
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={columns.length} className="returns-empty-cell">
-                      <div className="returns-empty-state" aria-live="polite">
-                        <LoaderCircle
-                          className="returns-loading-icon"
-                          size={32}
-                          aria-hidden="true"
-                        />
-                        <strong>Cargando devoluciones...</strong>
-                      </div>
-                    </td>
-                  </tr>
-                ) : loadError ? (
-                  <tr>
-                    <td colSpan={columns.length} className="returns-empty-cell">
-                      <div
-                        className="returns-empty-state returns-error-state"
-                        role="alert"
-                      >
-                        <span className="returns-empty-icon" aria-hidden="true">
-                          <AlertCircle size={28} strokeWidth={1.8} />
-                        </span>
-                        <strong>No fue posible cargar los datos</strong>
-                        <span>{loadError}</span>
-                        {supabase ? (
-                          <button
-                            type="button"
-                            className="returns-retry-button"
-                            onClick={handleRetry}
-                          >
-                            <RefreshCw size={16} aria-hidden="true" />
-                            Reintentar
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ) : returns.length === 0 ? (
-                  <tr>
-                    <td colSpan={columns.length} className="returns-empty-cell">
-                      <div className="returns-empty-state">
-                        <span className="returns-empty-icon" aria-hidden="true">
-                          <ClipboardList size={28} strokeWidth={1.8} />
-                        </span>
-                        <strong>No hay devoluciones para mostrar</strong>
-                        <span>
-                          Los registros aparecerán aquí cuando estén disponibles.
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  returns.map((returnItem) => (
-                    <tr key={returnItem.id}>
-                      {columns.map(({ key, type }) => (
-                        <td key={key} title={displayValue(returnItem[key])}>
-                          {type === "date"
-                            ? formatDate(returnItem[key])
-                            : displayValue(returnItem[key])}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="returns-board__legend" aria-label="Leyenda de vencimientos">
+          <span><i className="returns-board__dot returns-board__dot--today" />Vence hoy</span>
+          <span><i className="returns-board__dot returns-board__dot--tomorrow" />Vence mañana</span>
+          <span><i className="returns-board__dot returns-board__dot--later" />Con plazo</span>
         </div>
+
+        <div className="returns-board__table-wrap">
+          {loadError && pendingReturns.length > 0 && (
+            <div className="returns-board__warning" role="alert">
+              <AlertCircle size={19} aria-hidden="true" />
+              {loadError} Se muestran los últimos datos disponibles.
+              <button type="button" onClick={handleRetry}>Reintentar</button>
+            </div>
+          )}
+          <table className="returns-board__table" aria-label="Devoluciones pendientes por vencer">
+            <thead>
+              <tr>
+                <th scope="col">MLC</th>
+                <th scope="col">Fecha límite de revisión</th>
+                <th scope="col">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && pendingReturns.length === 0 ? (
+                <tr><td colSpan={3} className="returns-board__empty-cell">
+                  <div className="returns-board__empty"><LoaderCircle className="returns-board__spinner" size={38} aria-hidden="true" /><strong>Cargando devoluciones...</strong></div>
+                </td></tr>
+              ) : loadError && pendingReturns.length === 0 ? (
+                <tr><td colSpan={3} className="returns-board__empty-cell">
+                  <div className="returns-board__empty" role="alert"><AlertCircle size={42} aria-hidden="true" /><strong>No fue posible cargar los datos</strong><span>{loadError}</span><button type="button" onClick={handleRetry}>Reintentar</button></div>
+                </td></tr>
+              ) : pendingReturns.length === 0 ? (
+                <tr><td colSpan={3} className="returns-board__empty-cell">
+                  <div className="returns-board__empty"><ClipboardList size={44} aria-hidden="true" /><strong>{returns.length === 0 ? "No hay devoluciones registradas" : "No hay devoluciones pendientes"}</strong><span>{returns.length === 0 ? "Los registros aparecerán aquí cuando se sincronicen desde Mercado Libre." : "Todas las devoluciones registradas están finalizadas."}</span></div>
+                </td></tr>
+              ) : pendingReturns.map((item) => {
+                const status = getDeadlineStatus(item.fecha_limite_revision, now);
+                return (
+                  <tr key={item.id}>
+                    <td>{item.mlc || "—"}</td>
+                    <td>{formatChileDateTime(item.fecha_limite_revision)}</td>
+                    <td><span className={`returns-board__badge returns-board__badge--${status.key}`}>{status.label}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <footer className="returns-board__footer">
+          <span>Horario de Chile · Actualización automática cada 5 min.</span>
+          <button type="button" onClick={handleRetry} disabled={isLoading} aria-label="Actualizar devoluciones ahora">
+            <RefreshCw size={17} aria-hidden="true" /> Actualizar ahora
+          </button>
+        </footer>
       </div>
     </section>
   );

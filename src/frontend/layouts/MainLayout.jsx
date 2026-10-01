@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { Menu } from "lucide-react";
 import Sidebar from "../components/SideBar";
 import TopMenuBar from "../components/TopMenuBar";
 import "../styles/MainLayout.css";
@@ -19,32 +20,41 @@ function RouteLoadingOverlay({ visible }) {
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [routeLoading, setRouteLoading] = useState(false);
   const location = useLocation();
-  const previousPathRef = useRef(location.pathname);
+  const isReturnsProjection = location.pathname === "/gestion/devoluciones";
+  const [displayedPath, setDisplayedPath] = useState(location.pathname);
+  const routeLoading = displayedPath !== location.pathname;
 
   useEffect(() => {
-    if (previousPathRef.current !== location.pathname) {
-      setRouteLoading(true);
-
-      const timer = setTimeout(() => {
-        setRouteLoading(false);
-        previousPathRef.current = location.pathname;
-      }, 600);
-
-      return () => clearTimeout(timer);
-    }
-  }, [location.pathname]);
+    if (!routeLoading) return undefined;
+    const timer = setTimeout(() => setDisplayedPath(location.pathname), 600);
+    return () => clearTimeout(timer);
+  }, [location.pathname, routeLoading]);
 
   return (
-    <div className="layout">
+    <div className={`layout ${isReturnsProjection ? "layout--projection" : ""}`}>
       <Sidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
+        projectionMode={isReturnsProjection}
       />
 
       <div className="layout__main">
-        <TopMenuBar onOpenSidebar={() => setSidebarOpen(true)} />
+        {isReturnsProjection ? (
+          !sidebarOpen && (
+            <button
+              type="button"
+              className="layout__projection-menu-button"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Mostrar menú lateral"
+              title="Mostrar menú lateral"
+            >
+              <Menu size={24} aria-hidden="true" />
+            </button>
+          )
+        ) : (
+          <TopMenuBar onOpenSidebar={() => setSidebarOpen(true)} />
+        )}
 
         <main className="layout__content">
           <div className={`layout__page ${routeLoading ? "layout__page--hidden" : ""}`}>
