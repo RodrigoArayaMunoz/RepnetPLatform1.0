@@ -297,21 +297,80 @@ class SupabasePublicationsStore:
                 json={"publication_rows": payload_rows},
             )
 
-        if response.status_code >= 400:
-            logger.error(
-                "[SUPABASE_PUBLICATIONS][INCREMENTAL_UPSERT_ERROR] "
-                "status=%s rows=%s body=%s",
-                response.status_code,
-                len(payload_rows),
-                response.text[:1000],
-            )
-            raise RuntimeError(
-                "No se pudieron guardar las publicaciones notificadas por "
-                "Mercado Libre. Verifica que la migracion de upsert incremental "
-                f"este aplicada ({response.status_code})."
-            )
+            if response.status_code >= 400:
+                logger.error(
+                    "[SUPABASE_PUBLICATIONS][INCREMENTAL_UPSERT_ERROR] "
+                    "status=%s rows=%s body=%s",
+                    response.status_code,
+                    len(payload_rows),
+                    response.text[:1000],
+                )
+                raise RuntimeError(
+                    "No se pudieron guardar las publicaciones notificadas por "
+                    "Mercado Libre. Verifica que la migracion de upsert incremental "
+                    f"este aplicada ({response.status_code})."
+                )
+
+            # A successful RPC response alone does not prove that its deployed
+            # definition stored PART_NUMBER. Raise on a mismatch so the existing
+            # notification task retries instead of marking the event processed.
+            await self._verify_incremental_part_numbers(client, payload_rows)
 
         return len(payload_rows)
+
+    async def _verify_incremental_part_numbers(
+        self,
+        client: httpx.AsyncClient,
+        rows: list[dict[str, Any]],
+    ) -> None:
+        expected_by_seller: dict[str, dict[str, str]] = {}
+        for row in rows:
+            value = row.get("part_number")
+            if value is None or not str(value).strip():
+                # PART_NUMBER is optional; its absence in ML is not a failure.
+                continue
+            seller_id = str(row["seller_id"])
+            expected_by_seller.setdefault(seller_id, {})[str(row["mlc"]).strip()] = (
+                str(value).strip()
+            )
+
+        for seller_id, expected in expected_by_seller.items():
+            item_ids = list(expected)
+            for start in range(0, len(item_ids), 100):
+                batch = item_ids[start : start + 100]
+                response = await client.get(
+                    self.table_url,
+                    headers=self._headers(),
+                    params={
+                        "select": "mlc,part_number",
+                        "seller_id": f"eq.{seller_id}",
+                        "mlc": "in.(" + ",".join(json.dumps(item_id) for item_id in batch) + ")",
+                        "limit": str(len(batch)),
+                    },
+                )
+                if response.status_code >= 400:
+                    raise RuntimeError(
+                        "No se pudo verificar part_number despues del guardado "
+                        f"en publicaciones_ml ({response.status_code})."
+                    )
+                stored_rows = response.json()
+                if not isinstance(stored_rows, list):
+                    raise RuntimeError("Respuesta invalida al verificar part_number en Supabase.")
+                stored = {
+                    str(row.get("mlc") or ""): row.get("part_number")
+                    for row in stored_rows
+                    if isinstance(row, dict)
+                }
+                mismatches = [
+                    item_id for item_id in batch
+                    if stored.get(item_id) != expected[item_id]
+                ]
+                if mismatches:
+                    raise RuntimeError(
+                        "Supabase no guardo el PART_NUMBER recibido de Mercado Libre "
+                        f"para {', '.join(mismatches)}. Verifica la funcion "
+                        "upsert_publicaciones_ml_incremental y la migracion de part_number."
+                    )
 
     async def _upsert_batch(
         self,

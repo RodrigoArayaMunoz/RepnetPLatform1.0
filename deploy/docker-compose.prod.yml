@@ -121,6 +121,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     command: celery -A celery_app:celery_app worker -Q meli_notifications --concurrency=1 --loglevel=info
+    stop_grace_period: 2m
 
   worker_publication_exports:
     build:

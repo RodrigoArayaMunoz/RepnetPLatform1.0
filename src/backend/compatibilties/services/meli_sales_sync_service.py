@@ -321,7 +321,7 @@ class MeliSalesSyncService:
         payload = await self._request_ml(
             f"/items/{item_id}",
             user_id=user_id,
-            params={"attributes": PUBLICATION_DETAIL_ATTRIBUTES},
+            params={"attributes": f"{PUBLICATION_DETAIL_ATTRIBUTES},seller_id"},
         )
         if not isinstance(payload, dict):
             raise ValueError("Mercado Libre devolvio una publicacion invalida.")
@@ -330,19 +330,20 @@ class MeliSalesSyncService:
         if resolved_item_id != item_id:
             raise ValueError("Mercado Libre devolvio un ID de publicacion inesperado.")
 
-        seller_id = self._id(payload.get("seller_id")) or user_id
+        seller_id = self._id(payload.get("seller_id"))
         if seller_id != user_id:
             raise ValueError(
                 "La publicacion notificada no pertenece al vendedor conectado."
             )
 
+        part_number = extract_publication_part_number(payload)
         await supabase_publications_store.upsert_incremental_rows(
             [
                 {
                     "seller_id": int(seller_id),
                     "mlc": resolved_item_id,
                     "sku": extract_publication_sku(payload),
-                    "part_number": extract_publication_part_number(payload),
+                    "part_number": part_number,
                     "titulo": str(payload.get("title") or ""),
                     "fecha_creacion": extract_publication_creation_date(
                         payload.get("date_created")
@@ -350,6 +351,11 @@ class MeliSalesSyncService:
                     "sincronizado_at": self._now(),
                 }
             ]
+        )
+        logger.info(
+            "[MELI_PUBLICATION_SYNC][SAVED] item_id=%s part_number_verified=%s",
+            resolved_item_id,
+            part_number is not None,
         )
 
     async def _load_pack(self, pack_id: str, user_id: str) -> dict[str, Any] | None:

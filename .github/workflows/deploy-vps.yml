@@ -6,6 +6,11 @@ on:
       - calidad-revision-lc
   workflow_dispatch:
     inputs:
+      notifications_only:
+        description: Actualizar solo el worker de notificaciones ML sin reiniciar precios y stock
+        required: false
+        default: false
+        type: boolean
       reset_runtime:
         description: Reiniciar colas y estados operativos antes del deploy
         required: false
@@ -27,6 +32,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate frontend build
+        if: github.event_name != 'workflow_dispatch' || inputs.notifications_only != true
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -53,11 +59,17 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
           DEPLOY_BRANCH: calidad-revision-lc
+          NOTIFICATIONS_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.notifications_only || false }}
           RESET_RUNTIME: ${{ github.event_name == 'workflow_dispatch' && inputs.reset_runtime || false }}
         run: |
           ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" "
             set -e
             cd \"$VPS_APP_DIR\"
+
+            if [ \"$NOTIFICATIONS_ONLY\" = \"true\" ] && [ \"$RESET_RUNTIME\" = \"true\" ]; then
+              echo '[DEPLOY BLOCKED] notifications_only no permite reset_runtime.'
+              exit 1
+            fi
 
             PROCESS_QUEUE_STATE=\$(
               docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
@@ -68,7 +80,9 @@ jobs:
                 exec -T redis redis-cli --raw GET publication_sync:state 2>/dev/null || true
             )
 
-            if [ \"$RESET_RUNTIME\" = \"true\" ]; then
+            if [ \"$NOTIFICATIONS_ONLY\" = \"true\" ]; then
+              echo '[DEPLOY] Actualizando solo worker_meli_notifications; los demas servicios siguen ejecutandose.'
+            elif [ \"$RESET_RUNTIME\" = \"true\" ]; then
               PROCESS_QUEUE_WAS_RUNNING=false
               PUBLICATION_SYNC_WAS_RUNNING=false
               if echo \"\$PROCESS_QUEUE_STATE\" | grep -Eq '\"running\"[[:space:]]*:[[:space:]]*true'; then
@@ -95,6 +109,15 @@ jobs:
             git fetch --prune origin
             git checkout \"$DEPLOY_BRANCH\"
             git reset --hard \"origin/$DEPLOY_BRANCH\"
+
+            if [ \"$NOTIFICATIONS_ONLY\" = \"true\" ]; then
+              docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
+                up -d --build --no-deps --force-recreate worker_meli_notifications
+              docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
+                ps worker_meli_notifications
+              exit 0
+            fi
+
             docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml build --no-cache frontend
             docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d --build --force-recreate --remove-orphans
 

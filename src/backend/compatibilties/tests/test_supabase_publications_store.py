@@ -7,10 +7,14 @@ from services.supabase_publications_store import SupabasePublicationsStore
 
 
 class _FakeResponse:
-    def __init__(self, status_code, text="", headers=None):
+    def __init__(self, status_code, text="", headers=None, json_body=None):
         self.status_code = status_code
         self.text = text
         self.headers = headers or {}
+        self.json_body = json_body
+
+    def json(self):
+        return self.json_body
 
 
 class _FakeAsyncClient:
@@ -168,11 +172,15 @@ class SupabasePublicationsUpsertTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(params["sync_run_id"], "eq.run-123")
 
     async def test_incremental_upsert_uses_rpc_without_sync_run_id(self):
-        client = _FakeAsyncClient([_FakeResponse(200)])
+        client = _FakeAsyncClient([
+            _FakeResponse(200),
+            _FakeResponse(200, json_body=[{"mlc": "MLC123", "part_number": "00123-A"}]),
+        ])
         row = {
             "seller_id": 99,
             "mlc": "MLC123",
             "sku": "SKU-1",
+            "part_number": "00123-A",
             "titulo": "Publicacion",
             "fecha_creacion": "2026-09-25",
             "sync_run_id": "must-not-be-overwritten",
@@ -193,6 +201,47 @@ class SupabasePublicationsUpsertTests(unittest.IsolatedAsyncioTestCase):
         sent_row = kwargs["json"]["publication_rows"][0]
         self.assertNotIn("sync_run_id", sent_row)
         self.assertEqual(sent_row["mlc"], "MLC123")
+        self.assertEqual(sent_row["part_number"], "00123-A")
+        self.assertEqual(client.get_calls[0][1]["params"]["seller_id"], "eq.99")
+        self.assertEqual(client.get_calls[0][1]["params"]["mlc"], 'in.("MLC123")')
+
+    async def test_successful_rpc_does_not_hide_a_missing_or_incorrect_part_number(self):
+        for stored_rows in (
+            [],
+            [{"mlc": "MLC123", "part_number": None}],
+            [{"mlc": "MLC123", "part_number": "OTHER"}],
+        ):
+            with self.subTest(stored_rows=stored_rows):
+                client = _FakeAsyncClient([
+                    _FakeResponse(200),
+                    _FakeResponse(200, json_body=stored_rows),
+                ])
+                with (
+                    patch("services.supabase_publications_store.httpx.AsyncClient", return_value=client),
+                    self.assertRaisesRegex(RuntimeError, "no guardo el PART_NUMBER"),
+                ):
+                    await self.store.upsert_incremental_rows([
+                        {"seller_id": 99, "mlc": "MLC123", "part_number": "00123-A"},
+                    ])
+
+    async def test_failed_verification_is_not_reported_as_a_success(self):
+        client = _FakeAsyncClient([_FakeResponse(200), _FakeResponse(503)])
+        with (
+            patch("services.supabase_publications_store.httpx.AsyncClient", return_value=client),
+            self.assertRaisesRegex(RuntimeError, "verificar part_number"),
+        ):
+            await self.store.upsert_incremental_rows([
+                {"seller_id": 99, "mlc": "MLC123", "part_number": "00123-A"},
+            ])
+
+    async def test_items_without_part_number_remain_valid(self):
+        client = _FakeAsyncClient([_FakeResponse(200)])
+        with patch("services.supabase_publications_store.httpx.AsyncClient", return_value=client):
+            count = await self.store.upsert_incremental_rows([
+                {"seller_id": 99, "mlc": "MLC123", "part_number": None},
+            ])
+        self.assertEqual(count, 1)
+        self.assertEqual(client.get_calls, [])
 
 
 if __name__ == "__main__":

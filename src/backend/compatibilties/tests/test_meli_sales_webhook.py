@@ -149,7 +149,7 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
         async def request_ml(path, *, user_id, params=None):
             self.assertEqual(path, "/items/MLC123456789")
             self.assertEqual(user_id, "99")
-            self.assertEqual(params["attributes"], "id,title,attributes,date_created")
+            self.assertEqual(params["attributes"], "id,title,attributes,date_created,seller_id")
             return item_payload
 
         with (
