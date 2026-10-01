@@ -121,11 +121,17 @@ class PublicationExportService:
                     _excel_text(publication.get("sku")),
                     _excel_text(publication.get("part_number")),
                     _excel_text(publication.get("titulo")),
+                    _excel_text(publication.get("status")),
+                    (
+                        "Sí" if publication.get("has_compatibilities") is True
+                        else "No" if publication.get("has_compatibilities") is False
+                        else ""
+                    ),
                 ]
             )
 
         os.makedirs(settings.upload_dir, exist_ok=True)
-        worksheet.auto_filter.ref = f"A1:D{len(publications) + 1}"
+        worksheet.auto_filter.ref = f"A1:F{len(publications) + 1}"
         temporary_output_path = f"{output_path}.tmp"
         try:
             workbook.save(temporary_output_path)
@@ -171,6 +177,8 @@ class PublicationExportService:
         worksheet.column_dimensions["B"].width = 24
         worksheet.column_dimensions["C"].width = 24
         worksheet.column_dimensions["D"].width = 55
+        worksheet.column_dimensions["E"].width = 20
+        worksheet.column_dimensions["F"].width = 30
 
         header_fill = PatternFill("solid", fgColor="3483FA")
         header_font = Font(color="FFFFFF", bold=True)
@@ -179,7 +187,9 @@ class PublicationExportService:
             vertical="center",
         )
         header = []
-        for value in ("MLC", "SKU", "NUMERO_PIEZA", "TITULO"):
+        for value in (
+            "MLC", "SKU", "NUMERO_PIEZA", "TITULO", "ESTADO", "¿POSEE COMPATIBILIDADES?",
+        ):
             cell = WriteOnlyCell(worksheet, value=value)
             cell.fill = header_fill
             cell.font = header_font

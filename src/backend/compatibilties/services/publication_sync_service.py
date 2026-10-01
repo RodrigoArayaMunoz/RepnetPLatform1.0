@@ -13,8 +13,10 @@ from services.ml_client import ml_client
 from services.ml_publication_fields import (
     PUBLICATION_DETAIL_ATTRIBUTES,
     extract_publication_creation_date,
+    extract_publication_has_compatibilities,
     extract_publication_part_number,
     extract_publication_sku,
+    extract_publication_status,
 )
 from services.publication_sync_store import publication_sync_store
 from services.redis_rate_limiter import RedisWindowRateLimiter
@@ -406,6 +408,8 @@ class PublicationSyncService:
                     "mlc": str(body["id"]),
                     "sku": extract_publication_sku(body),
                     "part_number": extract_publication_part_number(body),
+                    "status": extract_publication_status(body),
+                    "has_compatibilities": extract_publication_has_compatibilities(body),
                     "titulo": str(body.get("title") or ""),
                     "fecha_creacion": extract_publication_creation_date(
                         body.get("date_created")

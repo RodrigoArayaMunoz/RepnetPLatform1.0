@@ -87,7 +87,7 @@ class SupabasePublicationsStore:
                 params={
                     "select": (
                         "seller_id,mlc,sku,part_number,titulo,fecha_creacion,"
-                        "sync_run_id,sincronizado_at"
+                        "sync_run_id,sincronizado_at,status,has_compatibilities"
                     ),
                     "limit": "1",
                 },
@@ -237,7 +237,7 @@ class SupabasePublicationsStore:
                     }
                 )
                 params = {
-                    "select": "mlc,sku,part_number,titulo",
+                    "select": "mlc,sku,part_number,titulo,status,has_compatibilities",
                     "fecha_creacion": f"eq.{creation_date}",
                     "order": "mlc.asc",
                 }
@@ -311,38 +311,43 @@ class SupabasePublicationsStore:
                     f"este aplicada ({response.status_code})."
                 )
 
-            # A successful RPC response alone does not prove that its deployed
-            # definition stored PART_NUMBER. Raise on a mismatch so the existing
-            # notification task retries instead of marking the event processed.
-            await self._verify_incremental_part_numbers(client, payload_rows)
+            # An older deployed RPC may silently ignore new JSON fields. Check
+            # persistence before allowing the notification to be marked processed.
+            await self._verify_incremental_fields(client, payload_rows)
 
         return len(payload_rows)
 
-    async def _verify_incremental_part_numbers(
+    async def _verify_incremental_fields(
         self,
         client: httpx.AsyncClient,
         rows: list[dict[str, Any]],
     ) -> None:
-        expected_by_seller: dict[str, dict[str, str]] = {}
+        fields = ("part_number", "status", "has_compatibilities")
+        expected_by_seller: dict[str, dict[str, dict[str, Any]]] = {}
         for row in rows:
-            value = row.get("part_number")
-            if value is None or not str(value).strip():
-                # PART_NUMBER is optional; its absence in ML is not a failure.
-                continue
             seller_id = str(row["seller_id"])
-            expected_by_seller.setdefault(seller_id, {})[str(row["mlc"]).strip()] = (
-                str(value).strip()
-            )
+            item_id = str(row["mlc"]).strip()
+            expected = expected_by_seller.setdefault(seller_id, {}).setdefault(item_id, {})
+            for field in fields:
+                value = row.get(field)
+                if value is None:
+                    continue
+                if field != "has_compatibilities":
+                    value = str(value).strip()
+                    if not value:
+                        continue
+                # False is a confirmed value and must also be verified.
+                expected[field] = value
 
         for seller_id, expected in expected_by_seller.items():
-            item_ids = list(expected)
+            item_ids = [item_id for item_id, values in expected.items() if values]
             for start in range(0, len(item_ids), 100):
                 batch = item_ids[start : start + 100]
                 response = await client.get(
                     self.table_url,
                     headers=self._headers(),
                     params={
-                        "select": "mlc,part_number",
+                        "select": "mlc,part_number,status,has_compatibilities",
                         "seller_id": f"eq.{seller_id}",
                         "mlc": "in.(" + ",".join(json.dumps(item_id) for item_id in batch) + ")",
                         "limit": str(len(batch)),
@@ -350,27 +355,30 @@ class SupabasePublicationsStore:
                 )
                 if response.status_code >= 400:
                     raise RuntimeError(
-                        "No se pudo verificar part_number despues del guardado "
+                        "No se pudo verificar part_number/status/has_compatibilities despues del guardado "
                         f"en publicaciones_ml ({response.status_code})."
                     )
                 stored_rows = response.json()
                 if not isinstance(stored_rows, list):
-                    raise RuntimeError("Respuesta invalida al verificar part_number en Supabase.")
+                    raise RuntimeError("Respuesta invalida al verificar campos de publicaciones en Supabase.")
                 stored = {
-                    str(row.get("mlc") or ""): row.get("part_number")
+                    str(row.get("mlc") or ""): row
                     for row in stored_rows
                     if isinstance(row, dict)
                 }
-                mismatches = [
-                    item_id for item_id in batch
-                    if stored.get(item_id) != expected[item_id]
-                ]
-                if mismatches:
-                    raise RuntimeError(
-                        "Supabase no guardo el PART_NUMBER recibido de Mercado Libre "
-                        f"para {', '.join(mismatches)}. Verifica la funcion "
-                        "upsert_publicaciones_ml_incremental y la migracion de part_number."
-                    )
+                for field in fields:
+                    mismatches = [
+                        item_id for item_id in batch
+                        if field in expected[item_id]
+                        and stored.get(item_id, {}).get(field) != expected[item_id][field]
+                    ]
+                    if mismatches:
+                        label = "PART_NUMBER" if field == "part_number" else field
+                        raise RuntimeError(
+                            f"Supabase no guardo el {label} recibido de Mercado Libre "
+                            f"para {', '.join(mismatches)}. Verifica la funcion "
+                            "upsert_publicaciones_ml_incremental y las migraciones de publicaciones."
+                        )
 
     async def _upsert_batch(
         self,

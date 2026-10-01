@@ -134,6 +134,8 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
             "seller_id": 99,
             "title": "Publicacion creada o modificada",
             "date_created": "2026-09-26T11:30:00.000Z",
+            "status": "active",
+            "tags": [],
             "attributes": [
                 {
                     "id": "SELLER_SKU",
@@ -143,13 +145,14 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
                     "id": "PART_NUMBER",
                     "value_name": " PN-123 ",
                 },
+                {"id": "HAS_COMPATIBILITIES", "value_name": "Sí"},
             ],
         }
 
         async def request_ml(path, *, user_id, params=None):
             self.assertEqual(path, "/items/MLC123456789")
             self.assertEqual(user_id, "99")
-            self.assertEqual(params["attributes"], "id,title,attributes,date_created,seller_id")
+            self.assertEqual(params["attributes"], "id,title,attributes,date_created,status,tags,seller_id")
             return item_payload
 
         with (
@@ -174,6 +177,8 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row["mlc"], "MLC123456789")
         self.assertEqual(row["sku"], "SKU-ITEM")
         self.assertEqual(row["part_number"], "PN-123")
+        self.assertEqual(row["status"], "active")
+        self.assertIs(row["has_compatibilities"], True)
         self.assertEqual(row["titulo"], "Publicacion creada o modificada")
         self.assertEqual(row["fecha_creacion"], "2026-09-26")
 
@@ -210,6 +215,8 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
                             "id": "MLC123456789",
                             "title": "Titulo actualizado",
                             "date_created": "2026-09-25T12:30:00.000Z",
+                            "status": "paused",
+                            "tags": ["incomplete_compatibilities"],
                             "attributes": [
                                 {
                                     "id": "SELLER_SKU",
@@ -255,6 +262,8 @@ class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
                 "mlc": "MLC123456789",
                 "sku": "SKU-DETAIL",
                 "part_number": "PN-ORDER",
+                "status": "paused",
+                "has_compatibilities": False,
                 "titulo": "Titulo actualizado",
                 "fecha_creacion": "2026-09-25",
                 "sincronizado_at": rows[0]["sincronizado_at"],

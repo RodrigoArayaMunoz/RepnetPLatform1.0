@@ -169,6 +169,8 @@ class PublicationSyncResilienceTests(unittest.IsolatedAsyncioTestCase):
                     "id": "MLC123",
                     "title": "Producto",
                     "date_created": "2026-09-30T10:00:00Z",
+                    "status": "active",
+                    "tags": ["incomplete_compatibilities"],
                     "attributes": [
                         {"id": "SELLER_SKU", "value_name": "SKU-123"},
                         {"id": "PART_NUMBER", "value_name": "PN-123"},
@@ -184,7 +186,9 @@ class PublicationSyncResilienceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failed_count, 0)
         self.assertEqual(rows[0]["part_number"], "PN-123")
         self.assertEqual(rows[0]["sku"], "SKU-123")
-        self.assertEqual(request.await_args.kwargs["params"]["attributes"], "id,title,attributes,date_created")
+        self.assertEqual(rows[0]["status"], "active")
+        self.assertIs(rows[0]["has_compatibilities"], False)
+        self.assertEqual(request.await_args.kwargs["params"]["attributes"], "id,title,attributes,date_created,status,tags")
 
     async def test_sync_requests_delegate_every_attempt_to_shared_limiter(self):
         service = PublicationSyncService()

@@ -29,6 +29,16 @@ El nuevo campo `part_number` es texto y se obtiene de
 con `NULL` hasta que llegue una notificacion `items` o se ejecute una nueva
 carga de publicaciones.
 
+Para guardar tambien el estado y las compatibilidades, aplicar despues la
+migracion antes de actualizar el backend y sus workers:
+
+`supabase/migrations/202610010001_add_status_and_compatibilities_to_publicaciones_ml.sql`
+
+Agrega `status` (texto) y `has_compatibilities` (booleano nullable), y actualiza
+la funcion de upsert incremental. Las filas historicas quedan con `NULL` hasta
+una nueva notificacion `items`, una orden con detalles del item o una nueva
+carga completa de publicaciones. No se infieren estos valores desde otros datos.
+
 La migracion crea las tablas de eventos, packs, ordenes, lineas/SKU, envios y
 relaciones. Todas tienen RLS habilitado y solo el backend con
 `SUPABASE_SERVICE_ROLE_KEY` puede acceder.
@@ -117,7 +127,7 @@ Celery reintenta automaticamente con espera incremental.
 ## 7. Numero de pieza en publicaciones nuevas
 
 El evento `items` contiene el recurso, no la ficha completa. El worker consulta
-`GET /items/{MLC}?attributes=id,title,attributes,date_created,seller_id`, comprueba
+`GET /items/{MLC}?attributes=id,title,attributes,date_created,status,tags,seller_id`, comprueba
 el vendedor y toma `attributes[id=PART_NUMBER].value_name` como texto, conservando
 los ceros iniciales. `value_id` identifica el valor en el catalogo y no debe
 guardarse como numero de pieza.
@@ -187,3 +197,31 @@ limit 20;
 Las notificaciones que ya estaban `processed` no se repiten al desplegar.
 Los registros historicos sin numero de pieza se completan con una nueva
 notificacion del item o con una carga de publicaciones posterior.
+
+## 8. Estado y compatibilidades en publicaciones y Excel
+
+El mismo endpoint de items devuelve `status`, `attributes` y `tags`. Se guarda
+el valor original de `status` (por ejemplo `active`, `paused` o `closed`).
+`has_compatibilities` se obtiene recorriendo `attributes`:
+
+- Si existe `HAS_COMPATIBILITIES`, se guarda `true`, respetando un `value_name`
+  negativo (`No` o `false`) como `false`.
+- Si no existe ese atributo y `tags` contiene `incomplete_compatibilities`, se
+  guarda `false`.
+- Si no hay ninguna de esas señales, se guarda `NULL` en una publicacion nueva.
+  En actualizaciones incrementales sin evidencia se conserva el valor previo.
+
+El worker verifica que los valores recibidos (incluido `false`) quedaron
+guardados antes de marcar el evento como `processed`. Una funcion SQL antigua
+que ignore los nuevos campos provoca un error y los reintentos correspondientes.
+La misma extraccion se usa en las cargas completas y en los detalles de items
+obtenidos desde ordenes.
+
+La exportacion por fecha lee estos valores desde Supabase y agrega al final de
+`MLC`, `SKU`, `NUMERO_PIEZA`, `TITULO` las columnas `ESTADO` y
+`¿POSEE COMPATIBILIDADES?`. Esta ultima muestra `Sí`, `No` o una celda vacia si
+no se conoce el valor. No consulta Mercado Libre durante la exportacion.
+
+Para desplegar todo este cambio, actualizar frontend, API, `worker_meli_notifications`,
+`worker_publications` y `worker_publication_exports` despues de aplicar la
+migracion. El despliegue de solo notificaciones no actualiza los otros workers.

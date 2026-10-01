@@ -9,8 +9,10 @@ from services.ml_client import ml_client
 from services.ml_publication_fields import (
     PUBLICATION_DETAIL_ATTRIBUTES,
     extract_publication_creation_date,
+    extract_publication_has_compatibilities,
     extract_publication_part_number,
     extract_publication_sku,
+    extract_publication_status,
 )
 from services.redis_rate_limiter import RedisWindowRateLimiter
 from services.supabase_meli_sales_store import supabase_meli_sales_store
@@ -305,6 +307,8 @@ class MeliSalesSyncService:
                             fallback=str(fallback.get("sku") or "") or None,
                         ),
                         "part_number": extract_publication_part_number(detail),
+                        "status": extract_publication_status(detail),
+                        "has_compatibilities": extract_publication_has_compatibilities(detail),
                         "titulo": str(
                             detail.get("title") or fallback.get("title") or ""
                         ),
@@ -344,6 +348,8 @@ class MeliSalesSyncService:
                     "mlc": resolved_item_id,
                     "sku": extract_publication_sku(payload),
                     "part_number": part_number,
+                    "status": extract_publication_status(payload),
+                    "has_compatibilities": extract_publication_has_compatibilities(payload),
                     "titulo": str(payload.get("title") or ""),
                     "fecha_creacion": extract_publication_creation_date(
                         payload.get("date_created")

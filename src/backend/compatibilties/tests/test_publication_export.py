@@ -93,8 +93,11 @@ class PublicationExcelTests(unittest.IsolatedAsyncioTestCase):
     async def test_export_writes_only_required_columns_from_database(self):
         service = PublicationExportService()
         publications = [
-            {"mlc": "MLC123", "sku": "SKU-1", "part_number": "00123-A", "titulo": "Titulo 1"},
-            {"mlc": "MLC456", "sku": "SKU-2", "part_number": None, "titulo": "Titulo 2"},
+            {"mlc": "MLC123", "sku": "SKU-1", "part_number": "00123-A", "titulo": "Titulo 1",
+             "status": "active", "has_compatibilities": True},
+            {"mlc": "MLC456", "sku": "SKU-2", "part_number": None, "titulo": "Titulo 2",
+             "status": "paused", "has_compatibilities": False},
+            {"mlc": "MLC789", "sku": None, "part_number": None, "titulo": "Historica"},
         ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -127,16 +130,19 @@ class PublicationExcelTests(unittest.IsolatedAsyncioTestCase):
                 temp_dir,
                 "job-1_publicaciones_2026-07-24.xlsx",
             )
-            workbook = load_workbook(output_path, read_only=True)
+            workbook = load_workbook(output_path)
             rows = list(
                 workbook["Publicaciones"].iter_rows(values_only=True)
             )
+            self.assertEqual(workbook["Publicaciones"].auto_filter.ref, "A1:F4")
+            self.assertEqual(workbook["Publicaciones"].freeze_panes, "A2")
             workbook.close()
 
-        self.assertEqual(rows[0], ("MLC", "SKU", "NUMERO_PIEZA", "TITULO"))
-        self.assertEqual(rows[1], ("MLC123", "SKU-1", "00123-A", "Titulo 1"))
-        self.assertEqual(rows[2], ("MLC456", "SKU-2", None, "Titulo 2"))
-        self.assertEqual(summary["total_rows"], 2)
+        self.assertEqual(rows[0], ("MLC", "SKU", "NUMERO_PIEZA", "TITULO", "ESTADO", "¿POSEE COMPATIBILIDADES?"))
+        self.assertEqual(rows[1], ("MLC123", "SKU-1", "00123-A", "Titulo 1", "active", "Sí"))
+        self.assertEqual(rows[2], ("MLC456", "SKU-2", None, "Titulo 2", "paused", "No"))
+        self.assertEqual(rows[3], ("MLC789", None, None, "Historica", None, None))
+        self.assertEqual(summary["total_rows"], 3)
         self.assertEqual(summary["source"], "database")
         self.assertEqual(summary["api_items_queried"], 0)
         ml_request.assert_not_awaited()

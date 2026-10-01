@@ -379,7 +379,8 @@ export default function DownloadPublications({ authUserId }) {
           <h1>Descargar Publicaciones</h1>
           <p>
             Actualiza las publicaciones y descarga un Excel con MLC, SKU,
-            NUMERO_PIEZA y TÍTULO desde la base de datos para la fecha seleccionada.
+            NUMERO_PIEZA, TÍTULO, ESTADO y ¿POSEE COMPATIBILIDADES? desde la base
+            de datos para la fecha seleccionada.
           </p>
         </header>
 
