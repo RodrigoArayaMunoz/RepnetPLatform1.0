@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 
+from config import settings
 from services.supabase_publications_store import SupabasePublicationsStore
 
 
@@ -54,6 +55,7 @@ class _FakeAsyncClient:
 
 class SupabasePublicationsUpsertTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        self.enterContext(patch.object(settings, "supabase_url", "https://database.example.test"))
         self.store = SupabasePublicationsStore()
         self.store._headers = Mock(return_value={})
         self.rows = [

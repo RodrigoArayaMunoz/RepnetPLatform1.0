@@ -18,6 +18,10 @@ from services.refax_products_service import (
 
 
 class RefaxProductsServiceTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.enterContext(patch.object(settings, "refax_provider_code", "test-provider"))
+        self.enterContext(patch.object(settings, "refax_api_base_url", "https://refax.example.test"))
+
     def build_service(self):
         connection_service = AsyncMock()
         connection_service.get_valid_token.return_value = "private-token"

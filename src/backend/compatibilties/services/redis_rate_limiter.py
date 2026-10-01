@@ -72,20 +72,23 @@ class RedisWindowRateLimiter:
                         )
 
                         if current_window_count >= self.max_requests_per_window:
-                            cooldown_until = now + self.cooldown_seconds
-                            pipe.multi()
-                            pipe.set(
-                                self._cooldown_key,
-                                f"{cooldown_until:.6f}",
-                                ex=max(2, int(self.cooldown_seconds) + 5),
+                            oldest = await pipe.zrangebyscore(
+                                self._window_key,
+                                window_start,
+                                "+inf",
+                                start=0,
+                                num=1,
+                                withscores=True,
                             )
-                            pipe.set(
-                                self._next_allowed_key,
-                                f"{cooldown_until:.6f}",
-                                ex=max(2, int(self.cooldown_seconds) + 5),
+                            await pipe.reset()
+                            # A full local window is normal flow control. Wait
+                            # only until its oldest request expires; API 429s
+                            # apply their explicit cooldown through penalize().
+                            wait_seconds = (
+                                oldest[0][1] + self.window_seconds - now + 0.001
+                                if oldest else 0.05
                             )
-                            await pipe.execute()
-                            await asyncio.sleep(max(0.05, self.cooldown_seconds))
+                            await asyncio.sleep(max(0.05, wait_seconds))
                             continue
 
                     reserved_until = max(now, next_allowed_at) + self.min_interval

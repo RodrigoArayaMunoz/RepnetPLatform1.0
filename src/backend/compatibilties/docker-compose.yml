@@ -1,3 +1,15 @@
+# Compose environment overrides legacy backend settings. All writers share
+# this profile and Redis. Production overrides belong in deploy/.env.
+x-ml-performance-environment: &ml-performance-environment
+  ML_WRITE_REQUESTS_PER_SECOND: ${ML_WRITE_REQUESTS_PER_SECOND:-4}
+  ML_WRITE_MAX_REQUESTS_PER_WINDOW: ${ML_WRITE_MAX_REQUESTS_PER_WINDOW:-240}
+  ML_WRITE_WINDOW_SECONDS: ${ML_WRITE_WINDOW_SECONDS:-60}
+  ML_RETRY_429_COOLDOWN_SECONDS: ${ML_RETRY_429_COOLDOWN_SECONDS:-60}
+  PRICE_STOCK_CHUNK_SIZE: ${PRICE_STOCK_CHUNK_SIZE:-300}
+  PRICE_STOCK_CHUNK_PAUSE_SECONDS: ${PRICE_STOCK_CHUNK_PAUSE_SECONDS:-0}
+  PRICE_STOCK_MAX_CONCURRENCY: ${PRICE_STOCK_MAX_CONCURRENCY:-4}
+  JOB_PROGRESS_UPDATE_EVERY: ${JOB_PROGRESS_UPDATE_EVERY:-25}
+
 services:
   redis:
     image: redis:7
@@ -24,6 +36,7 @@ services:
       - .:/code
     env_file:
       - .env
+    environment: *ml-performance-environment
     depends_on:
       redis:
         condition: service_healthy
@@ -40,6 +53,7 @@ services:
       - .:/code
     env_file:
       - .env
+    environment: *ml-performance-environment
     depends_on:
       redis:
         condition: service_healthy
@@ -56,6 +70,7 @@ services:
       - .:/code
     env_file:
       - .env
+    environment: *ml-performance-environment
     depends_on:
       redis:
         condition: service_healthy
@@ -72,6 +87,7 @@ services:
       - .:/code
     env_file:
       - .env
+    environment: *ml-performance-environment
     depends_on:
       redis:
         condition: service_healthy
@@ -88,6 +104,7 @@ services:
       - .:/code
     env_file:
       - .env
+    environment: *ml-performance-environment
     depends_on:
       redis:
         condition: service_healthy
@@ -105,6 +122,7 @@ services:
       - .:/code
     env_file:
       - .env
+    environment: *ml-performance-environment
     depends_on:
       redis:
         condition: service_healthy

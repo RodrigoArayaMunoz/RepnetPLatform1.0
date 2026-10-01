@@ -31,6 +31,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate backend tests
+        working-directory: src/backend/compatibilties
+        run: |
+          python -m pip install -r requirements.txt
+          python -m unittest discover -s tests -v
+
       - name: Validate frontend build
         if: github.event_name != 'workflow_dispatch' || inputs.notifications_only != true
         env:
@@ -101,7 +112,7 @@ jobs:
             else
               if echo \"\$PROCESS_QUEUE_STATE\" | grep -Eq '\"running\"[[:space:]]*:[[:space:]]*true' || \
                  echo \"\$PUBLICATION_SYNC_STATE\" | grep -Eq '\"running\"[[:space:]]*:[[:space:]]*true'; then
-                echo '[DEPLOY BLOCKED] Hay procesos activos. Espera a que terminen o ejecuta el workflow manual con reset_runtime=true.'
+                echo '[DEPLOY BLOCKED] Hay procesos activos. Espera a que terminen y vuelve a ejecutar el deploy.'
                 exit 1
               fi
             fi
@@ -120,6 +131,19 @@ jobs:
 
             docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml build --no-cache frontend
             docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d --build --force-recreate --remove-orphans
+
+            echo '[DEPLOY] Comprobando la politica de precios/stock en API y workers...'
+            EXPECTED_PROFILE=\$(docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
+              exec -T api python -m scripts.check_price_stock_config)
+            echo \"\$EXPECTED_PROFILE\"
+            for SERVICE in worker_dispatch worker_chunks worker_publications worker_publication_exports worker_meli_notifications; do
+              ACTUAL_PROFILE=\$(docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
+                exec -T \"\$SERVICE\" python -m scripts.check_price_stock_config)
+              if [ \"\$ACTUAL_PROFILE\" != \"\$EXPECTED_PROFILE\" ]; then
+                echo \"[DEPLOY FAILED] Configuracion de escritura diferente en \$SERVICE.\"
+                exit 1
+              fi
+            done
 
             if [ \"$RESET_RUNTIME\" = \"true\" ]; then
               docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \

@@ -106,6 +106,7 @@ class MercadoLibreClient:
         params: dict | None = None,
         user_id: int | str | None = None,
         rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> Any:
         if not self.client:
             raise RuntimeError("MercadoLibreClient no inicializado")
@@ -133,6 +134,10 @@ class MercadoLibreClient:
                     has_json_body=json_body is not None,
                 )
 
+                if metrics is not None:
+                    metrics.ml_requests += 1
+                    if attempt > 1:
+                        metrics.ml_retries += 1
                 response = await self.client.request(
                     method=method,
                     url=url,
@@ -157,6 +162,8 @@ class MercadoLibreClient:
                             )
                         continue
 
+                    if metrics is not None:
+                        metrics.ml_http_errors += 1
                     raise HTTPException(
                         status_code=401,
                         detail="Token inválido o expirado",
@@ -190,6 +197,8 @@ class MercadoLibreClient:
                     )
 
                     if response.status_code == 429:
+                        if metrics is not None:
+                            metrics.ml_rate_limited += 1
                         base_delay = max(
                             float(getattr(settings, "ml_retry_429_min_delay_seconds", 12.0)),
                             retry_after_seconds or 0.0,
@@ -203,6 +212,10 @@ class MercadoLibreClient:
                                 )
                             ),
                             base_delay,
+                            # Without a server Retry-After, allow the shared
+                            # write window to drain before admitting more work.
+                            float(getattr(rate_limiter, "window_seconds", 0) or 0)
+                            if retry_after_seconds is None else 0.0,
                         )
                         if (
                             rate_limiter is not None
@@ -239,6 +252,8 @@ class MercadoLibreClient:
                         base_delay = settings.ml_retry_base_delay * (2 ** (attempt - 1))
 
                     if attempt == settings.ml_retry_attempts:
+                        if metrics is not None:
+                            metrics.ml_http_errors += 1
                         raise HTTPException(
                             status_code=response.status_code,
                             detail=response_payload,
@@ -262,6 +277,8 @@ class MercadoLibreClient:
                     continue
 
                 if response.status_code >= 400:
+                    if metrics is not None:
+                        metrics.ml_http_errors += 1
                     logger.warning(
                         "[ML_CLIENT][ERROR] method=%s url=%s status=%s body=%s",
                         method,
@@ -316,6 +333,8 @@ class MercadoLibreClient:
                 ) + random.uniform(0, 0.3)
                 await asyncio.sleep(delay)
 
+        if metrics is not None:
+            metrics.ml_technical_errors += 1
         raise HTTPException(
             status_code=502,
             detail=f"Error de red contra Mercado Libre: {last_error}",
@@ -675,6 +694,8 @@ class MercadoLibreClient:
         available_quantity: int | None = None,
         status: str | None = None,
         user_id: int | str | None = None,
+        rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> dict:
         body: dict[str, Any] = {}
         if price is not None:
@@ -693,6 +714,8 @@ class MercadoLibreClient:
             access_token=access_token,
             json_body=body,
             user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
         )
 
         return data if isinstance(data, dict) else {"raw_response": data}

@@ -11,7 +11,6 @@ from config import settings
 from services.compatibility_service import (
     JobMetrics,
     PRICE_STOCK_WRITE_RATE_LIMITER,
-    call_ml,
     get_write_rate_policy,
 )
 from services.excel_service import extract_item_id, normalize_text
@@ -22,7 +21,7 @@ from services.process_chunking_service import (
     count_chunks,
     format_pause_minutes,
     get_price_stock_chunk_pause_seconds,
-    get_process_file_chunk_size,
+    get_price_stock_chunk_size,
 )
 
 logger = logging.getLogger(__name__)
@@ -306,18 +305,48 @@ async def _process_price_stock_row(
         }
 
     try:
-        access_token = await ml_client.get_valid_token(int(user_id))
-        response = await call_ml(
-            ml_client.update_item_price_stock,
-            access_token,
+        # One retry owner; every HTTP attempt acquires the shared write budget.
+        response = await ml_client.update_item_price_stock(
+            None,
             item_id,
             price=precio,
             available_quantity=stock,
             status=estado,
             user_id=user_id,
             metrics=metrics,
-            limiter=PRICE_STOCK_WRITE_RATE_LIMITER,
+            rate_limiter=PRICE_STOCK_WRITE_RATE_LIMITER,
         )
+
+        expected_fields = {
+            key: value for key, value in (
+                ("price", int(precio) if precio is not None else None),
+                ("available_quantity", stock),
+                ("status", estado),
+            ) if value is not None
+        }
+        mismatched_fields = [
+            key for key, value in expected_fields.items() if response.get(key) != value
+        ]
+        if mismatched_fields:
+            reason = (
+                "Mercado Libre respondio correctamente pero no confirmo los valores "
+                f"solicitados de {', '.join(mismatched_fields)}. Revisa los warnings."
+            )
+            return {
+                "ok": False,
+                "item_id": item_id,
+                "reason": reason,
+                "error_code": "UPDATE_NOT_CONFIRMED",
+                "original_row_index": original_row_index,
+                "precio": precio,
+                "stock": stock,
+                "estado": estado,
+                "ml_response": response,
+                "mismatched_fields": mismatched_fields,
+                "results": [{"ok": False, "item_id": item_id, "reason": reason,
+                             "error_code": "UPDATE_NOT_CONFIRMED",
+                             "original_row_index": original_row_index}],
+            }
 
         return {
             "ok": True,
@@ -387,7 +416,7 @@ async def process_price_stock_job(
     rows = load_price_stock_rows(file_path)
     total_rows = len(rows)
     metrics = JobMetrics()
-    chunk_size = get_process_file_chunk_size()
+    chunk_size = get_price_stock_chunk_size()
     pause_seconds = get_price_stock_chunk_pause_seconds()
     total_chunks = count_chunks(total_rows, chunk_size)
 
@@ -415,7 +444,7 @@ async def process_price_stock_job(
         }
         return {"results": [], "summary": summary}
 
-    max_concurrency = max(1, int(getattr(settings, "max_row_concurrency", 2)))
+    max_concurrency = max(1, int(getattr(settings, "price_stock_max_concurrency", 4)))
     write_policy = get_write_rate_policy()
 
     logger.info(
@@ -432,6 +461,7 @@ async def process_price_stock_job(
     progress_lock = asyncio.Lock()
     results: list[dict[str, Any] | None] = [None] * total_rows
     completed = 0
+    progress_update_every = max(1, int(getattr(settings, "job_progress_update_every", 25)))
     indexed_rows = list(enumerate(rows))
 
     async def worker(
@@ -451,6 +481,8 @@ async def process_price_stock_job(
 
         async with progress_lock:
             completed += 1
+            if completed % progress_update_every != 0 and completed != total_rows:
+                return
             progress = 10 + int((completed / max(total_rows, 1)) * 85)
             JobStore.update(
                 job_id,

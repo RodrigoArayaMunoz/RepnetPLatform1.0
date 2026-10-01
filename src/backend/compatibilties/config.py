@@ -90,14 +90,16 @@ class Settings(BaseSettings):
     ml_http_max_connections: int = 20
     ml_http_max_keepalive: int = 10
 
-    # Retry / rate limit (ML API limit: 100 rpm por APP_ID)
+    # Conservative application policy; ML quotas depend on endpoint and account.
     ml_retry_attempts: int = 6
     ml_retry_base_delay: float = 1.0
     ml_requests_per_second: float = 1.5
     ml_read_requests_per_second: float = 0.8
-    ml_write_requests_per_second: float = 100 / 60
-    ml_write_max_requests_per_window: int = 100
-    ml_write_window_seconds: int = 60
+    # Standalone Python remains conservative. Docker Compose applies the
+    # measured 240/min profile to the API and every worker together.
+    ml_write_requests_per_second: float = Field(default=100 / 60, gt=0)
+    ml_write_max_requests_per_window: int = Field(default=100, ge=1)
+    ml_write_window_seconds: int = Field(default=60, ge=1)
     ml_write_cooldown_seconds: float = 120.0
     ml_compatibility_write_requests_per_second: float = 100 / 60
     ml_compatibility_max_requests_per_window: int = 100
@@ -178,15 +180,17 @@ class Settings(BaseSettings):
 
     # Procesamiento
     max_row_concurrency: int = 2
-    job_progress_update_every: int = 25
+    job_progress_update_every: int = Field(default=25, ge=1)
 
     compat_batch_size: int = 100
     compat_batch_concurrency: int = 2
     process_file_chunk_size: int = 100
+    price_stock_chunk_size: int = Field(default=300, ge=1, le=5000)
+    price_stock_max_concurrency: int = Field(default=4, ge=1, le=20)
     process_file_chunk_pause_seconds: int = 2 * 60
     compatibility_chunk_pause_seconds: int = 3 * 60 + 30
     compatibility_exception_chunk_pause_seconds: int = 2 * 60
-    price_stock_chunk_pause_seconds: int = 2 * 60
+    price_stock_chunk_pause_seconds: int = Field(default=0, ge=0)
     item_pictures_chunk_pause_seconds: int = 2 * 60
     sku_description_chunk_pause_seconds: int = 2 * 60
     process_queue_delay_seconds: int = 15 * 60
