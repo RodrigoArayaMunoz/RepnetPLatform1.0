@@ -276,7 +276,7 @@ export default function DownloadPublications({ authUserId }) {
   }, [downloadAndRememberExport, exportJob]);
 
   const handleLoadPublications = async () => {
-    if (isSyncing) {
+    if (isSyncing || isExportBusy) {
       return;
     }
 
@@ -302,6 +302,11 @@ export default function DownloadPublications({ authUserId }) {
       }
 
       setSyncState(data);
+      setExportJob(null);
+      setExportError("");
+      downloadedExportRef.current = "";
+      window.localStorage.removeItem(exportJobStorageKey);
+      window.localStorage.removeItem(downloadedExportStorageKey);
     } catch (error) {
       setSyncError(
         error?.message || "No se pudo iniciar la carga de publicaciones."
@@ -312,6 +317,7 @@ export default function DownloadPublications({ authUserId }) {
   const handleDownloadPublications = async () => {
     if (
       isExportBusy ||
+      isSyncing ||
       exportRequestInFlightRef.current ||
       !publicationDate
     ) {
@@ -346,6 +352,7 @@ export default function DownloadPublications({ authUserId }) {
         },
         body: JSON.stringify({
           publication_date: publicationDate,
+          refresh: true,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -394,7 +401,7 @@ export default function DownloadPublications({ authUserId }) {
               type="button"
               className="download-publications-load-button"
               onClick={handleLoadPublications}
-              disabled={isSyncing}
+              disabled={isSyncing || isExportBusy}
             >
               {isSyncing ? (
                 <LoaderCircle
@@ -501,7 +508,7 @@ export default function DownloadPublications({ authUserId }) {
               type="button"
               className="download-publications-download-button"
               onClick={handleDownloadPublications}
-              disabled={isExportBusy || !publicationDate}
+              disabled={isExportBusy || isSyncing || !publicationDate}
             >
               {isExportBusy ? (
                 <LoaderCircle

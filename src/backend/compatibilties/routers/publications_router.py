@@ -17,11 +17,12 @@ from tasks.publication_export_tasks import export_publications_task
 from tasks.publication_sync_tasks import sync_publications_task
 
 router = APIRouter(prefix="/publications", tags=["publications"])
-PUBLICATION_EXPORT_SCHEMA_VERSION = 3
+PUBLICATION_EXPORT_SCHEMA_VERSION = 4
 
 
 class PublicationExportRequest(BaseModel):
     publication_date: date
+    refresh: bool = False
 
 
 def _authenticated_user_id(request: Request) -> str:
@@ -108,6 +109,7 @@ def _existing_export_job(
     seller_id: str,
     creation_date: str,
     total_rows: int,
+    refresh: bool = False,
 ) -> dict | None:
     existing_job_id = publication_export_store.get_referenced_job_id(
         requested_by_user_id=requested_by_user_id,
@@ -137,6 +139,7 @@ def _existing_export_job(
     if (
         job
         and job.get("status") == "success"
+        and not refresh
         and int(job.get("total_rows") or 0) == total_rows
         and result_path
         and os.path.exists(result_path)
@@ -277,6 +280,7 @@ async def start_publications_export(
         seller_id=seller_id,
         creation_date=creation_date,
         total_rows=total_rows,
+        refresh=payload.refresh,
     )
     if existing_job:
         recovered_job = _recover_stale_export_if_needed(existing_job)
@@ -296,6 +300,7 @@ async def start_publications_export(
             seller_id=seller_id,
             creation_date=creation_date,
             total_rows=total_rows,
+            refresh=payload.refresh,
         )
         if existing_job:
             return _export_job_response(existing_job)

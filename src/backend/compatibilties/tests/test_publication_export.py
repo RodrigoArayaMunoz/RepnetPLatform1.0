@@ -286,6 +286,74 @@ class PublicationExportOwnershipTests(unittest.TestCase):
 
         self.assertFalse(response["download_ready"])
 
+    def test_four_column_export_is_not_reused_after_format_change(self):
+        job = {"id": "old-job", "status": "success", "total_rows": 2,
+               "export_schema_version": 3, "result_path": "old.xlsx"}
+        with (
+            patch.object(publications_router.publication_export_store, "get_referenced_job_id", return_value="old-job"),
+            patch.object(publications_router.publication_export_store, "release_reference") as release,
+            patch.object(JobStore, "get", return_value=job),
+            patch("routers.publications_router.os.path.exists", return_value=True),
+        ):
+            result = publications_router._existing_export_job(
+                requested_by_user_id="user-a", seller_id="99",
+                creation_date="2026-10-01", total_rows=2,
+            )
+            self.assertFalse(publications_router._export_job_response(job)["download_ready"])
+        self.assertIsNone(result)
+        release.assert_called_once()
+
+    def test_refresh_regenerates_completed_excel_and_reuses_active_task(self):
+        for status, refresh, reuse in (
+            ("success", True, False),
+            ("success", False, True),
+            ("queued", True, True),
+            ("processing", True, True),
+            ("retrying", True, True),
+        ):
+            with self.subTest(status=status, refresh=refresh):
+                job = {"id": "job-a", "status": status, "total_rows": 2,
+                       "export_schema_version": publications_router.PUBLICATION_EXPORT_SCHEMA_VERSION,
+                       "result_path": "old.xlsx"}
+                with (
+                    patch.object(publications_router.publication_export_store, "get_referenced_job_id", return_value="job-a"),
+                    patch.object(publications_router.publication_export_store, "release_reference") as release,
+                    patch.object(JobStore, "get", return_value=job),
+                    patch("routers.publications_router.os.path.exists", return_value=True),
+                ):
+                    result = publications_router._existing_export_job(
+                        requested_by_user_id="user-a", seller_id="99",
+                        creation_date="2026-10-01", total_rows=2, refresh=refresh,
+                    )
+                if reuse:
+                    self.assertIs(result, job)
+                    release.assert_not_called()
+                else:
+                    self.assertIsNone(result)
+                    release.assert_called_once()
+
+
+class PublicationExportRefreshRequestTests(unittest.IsolatedAsyncioTestCase):
+    async def test_request_forwards_refresh_to_cached_export_lookup(self):
+        job = {"id": "job-a", "status": "queued",
+               "export_schema_version": publications_router.PUBLICATION_EXPORT_SCHEMA_VERSION}
+        with (
+            patch.object(publications_router, "_authenticated_user_id", return_value="user-a"),
+            patch.object(publications_router, "_get_connected_ml_user_id", new=AsyncMock(return_value="99")),
+            patch.object(supabase_publications_store, "count_by_creation_date", new=AsyncMock(return_value=2)),
+            patch.object(publications_router, "_existing_export_job", return_value=job) as lookup,
+            patch.object(publications_router, "_recover_stale_export_if_needed", return_value=job),
+        ):
+            result = await publications_router.start_publications_export(
+                publications_router.PublicationExportRequest(publication_date="2026-10-01", refresh=True),
+                Request({"type": "http"}),
+            )
+        self.assertEqual(result["job_id"], "job-a")
+        lookup.assert_called_once_with(
+            requested_by_user_id="user-a", seller_id="99",
+            creation_date="2026-10-01", total_rows=2, refresh=True,
+        )
+
 
 class PublicationExportRecoveryTests(unittest.TestCase):
     def test_stale_processing_job_is_requeued(self):

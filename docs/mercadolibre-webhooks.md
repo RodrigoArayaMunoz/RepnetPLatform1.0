@@ -222,6 +222,14 @@ La exportacion por fecha lee estos valores desde Supabase y agrega al final de
 `¿POSEE COMPATIBILIDADES?`. Esta ultima muestra `Sí`, `No` o una celda vacia si
 no se conoce el valor. No consulta Mercado Libre durante la exportacion.
 
+El formato de exportacion usa la version 4 para impedir que se reutilicen
+archivos antiguos sin las dos columnas nuevas. Al iniciar una carga, la pantalla
+descarta la descarga anterior; la siguiente exportacion solicita `refresh: true`
+para generar un archivo con los datos actuales aunque no cambie la cantidad de
+publicaciones. Mientras se carga, la descarga queda deshabilitada; mientras se
+exporta, la carga queda deshabilitada. Una solicitud repetida de una exportacion
+en curso sigue reutilizando la tarea activa para evitar duplicados.
+
 Para desplegar todo este cambio, actualizar frontend, API, `worker_meli_notifications`,
 `worker_publications` y `worker_publication_exports` despues de aplicar la
 migracion. El despliegue de solo notificaciones no actualiza los otros workers.
