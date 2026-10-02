@@ -6,6 +6,11 @@ on:
       - calidad-revision-lc
   workflow_dispatch:
     inputs:
+      refax_diagnostics_only:
+        description: Diagnosticar la conexion saliente a REFAX sin reiniciar servicios
+        required: false
+        default: false
+        type: boolean
       notifications_only:
         description: Actualizar solo el worker de notificaciones ML sin reiniciar precios y stock
         required: false
@@ -37,13 +42,14 @@ jobs:
           python-version: '3.11'
 
       - name: Validate backend tests
+        if: github.event_name != 'workflow_dispatch' || inputs.refax_diagnostics_only != true
         working-directory: src/backend/compatibilties
         run: |
           python -m pip install -r requirements.txt
           python -m unittest discover -s tests -v
 
       - name: Validate frontend build
-        if: github.event_name != 'workflow_dispatch' || inputs.notifications_only != true
+        if: github.event_name != 'workflow_dispatch' || (inputs.notifications_only != true && inputs.refax_diagnostics_only != true)
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -65,7 +71,7 @@ jobs:
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
       - name: Configure REFAX backend credentials
-        if: github.event_name != 'workflow_dispatch' || inputs.notifications_only != true
+        if: github.event_name != 'workflow_dispatch' || (inputs.notifications_only != true && inputs.refax_diagnostics_only != true)
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -80,7 +86,18 @@ jobs:
             --identity ~/.ssh/deploy_key \
             --app-dir "$VPS_APP_DIR"
 
+      - name: Diagnose REFAX outbound connection
+        if: github.event_name == 'workflow_dispatch' && inputs.refax_diagnostics_only == true
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            'docker exec -i -w /code compat_api python -' \
+            < src/backend/compatibilties/scripts/diagnose_refax_connection.py
+
       - name: Deploy
+        if: github.event_name != 'workflow_dispatch' || inputs.refax_diagnostics_only != true
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
