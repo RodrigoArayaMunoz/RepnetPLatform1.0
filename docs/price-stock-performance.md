@@ -115,6 +115,7 @@ PRICE_STOCK_CHUNK_SIZE=300
 PRICE_STOCK_CHUNK_PAUSE_SECONDS=0
 PRICE_STOCK_MAX_CONCURRENCY=4
 JOB_PROGRESS_UPDATE_EVERY=25
+PROCESS_QUEUE_DELAY_SECONDS=300
 ```
 
 `ML_PRICE_STOCK_*` no controla por separado la frecuencia de este flujo:
@@ -144,6 +145,8 @@ cargados. El workflow falla si algun worker carga un perfil distinto al de la
 API. Los valores efectivos quedan visibles en el log del despliegue.
 
 El worker que ejecuta precios/stock y la cola de procesos es `worker_dispatch`.
+La cola espera **5 minutos (300 segundos)** entre archivos completos cuando
+hay otro pendiente. Esa espera es independiente de las pausas entre bloques.
 Los endpoints de carga directa y la cola de procesos usan el mismo servicio
 optimizado. No se requiere una nueva migracion SQL para este cambio de
 rendimiento. El script de benchmark solo envia actualizaciones al ejecutarlo

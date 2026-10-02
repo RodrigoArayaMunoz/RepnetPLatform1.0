@@ -14,6 +14,7 @@ from openpyxl.styles import Font
 from celery.states import READY_STATES
 from celery_app import celery_app
 from services.job_store import JobStore
+from services.item_description_service import build_item_description_excel
 from services.process_queue_error_store import process_queue_error_store
 from services.process_queue_result_store import process_queue_result_store
 from services.process_queue_store import process_queue_store
@@ -284,7 +285,7 @@ async def export_process_queue_result(row_id: str):
         )
 
     process_type = str(result_payload.get("process_type") or "").strip()
-    if process_type != "sku_descriptions":
+    if process_type not in {"sku_descriptions", "item_descriptions"}:
         raise HTTPException(
             status_code=400,
             detail="Ese proceso no soporta exportación de resultados.",
@@ -297,14 +298,22 @@ async def export_process_queue_result(row_id: str):
             detail="El archivo de resultado tiene un formato inválido.",
         )
 
-    file_buffer = build_sku_description_excel(result_data)
+    file_buffer = (
+        build_item_description_excel(result_data)
+        if process_type == "item_descriptions"
+        else build_sku_description_excel(result_data)
+    )
     process_id = str(
         result_payload.get("process_id")
         or result_payload.get("process_row_id")
         or row_id
     )
     safe_process_id = _sanitize_export_filename(process_id)
-    filename = f"sku_mlc_descripciones_{safe_process_id}.xlsx"
+    filename = (
+        f"resultado_descripciones_mlc_{safe_process_id}.xlsx"
+        if process_type == "item_descriptions"
+        else f"sku_mlc_descripciones_{safe_process_id}.xlsx"
+    )
 
     headers = {
         "Content-Disposition": f'attachment; filename="{filename}"'

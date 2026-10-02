@@ -107,6 +107,7 @@ class MercadoLibreClient:
         user_id: int | str | None = None,
         rate_limiter: Any | None = None,
         metrics: Any | None = None,
+        expected_status_codes: set[int] | None = None,
     ) -> Any:
         if not self.client:
             raise RuntimeError("MercadoLibreClient no inicializado")
@@ -277,9 +278,11 @@ class MercadoLibreClient:
                     continue
 
                 if response.status_code >= 400:
-                    if metrics is not None:
+                    expected_error = response.status_code in (expected_status_codes or set())
+                    if metrics is not None and not expected_error:
                         metrics.ml_http_errors += 1
-                    logger.warning(
+                    logger.log(
+                        logging.DEBUG if expected_error else logging.WARNING,
                         "[ML_CLIENT][ERROR] method=%s url=%s status=%s body=%s",
                         method,
                         url,
@@ -467,12 +470,17 @@ class MercadoLibreClient:
         access_token: str | None,
         item_id: str,
         user_id: int | str | None = None,
+        rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> dict:
         data = await self.request(
             "GET",
             f"/items/{item_id}/description",
             access_token=access_token,
             user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
+            expected_status_codes={404},
         )
         if not isinstance(data, dict):
             raise HTTPException(
@@ -480,6 +488,27 @@ class MercadoLibreClient:
                 detail=f"Respuesta inválida para descripción de item {item_id}",
             )
         return data
+
+    async def write_item_description(
+        self,
+        item_id: str,
+        plain_text: str,
+        *,
+        exists: bool,
+        user_id: int | str,
+        rate_limiter: Any,
+        metrics: Any,
+    ) -> dict:
+        data = await self.request(
+            "PUT" if exists else "POST",
+            f"/items/{item_id}/description",
+            json_body={"plain_text": plain_text},
+            params={"api_version": 2} if exists else None,
+            user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
+        )
+        return data if isinstance(data, dict) else {"raw_response": data}
 
     async def get_top_values(
         self,

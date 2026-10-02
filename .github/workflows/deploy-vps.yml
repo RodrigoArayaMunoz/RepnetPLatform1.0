@@ -132,7 +132,7 @@ jobs:
             docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml build --no-cache frontend
             docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d --build --force-recreate --remove-orphans
 
-            echo '[DEPLOY] Comprobando la politica de precios/stock en API y workers...'
+            echo '[DEPLOY] Comprobando la politica de precios/stock y descripciones en API y workers...'
             EXPECTED_PROFILE=\$(docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
               exec -T api python -m scripts.check_price_stock_config)
             echo \"\$EXPECTED_PROFILE\"

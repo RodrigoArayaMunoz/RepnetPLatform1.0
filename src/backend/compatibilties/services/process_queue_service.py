@@ -27,6 +27,11 @@ from services.item_pictures_service import (
     process_item_pictures_job,
 )
 from services.job_store import JobStore
+from services.item_description_service import (
+    DESCRIPTION_COLUMN,
+    MLC_COLUMN,
+    process_item_description_job,
+)
 from services.ml_client import ml_client
 from services.price_stock_service import (
     ESTADO_COLUMN_ALIASES,
@@ -211,6 +216,7 @@ def _has_partial_process_errors(
             "price_stock",
             "item_pictures",
             "sku_descriptions",
+            "item_descriptions",
         }
         and int(summary.get("error_count") or 0) > 0
     )
@@ -320,6 +326,14 @@ def _format_summary_for_log(
         )
         return base_summary
 
+    if process_type == "item_descriptions":
+        base_summary.update({
+            key: int(normalized_summary.get(key) or 0)
+            for key in ("created_items", "updated_items", "unchanged_items",
+                        "duplicate_rows", "exported_rows_total")
+        })
+        return base_summary
+
     if process_type == "sku_descriptions":
         base_summary.update(
             {
@@ -369,6 +383,8 @@ PRICE_STOCK_STOCK_ALIASES = _normalize_aliases(STOCK_COLUMN_ALIASES)
 PRICE_STOCK_PRECIO_ALIASES = _normalize_aliases(PRECIO_COLUMN_ALIASES)
 PRICE_STOCK_EXTRA_ALIASES = _normalize_aliases(PRICE_STOCK_QUEUE_EXTRA_COLUMNS)
 SKU_DESCRIPTION_ALIASES = _normalize_aliases(SKU_DESCRIPTION_COLUMN_ALIASES)
+ITEM_DESCRIPTION_MLC_ALIASES = _normalize_aliases([MLC_COLUMN])
+ITEM_DESCRIPTION_TEXT_ALIASES = _normalize_aliases([DESCRIPTION_COLUMN])
 ITEM_PICTURES_MLC_ALIASES = _normalize_aliases(ITEM_PICTURES_MLC_COLUMN_ALIASES)
 ITEM_PICTURES_URLS_ALIASES = _normalize_aliases(ITEM_PICTURES_URLS_COLUMN_ALIASES)
 ITEM_PICTURES_FOTO1_ALIASES = _normalize_aliases(ITEM_PICTURES_FOTO1_COLUMN_ALIASES)
@@ -488,6 +504,9 @@ def detect_process_type(file_path: str) -> str:
 
     logger.info("[PROCESS_QUEUE][DETECT] file_path=%s columns=%s", file_path, sorted(columns))
 
+    if columns & ITEM_DESCRIPTION_MLC_ALIASES and columns & ITEM_DESCRIPTION_TEXT_ALIASES:
+        return "item_descriptions"
+
     is_compat = _matches_compatibility_columns(columns)
     logger.info("[PROCESS_QUEUE][DETECT] _matches_compatibility_columns=%s", is_compat)
     if is_compat:
@@ -527,6 +546,7 @@ def detect_process_type(file_path: str) -> str:
         "Compatibilidades requiere columnas de asociacion, vehiculo, familia y posiciones; "
         "precios/stock requiere mlc y precio_nuevo, y puede incluir stock_nuevo y/o estado_nuevo; "
         "descripciones por SKU requiere una columna SKU-BUSQUEDA o equivalente; "
+        "carga de descripciones por MLC requiere Hoja1 con MLC y DESCRIPCION A; "
         "actualizacion de fotos requiere mlc y urls o columnas foto1/foto2/foto3; "
         "no compatibilidades requiere una columna MLC-NOINFORMADAS o equivalente."
     )
@@ -606,6 +626,24 @@ async def _run_compatibility_exceptions_job(
         file_path=file_path,
     )
     return job_id, outcome.get("summary", {})
+
+
+async def _run_item_descriptions_job(
+    *,
+    user_id: str,
+    file_path: str,
+    filename: str,
+) -> tuple[str, dict[str, Any]]:
+    job = JobStore.create(filename)
+    job_id = job["id"]
+    JobStore.update(job_id, xlsx_path=file_path)
+    process_queue_store.update(current_job_id=job_id)
+    try:
+        outcome = await process_item_description_job(job_id, user_id, file_path)
+        return job_id, outcome["summary"]
+    except Exception as exc:
+        JobStore.update(job_id, status="error", message=f"Error procesando descripciones: {exc}")
+        raise
 
 
 async def _run_sku_descriptions_job(
@@ -691,6 +729,12 @@ async def _execute_process_record(
             )
             return process_type, job_id, summary
 
+        if process_type == "item_descriptions":
+            job_id, summary = await _run_item_descriptions_job(
+                user_id=user_id, file_path=local_path, filename=filename,
+            )
+            return process_type, job_id, summary
+
         if process_type == "sku_descriptions":
             job_id, summary = await _run_sku_descriptions_job(
                 user_id=user_id,
@@ -718,7 +762,7 @@ async def run_process_queue(*, user_id: str) -> None:
             "Supabase no esta configurado para leer la tabla procesos y descargar archivos."
         )
 
-    delay_seconds = max(0, int(getattr(settings, "process_queue_delay_seconds", 1200)))
+    delay_seconds = max(0, int(getattr(settings, "process_queue_delay_seconds", 5 * 60)))
     completed_count = 0
     last_error: str | None = None
     last_completion_message = ""
@@ -772,7 +816,7 @@ async def run_process_queue(*, user_id: str) -> None:
                 job_data = JobStore.get(internal_job_id) or {}
                 result_path = str(job_data.get("result_path") or "").strip()
                 has_export_result = (
-                    process_type == "sku_descriptions"
+                    process_type in {"sku_descriptions", "item_descriptions"}
                     and bool(result_path)
                     and os.path.exists(result_path)
                     and int(summary.get("exported_rows_total") or 0) > 0
@@ -809,8 +853,12 @@ async def run_process_queue(*, user_id: str) -> None:
                                 "process_type": process_type,
                                 "result_path": result_path,
                                 "has_export_result": True,
-                                "export_kind": "sku_descriptions",
-                                "export_label": "Descargar descripciones",
+                                "export_kind": process_type,
+                                "export_label": (
+                                    "Descargar resultado de descripciones"
+                                    if process_type == "item_descriptions"
+                                    else "Descargar descripciones"
+                                ),
                                 "exported_rows_total": int(
                                     summary.get("exported_rows_total") or 0
                                 ),

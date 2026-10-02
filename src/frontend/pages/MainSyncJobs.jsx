@@ -772,6 +772,10 @@ export default function MainSyncJobs() {
                     {selectedFile?.name || "No hay archivo seleccionado"}
                   </span>
                 </label>
+                <p className="main-sync-jobs__queue-message">
+                  Para cargar descripciones: Excel .xlsx, Hoja1, columnas MLC y
+                  DESCRIPCION A. El texto reemplaza la descripción existente.
+                </p>
               </div>
 
               <div className="main-sync-jobs__field">

@@ -5,6 +5,25 @@ import uuid
 import redis.asyncio as redis
 
 
+class CombinedRateLimiter:
+    """Apply an endpoint budget and the shared write budget to every attempt."""
+
+    def __init__(self, *limiters):
+        self.limiters = limiters
+        self.window_seconds = max(
+            (float(getattr(limiter, "window_seconds", 0) or 0) for limiter in limiters),
+            default=0,
+        )
+
+    async def acquire(self) -> None:
+        for limiter in self.limiters:
+            await limiter.acquire()
+
+    async def penalize(self, cooldown_seconds: float) -> None:
+        for limiter in self.limiters:
+            await limiter.penalize(cooldown_seconds)
+
+
 class RedisWindowRateLimiter:
     def __init__(
         self,
