@@ -95,6 +95,9 @@ jobs:
           ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             'docker exec -i -w /code compat_api python -' \
             < src/backend/compatibilties/scripts/diagnose_refax_connection.py
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            'python3 - --host' \
+            < src/backend/compatibilties/scripts/diagnose_refax_connection.py
 
       - name: Deploy
         if: github.event_name != 'workflow_dispatch' || inputs.refax_diagnostics_only != true

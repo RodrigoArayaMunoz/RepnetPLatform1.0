@@ -4,12 +4,10 @@ import json
 import os
 import socket
 import ssl
+import subprocess
+import sys
 import time
 from urllib.parse import urlsplit
-
-import httpx
-
-from config import settings
 
 
 def report(**result) -> None:
@@ -36,6 +34,9 @@ def check_socket(host: str, port: int, *, use_tls: bool) -> None:
 
 
 def check_authentication(*, force_ipv4: bool) -> None:
+    import httpx
+    from config import settings
+
     started = time.monotonic()
     options = {"timeout": httpx.Timeout(10.0, connect=5.0)}
     if force_ipv4:
@@ -63,10 +64,16 @@ def check_authentication(*, force_ipv4: bool) -> None:
 
 
 def main() -> None:
-    parsed = urlsplit(settings.refax_api_base_url)
+    host_only = "--host" in sys.argv[1:]
+    if host_only:
+        base_url = "https://api.refax.com"
+    else:
+        from config import settings
+        base_url = settings.refax_api_base_url
+    parsed = urlsplit(base_url)
     host = parsed.hostname
     report(check="configuration", host=host,
-           credentials_configured=bool(settings.refax_provider_code and settings.refax_api_key),
+           runtime="host" if host_only else "container",
            proxies={key: bool(os.environ.get(key)) for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")})
     try:
         addresses = socket.getaddrinfo(host, parsed.port or 443, type=socket.SOCK_STREAM)
@@ -76,8 +83,23 @@ def main() -> None:
     check_socket(host, parsed.port or 443, use_tls=True)
     check_socket(host, 80, use_tls=False)
     check_socket("api.mercadolibre.com", 443, use_tls=True)
-    check_authentication(force_ipv4=False)
-    check_authentication(force_ipv4=True)
+    if not host_only:
+        check_authentication(force_ipv4=False)
+        check_authentication(force_ipv4=True)
+    else:
+        for command in (
+            ["ip", "route", "get", addresses[0][4][0]],
+            ["iptables", "-S", "OUTPUT"],
+            ["iptables", "-S", "FORWARD"],
+            ["iptables", "-S", "DOCKER-USER"],
+            ["ufw", "status", "verbose"],
+        ):
+            try:
+                result = subprocess.run(command, capture_output=True, text=True, timeout=5)
+                report(check="host_network", command=command, return_code=result.returncode,
+                       output=result.stdout.splitlines())
+            except (OSError, subprocess.SubprocessError) as error:
+                report(check="host_network", command=command, error_type=type(error).__name__)
 
 
 if __name__ == "__main__":
