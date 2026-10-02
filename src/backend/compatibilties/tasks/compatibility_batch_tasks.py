@@ -5,6 +5,7 @@ import os
 from celery.utils.log import get_task_logger
 
 from celery_app import celery_app
+from services.worker_async_runner import run_worker_coroutine
 from config import settings
 from services.compatibility_batch_service import (
     build_compat_summary,
@@ -45,7 +46,7 @@ def add_compatibilities_batch_job(job_id: str, user_id: str, resolved_path: str)
         user_id,
         resolved_path,
     )
-    asyncio.run(_add_compatibilities_batch_job(job_id, user_id, resolved_path))
+    run_worker_coroutine(_add_compatibilities_batch_job(job_id, user_id, resolved_path))
 
 
 async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_path: str) -> None:

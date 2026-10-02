@@ -1,8 +1,7 @@
-import asyncio
-
 from celery.utils.log import get_task_logger
 
 from celery_app import celery_app
+from services.worker_async_runner import run_worker_coroutine
 from services.job_store import JobStore
 from services.ml_client import ml_client
 from services.price_stock_service import process_price_stock_job
@@ -18,7 +17,7 @@ def process_price_stock_task(job_id: str, user_id: str, file_path: str) -> None:
         user_id,
         file_path,
     )
-    asyncio.run(_process_price_stock_task(job_id, user_id, file_path))
+    run_worker_coroutine(_process_price_stock_task(job_id, user_id, file_path))
 
 
 async def _process_price_stock_task(job_id: str, user_id: str, file_path: str) -> None:

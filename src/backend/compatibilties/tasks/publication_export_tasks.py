@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from celery.utils.log import get_task_logger
 
 from celery_app import celery_app
+from services.worker_async_runner import run_worker_coroutine
 from config import settings
 from services.job_store import JobStore
 from services.publication_export_service import publication_export_service
@@ -123,7 +124,7 @@ def export_publications_task(
     )
 
     try:
-        asyncio.run(
+        run_worker_coroutine(
             _export_publications_task(
                 job_id=job_id,
                 user_id=user_id,

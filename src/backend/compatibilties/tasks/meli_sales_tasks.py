@@ -1,9 +1,9 @@
-import asyncio
 from datetime import datetime
 
 from celery.utils.log import get_task_logger
 
 from celery_app import celery_app
+from services.worker_async_runner import run_worker_coroutine
 from services.meli_sales_sync_service import MeliSalesSyncService
 from services.ml_client import ml_client
 from services.supabase_meli_connection_store import supabase_meli_connection_store
@@ -73,11 +73,11 @@ async def _process_notification(payload: dict, event_key: str) -> None:
 )
 def process_meli_notification_task(task, payload: dict, event_key: str) -> None:
     try:
-        asyncio.run(_process_notification(payload, event_key))
+        run_worker_coroutine(_process_notification(payload, event_key))
     except Exception as exc:
         logger.exception("[MELI_WEBHOOK][ERROR] event_key=%s", event_key)
         try:
-            asyncio.run(
+            run_worker_coroutine(
                 supabase_meli_sales_store.mark_notification(
                     event_key,
                     status="failed",
@@ -130,7 +130,7 @@ def backfill_meli_sales_task(
     range_end: str,
 ) -> dict[str, int]:
     try:
-        return asyncio.run(
+        return run_worker_coroutine(
             _backfill_sales(
                 user_id=user_id,
                 range_start=range_start,

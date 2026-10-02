@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 import time
@@ -7,6 +6,7 @@ from typing import Any, Awaitable, Callable
 from celery import chord
 
 from celery_app import celery_app
+from services.worker_async_runner import run_worker_coroutine
 from config import settings
 from services.catalog_preload_service import CatalogPreloadService
 from services.compatibility_service import (
@@ -96,7 +96,7 @@ def sum_chunk_metrics(chunk_outputs: list[dict]) -> dict:
 
 @celery_app.task(name="tasks.process_excel_job")
 def process_excel_job(job_id: str, user_id: str) -> None:
-    asyncio.run(_dispatch_excel_job(job_id, user_id))
+    run_worker_coroutine(_dispatch_excel_job(job_id, user_id))
 
 
 async def _dispatch_excel_job(job_id: str, user_id: str) -> None:
@@ -267,7 +267,7 @@ def process_excel_chunk(
     catalog_snapshot_path: str,
     total_unique_rows: int,
 ) -> dict:
-    return asyncio.run(
+    return run_worker_coroutine(
         _process_excel_chunk(
             job_id,
             user_id,

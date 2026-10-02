@@ -230,6 +230,71 @@ y el Excel con resultados por MLC. El original conserva su SHA256.
 Los cambios de configuracion requieren deploy completo para llegar a los
 workers existentes; estas pruebas no desplegaron ni reiniciaron servicios.
 
+## Correccion de ejecuciones consecutivas: resultado 00348
+
+El archivo `resultado_descripciones_mlc_00348.xlsx` contenia las 312 filas
+del archivo de Videos, desde la fila Excel 2 hasta la 313. Habia 250 resultados
+"Sin cambios" y 62 errores internos: cinco `Event loop is closed` y 57
+`Lock ... is bound to a different event loop`. No eran rechazos 429 ni filas
+omitidas por empezar a leer en la fila 75.
+
+Las tareas Celery usaban `asyncio.run` por ejecucion. Esta funcion crea y
+cierra un loop, mientras que los pools Redis de los limitadores permanecian
+en variables de modulo. La siguiente tarea reutilizaba conexiones y locks
+del loop cerrado. Se reprodujo con Redis real: primera ejecucion correcta,
+segunda con `Event loop is closed`.
+
+Todas las entradas sincronas de tareas usan ahora
+`services.worker_async_runner.run_worker_coroutine`: un `asyncio.Runner`
+creado de forma perezosa por proceso prefork, con el mismo loop durante la
+vida del worker, contexto separado para cada tarea y cierre al finalizar el
+worker. Esto permite alternar cola, precios, fotos y compatibilidades sin
+reintroducir el mismo problema. Se conservan rutas de tareas, colas,
+concurrencia, presupuestos Redis, pausas y espera entre archivos.
+
+La cola limpia `current_job_id` al empezar otro archivo y durante la espera.
+El job de descripciones inicializa sus contadores en cero. La pantalla indica
+"filas procesadas" y limpia los contadores al iniciar una nueva cola.
+El avance se publica cada 25 filas y se consulta cada cinco segundos; ver 75
+en la primera consulta significa que ya terminaron 75 filas, no que se omitan
+las primeras 74. Los resultados conservan el orden y la fila original del Excel.
+
+La validacion anterior lanzaba cada prueba en un proceso independiente, por
+lo que no cubria la reutilizacion entre dos tareas en el mismo worker.
+Se agregaron regresiones para ese caso, para alternar distintos tipos de
+tarea, para ejecutar otra tarea despues de un error y para separar contextos.
+Una prueba de Redis real con tres ejecuciones y cuatro adquisiciones
+concurrentes por ejecucion finalizo sin errores en el mismo loop.
+La suite completa finalizo con **142 pruebas aprobadas** en Python 3.11,
+sin credenciales ni red, y el build del frontend paso.
+
+Evidencia local en
+`src/backend/compatibilties/uploads/benchmarks/description_failure_00348/`:
+entrada y resultado originales copiados, `validate_repeated_tasks.py`,
+`repeated_tasks_summary.json`, resultados JSON y `corrected_run_1.xlsx` /
+`corrected_run_2.xlsx`. El script ejecuta dos entradas reales de la tarea
+Celery en el mismo proceso, con credenciales del token store, Redis y HTTP
+reales; sustituye solamente la seleccion de pendientes y las escrituras del
+estado de la cola para no alterar los registros de procesos existentes.
+
+Con el archivo real de Videos (312 filas, SHA256
+`67ceae610afc571ee63a9a0708e2c8239197349f7d44cb4d06eaa147ff0c9fd8`),
+la primera tarea finalizo en **57,427 segundos**: 62 descripciones actualizadas,
+250 ya coincidentes, 374 llamadas (312 GET + 62 PUT) y cero errores. La segunda
+tarea, en el mismo proceso y loop, finalizo en **48,042 segundos**: 312 filas
+sin cambios, 312 GET, cero escrituras y cero errores. No hubo reintentos, 429
+ni timeouts en ninguna. Todas las filas originales 2..313 y sus textos se
+verificaron en orden. Se repararon efectivamente las 62 publicaciones que
+habian fallado en el resultado 00348.
+
+La correccion requiere un **deploy completo que reconstruya y recree los
+workers**: los procesos ya iniciados conservan el codigo importado. Volver a
+cargar el Excel despues del deploy genera un resultado nuevo; los reportes
+historicos como 00348 conservan los errores de su ejecucion original.
+
+Referencias de implementacion:
+[Runner y ciclo de vida de asyncio.run](https://docs.python.org/3.11/library/asyncio-runner.html).
+
 ## Documentacion oficial consultada
 
 - [Descripcion de productos: GET, POST, PUT y errores](https://developers.mercadolibre.cl/es_ar/publica-productos/descripcion-de-articulos).

@@ -1,9 +1,8 @@
-import asyncio
-
 from celery.utils.log import get_task_logger
 from fastapi import HTTPException
 
 from celery_app import celery_app
+from services.worker_async_runner import run_worker_coroutine
 from services.ml_client import ml_client
 from services.publication_sync_service import publication_sync_service
 from services.publication_sync_store import publication_sync_store
@@ -55,7 +54,7 @@ def sync_publications_task(task, user_id: str) -> None:
         return
 
     logger.info("[TASK PUBLICATION_SYNC][START] user_id=%s", user_id)
-    asyncio.run(_sync_publications_task(user_id))
+    run_worker_coroutine(_sync_publications_task(user_id))
 
 
 async def _sync_publications_task(user_id: str) -> None:

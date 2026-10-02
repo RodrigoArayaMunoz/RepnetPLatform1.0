@@ -800,6 +800,7 @@ async def run_process_queue(*, user_id: str) -> None:
                 current_process_id=current_process_id,
                 current_filename=current_filename,
                 current_process_type=None,
+                current_job_id=None,
                 next_run_at=None,
                 message=f"Procesando {current_filename}",
             )
@@ -955,6 +956,7 @@ async def run_process_queue(*, user_id: str) -> None:
                 current_process_id=None,
                 current_filename=None,
                 current_process_type=None,
+                current_job_id=None,
                 next_run_at=next_run_at,
                 message=_format_queue_delay_message(delay_seconds),
             )

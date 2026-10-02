@@ -1,8 +1,8 @@
-import asyncio
 import json
 import os
 
 from celery_app import celery_app
+from services.worker_async_runner import run_worker_coroutine
 from config import settings
 from services.catalog_preload_service import CatalogPreloadService
 from services.compatibility_service import JobMetrics, call_ml
@@ -22,7 +22,7 @@ def save_json(path: str, data) -> None:
 
 @celery_app.task(name="tasks.resolve_products_job")
 def resolve_products_job(job_id: str, user_id: str, site_id: str = "MLC") -> None:
-    asyncio.run(_resolve_products_job(job_id, user_id, site_id))
+    run_worker_coroutine(_resolve_products_job(job_id, user_id, site_id))
 
 
 async def _resolve_products_job(job_id: str, user_id: str, site_id: str) -> None:

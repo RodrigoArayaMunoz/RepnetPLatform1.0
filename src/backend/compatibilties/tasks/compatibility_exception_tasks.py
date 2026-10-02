@@ -1,8 +1,7 @@
-﻿import asyncio
-
-from celery.utils.log import get_task_logger
+﻿from celery.utils.log import get_task_logger
 
 from celery_app import celery_app
+from services.worker_async_runner import run_worker_coroutine
 from services.job_store import JobStore
 from services.ml_client import ml_client
 from services.compatibility_exception_service import process_compatibility_exceptions_job
@@ -18,7 +17,7 @@ def process_compatibility_exceptions_task(job_id: str, user_id: str, file_path: 
         user_id,
         file_path,
     )
-    asyncio.run(_process_compatibility_exceptions_task(job_id, user_id, file_path))
+    run_worker_coroutine(_process_compatibility_exceptions_task(job_id, user_id, file_path))
 
 
 async def _process_compatibility_exceptions_task(job_id: str, user_id: str, file_path: str) -> None:

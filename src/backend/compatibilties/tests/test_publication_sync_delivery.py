@@ -38,7 +38,7 @@ class PublicationSyncRedeliveryTests(unittest.TestCase):
                     "tasks.publication_sync_tasks._sync_publications_task",
                     new=sync_job,
                 ),
-                patch("tasks.publication_sync_tasks.asyncio.run") as asyncio_run,
+                patch("tasks.publication_sync_tasks.run_worker_coroutine") as asyncio_run,
             ):
                 task.run("2682261950")
                 return asyncio_run

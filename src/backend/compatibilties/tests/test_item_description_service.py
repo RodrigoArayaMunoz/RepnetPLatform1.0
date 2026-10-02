@@ -302,6 +302,9 @@ class DescriptionQueueTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["summary"]["duplicate_rows"], 1)
         self.assertEqual(result["summary"]["updated_items"], 3)
         self.assertEqual(result["summary"]["success_count"], 4)
+        self.assertEqual(updates.call_args_list[0].kwargs["processed_rows"], 0)
+        self.assertEqual(updates.call_args_list[0].kwargs["processed_unique_rows"], 0)
+        self.assertEqual([row["excel_row"] for row in saved], [2, 3, 4, 5])
         self.assertFalse(any("Esperando" in str(call.kwargs) for call in updates.call_args_list))
 
     async def test_dispatch_and_partial_errors_use_the_new_process_type(self):
@@ -348,7 +351,7 @@ class DescriptionQueueTests(unittest.IsolatedAsyncioTestCase):
                 patch("services.process_queue_service.supabase_meli_connection_store.restore_token_store", new=AsyncMock()),
                 patch("services.process_queue_service._execute_process_record", new=AsyncMock(side_effect=[("item_descriptions", "a", {"error_count": 0, "exported_rows_total": 1}), ("item_pictures", "b", {"error_count": 0})])),
                 patch("services.process_queue_service.JobStore.get", return_value={"result_path": str(path)}),
-                patch("services.process_queue_service.process_queue_store"),
+                patch("services.process_queue_service.process_queue_store") as queue,
                 patch("services.process_queue_service.process_queue_error_store"),
                 patch("services.process_queue_service.process_queue_result_store") as results,
                 patch("services.process_queue_service.asyncio.sleep", new=AsyncMock()) as sleep,
@@ -356,6 +359,10 @@ class DescriptionQueueTests(unittest.IsolatedAsyncioTestCase):
                 await run_process_queue(user_id="99")
         sleep.assert_awaited_once_with(300)
         self.assertEqual(results.save.call_args.args[1]["export_kind"], "item_descriptions")
+        transitions = [call.kwargs for call in queue.update.call_args_list
+                       if "current_process_row_id" in call.kwargs]
+        self.assertTrue(all(state.get("current_job_id") is None for state in transitions))
+        self.assertTrue(all("current_job_id" in state for state in transitions))
 
 
 if __name__ == "__main__":

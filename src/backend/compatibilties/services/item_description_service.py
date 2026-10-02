@@ -179,6 +179,7 @@ async def process_item_description_job(job_id: str, user_id: str, file_path: str
                 len(rows), chunk_size, concurrency, ITEM_DESCRIPTION_RATE_LIMITER.requests_per_second,
                 ITEM_DESCRIPTION_RATE_LIMITER.max_requests_per_window, ITEM_DESCRIPTION_RATE_LIMITER.window_seconds)
     JobStore.update(job_id, status="processing", progress=5, total_rows=len(rows),
+                    processed_rows=0, processed_unique_rows=0,
                     total_unique_rows=len(entries), total_chunks=total_chunks, completed_chunks=0,
                     message="Preparando descripciones por MLC...")
 

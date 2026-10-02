@@ -537,6 +537,10 @@ export default function MainSyncJobs() {
         );
       }
 
+      setJobMessage("");
+      setJobProcessedRows(0);
+      setJobTotalRows(0);
+      setJobCompatibilitiesCreated(0);
       await loadQueueStatus();
       await loadProcesses();
       setStatusMessage("Cola de procesos iniciada correctamente.");
@@ -985,7 +989,7 @@ export default function MainSyncJobs() {
                               </div>
                               <span className="progress-label">
                                 <span>
-                                  {jobProcessedRows} / {jobTotalRows} filas
+                                  {jobProcessedRows} / {jobTotalRows} filas procesadas
                                 </span>
                                 {showCompatibilityCounter ? (
                                   <span className="progress-label__created">
