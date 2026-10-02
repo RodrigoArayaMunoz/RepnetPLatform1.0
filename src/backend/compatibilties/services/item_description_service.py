@@ -90,7 +90,10 @@ def load_item_description_rows(file_path: str) -> list[dict[str, Any]]:
 
 def _same_text(first: Any, second: str) -> bool:
     def normalized(text: str) -> str:
-        return text.replace("\r\n", "\n").replace("\r", "\n")
+        # Live GET responses omit terminal newlines from the submitted text.
+        # Ignore that normalization only when comparing; preserve the payload,
+        # leading spaces, internal blank lines and other trailing characters.
+        return text.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
     return isinstance(first, str) and normalized(first) == normalized(second)
 
 

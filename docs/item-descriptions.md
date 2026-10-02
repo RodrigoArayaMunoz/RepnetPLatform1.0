@@ -22,7 +22,9 @@ La API distingue crear y reemplazar una descripcion:
 3. Si existe y difiere, se reemplaza con
    `PUT /items/{MLC}/description?api_version=2`.
 4. Si ya coincide, no se realiza escritura. Para comparar se equiparan los
-   saltos de linea CRLF/LF; el body conserva el texto original.
+   saltos de linea CRLF/LF y se ignoran solamente saltos de linea al final,
+   que Mercado Libre elimina al devolver el texto guardado. Se conservan
+   espacios y lineas vacias internas; el body conserva el texto original.
 
 El body de POST y PUT es exclusivamente:
 
@@ -50,7 +52,7 @@ coincide, se recupera como exito sin volver a modificarlo.
 - Un unico responsable de reintentos (`ml_client`), con un maximo de seis
   intentos por solicitud, jitter, espera `Retry-After` y penalizacion Redis
   compartida ante 429. Cada intento real pasa por el limitador.
-- Presupuesto inicial de **100 solicitudes/minuto para el endpoint de
+- Presupuesto de **400 solicitudes/minuto para el endpoint de
   descripcion**, contando GET, POST, PUT, verificaciones y reintentos.
   Las escrituras tambien pasan por el presupuesto global de 240/minuto.
 - Los duplicados con el mismo texto reutilizan un unico resultado. Los MLC
@@ -58,16 +60,19 @@ coincide, se recupera como exito sin volver a modificarlo.
 - Filas con MLC invalido o descripcion vacia se reportan sin llamar a la API.
 - Progreso persistido cada 25 filas, al terminar y en los limites de bloque.
 
-Los 100/minuto son una politica inicial configurable de esta aplicacion,
-**no una cuota oficial garantizada ni un benchmark del endpoint**. La prueba
-anterior de 240 PUT/minuto sobre `/items/{id}` no demuestra esa capacidad en
-`/description`. Ninguna configuracion puede garantizar ausencia de 429 o
+Los 400/minuto son una politica configurable de esta aplicacion, inferior a
+las 480 solicitudes GET/PUT por minuto probadas durante tres minutos sobre
+`/description`; **no son una cuota oficial garantizada**. La prueba anterior
+de precios/stock no se usa para inferir la cuota de descripciones.
+Ninguna configuracion puede garantizar ausencia de 429 o
 timeouts: se controlan y recuperan, y los errores persistentes quedan por fila.
 
 Para 312 filas que necesitan escritura, dos solicitudes por fila implican
-aproximadamente **6 min 14 s** de envio al presupuesto inicial. Si cada
+aproximadamente **1 min 34 s** de envio con el nuevo presupuesto, frente a
+**6 min 14 s** con los 100/minuto anteriores. Si cada
 escritura requiere una lectura adicional de confirmacion, son aproximadamente
-**9 min 22 s**. Son estimaciones; no incluyen reintentos ni otra carga.
+**2 min 20 s**, frente a los **9 min 22 s** anteriores.
+Son estimaciones; no incluyen reintentos ni otra carga.
 Los textos que ya coinciden necesitan solamente una consulta.
 
 ## Configuracion y despliegue
@@ -75,8 +80,8 @@ Los textos que ya coinciden necesitan solamente una consulta.
 Los Compose local y de produccion aplican a API y todos los workers:
 
 ```dotenv
-ML_ITEM_DESCRIPTION_REQUESTS_PER_SECOND=1.6666666666666667
-ML_ITEM_DESCRIPTION_MAX_REQUESTS_PER_WINDOW=100
+ML_ITEM_DESCRIPTION_REQUESTS_PER_SECOND=6.666666666666667
+ML_ITEM_DESCRIPTION_MAX_REQUESTS_PER_WINDOW=400
 ML_ITEM_DESCRIPTION_WINDOW_SECONDS=60
 ITEM_DESCRIPTION_CHUNK_SIZE=300
 ITEM_DESCRIPTION_MAX_CONCURRENCY=4
@@ -125,7 +130,105 @@ Las pausas y bloques de fotos, compatibilidades y precio/stock se conservan.
   `93c58089c2dfd4b5dcda03c0dd4a5a8afdfbb2ca005136f9b0fe94a7d5de1bff`).
 
 Esta simulacion prueba el flujo y la recuperacion, **no mide el rendimiento
-real de la API**. No se actualizaron publicaciones reales ni se desplego.
+real de la API**. Las pruebas reales posteriores se detallan a continuacion.
+
+## Pruebas reales del 2 de octubre de 2026
+
+Se utilizo el mismo archivo y la cuenta conectada, verificando previamente el
+vendedor de los 312 MLC. Los workers locales estaban sin tareas activas.
+Las 312 consultas iniciales devolvieron 404: no existian descripciones.
+Se enviaron los textos originales del Excel; las repeticiones reutilizaron
+exactamente esos textos y pasaron a PUT despues de crear la descripcion.
+No se cambiaron precios, estados, stock, fotos ni compatibilidades.
+
+La prueba directa no uso reintentos ni el limitador de la aplicacion: espaciaba
+cada solicitud y detenia los envios nuevos al primer error, dejando terminar
+solamente las solicitudes ya iniciadas. Cada escritura exitosa confirmo el
+texto en la propia respuesta.
+
+| Objetivo escrituras/minuto | Solicitudes | HTTP 201 | HTTP 200 | HTTP 429 | Duracion | Latencia p95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 100 | 100 | 100 | 0 | 0 | 59,685 s | 215,0 ms |
+| 200 | 200 | 100 | 100 | 0 | 60,070 s | 211,7 ms |
+| 300 | 300 | 100 | 200 | 0 | 60,330 s | 212,0 ms |
+| 450 | 443 | 12 | 430 | 1 | 59,564 s | 257,9 ms |
+
+Primer rechazo: `PUT /items/MLC2290659981/description`, fila Excel 131,
+`2026-10-02T05:47:04.757591+00:00` (02:47:04 en Santiago),
+`too_many_requests`, sin `Retry-After` ni headers de cuota. Hubo 446 escrituras
+de esta prueba en los 60 segundos hasta ese rechazo, incluyendo el rechazado.
+Esto **no establece una cuota oficial de 450/minuto**, ni demuestra que otras
+integraciones de la misma aplicacion estuvieran inactivas.
+No se continuaron las etapas previstas de 600, 900 o 1.200/minuto.
+
+La subida realizo 1.043 escrituras: 312 creaciones (201), 730 reemplazos (200)
+y un 429. Las 312 publicaciones recibieron su descripcion. No hubo timeouts.
+Una escritura ya iniciada termino correctamente despues del primer rechazo.
+
+Tras dejar pasar mas de 100 segundos, se probo durante **181,440 segundos** el
+flujo mixto GET + PUT, con concurrencia 4, a un objetivo de **480 solicitudes
+totales/minuto**: 720 consultas y 720 reemplazos, **1.440 respuestas 200**, cero
+429, timeouts o textos diferentes. Ritmo observado: 476,19 solicitudes/minuto;
+latencia media 199,8 ms, p95 220,1 ms y maxima 639,5 ms. Las escrituras de esta
+validacion fueron idempotentes, puesto que los textos ya se habian aplicado.
+La evidencia mide creacion en la primera prueba y reemplazos del mismo texto
+en la segunda; no garantiza identicos tiempos al reemplazar textos diferentes.
+
+Se eligieron **400 solicitudes totales/minuto** (16,7 % por debajo de las 480
+probadas), con un maximo global compartido de 240 escrituras/minuto. Si cada
+fila requiere GET y escritura, el ritmo previsto es 200 filas/minuto: hasta
+cuatro veces el ritmo del presupuesto anterior, con una reduccion teorica del
+75 % en el tiempo de envio. Si ya coincide el texto, basta un GET por fila.
+Se mantienen las conexiones reutilizadas, los reintentos con espera y el
+presupuesto Redis por intento. Los otros procesos conservan su configuracion
+y los cinco minutos entre archivos completos.
+
+Se ejecuto tambien el procesador real `process_item_description_job` con el
+perfil final (400 solicitudes/minuto, escritura global 240): **312 filas
+actualizadas en 95,419 segundos**, 624 solicitudes, ningun reintento, 429,
+timeout ni error. Se comprobo la deteccion exclusiva `item_descriptions`, la
+exportacion Excel y los dos bloques de 300 + 12 filas. La credencial de la
+cuenta conectada se suministro en memoria; las llamadas HTTP y los limitadores
+Redis fueron reales, sin cambiar los archivos privados de tokens.
+
+Esta ejecucion revelo que GET omite el salto de linea final que POST/PUT
+confirman en su respuesta. Se corrigio la comparacion para evitar volver a
+escribir el mismo texto por esa normalizacion y para admitir confirmaciones
+mediante GET. Se agregaron tres regresiones: omitir esa escritura, mantener
+espacios/lineas internas y aceptar la verificacion tras una respuesta con
+solo metadatos. La suite final tiene **137 pruebas aprobadas**, en Python 3.11
+sin credenciales ni red. El payload y el archivo original permanecen intactos.
+
+La recarga real despues de la correccion termino las **312 filas en 47,568
+segundos**, con 312 GET, **cero escrituras**, 312 filas sin cambios y ningun
+error o reintento. Confirma que las descripciones almacenadas coinciden con el
+Excel salvo los saltos de linea finales normalizados por Mercado Libre.
+Los dos Compose se validaron y sus seis servicios reciben el mismo perfil.
+
+Las cuatro pruebas reportadas suman 3.731 solicitudes del endpoint de
+descripciones y 2.075 escrituras: 312 POST correctos, 1.762 PUT correctos y el
+unico PUT rechazado con 429. Este total no incluye las consultas adicionales
+de identidad, vendedor o el GET usado para diagnosticar el salto final.
+
+El codigo del benchmark reproducible esta en
+`src/backend/compatibilties/scripts/benchmark_item_descriptions.py`.
+Requiere `--execute`, acepta solamente filas validas y unicas, verifica cuenta
+y vendedor, detecta si empieza otro proceso local y limita las etapas a
+1.200 solicitudes/minuto y 300 segundos. Nunca se ejecuta durante CI/deploy.
+`--mode mixed` fuerza tambien escrituras del mismo texto para medir la carga
+GET + PUT; el procesador normal evita escribir textos que ya coinciden.
+Los snapshots contienen datos de publicaciones y permanecen fuera de Git;
+ningun informe almacena tokens.
+
+Evidencia local ignorada por Git en
+`src/backend/compatibilties/uploads/benchmarks/item_descriptions_live_20261002/`:
+`ramp/summary.json`, `ramp/requests.jsonl`, `ramp/before.json`,
+`mixed_validation/summary.json`, `mixed_validation/requests.jsonl`,
+`application_validation/summary.json`, `reload_validation/summary.json`,
+`benchmark_report.json`, `resultado_pruebas_descripciones.xlsx`
+y el Excel con resultados por MLC. El original conserva su SHA256.
+Los cambios de configuracion requieren deploy completo para llegar a los
+workers existentes; estas pruebas no desplegaron ni reiniciaron servicios.
 
 ## Documentacion oficial consultada
 

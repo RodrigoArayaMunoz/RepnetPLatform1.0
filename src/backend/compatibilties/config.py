@@ -189,10 +189,10 @@ class Settings(BaseSettings):
     price_stock_max_concurrency: int = Field(default=4, ge=1, le=20)
     item_description_chunk_size: int = Field(default=300, ge=1, le=5000)
     item_description_max_concurrency: int = Field(default=4, ge=1, le=20)
-    # Initial application budget for GET/POST/PUT /items/{id}/description.
-    # The price/stock benchmark does not establish this endpoint's quota.
-    ml_item_description_requests_per_second: float = Field(default=100 / 60, ge=0.05)
-    ml_item_description_max_requests_per_window: int = Field(default=100, ge=1)
+    # Description benchmark: 480 mixed GET/PUT per minute, configured below it.
+    # Writes also acquire the shared global budget; see docs/item-descriptions.md.
+    ml_item_description_requests_per_second: float = Field(default=400 / 60, ge=0.05)
+    ml_item_description_max_requests_per_window: int = Field(default=400, ge=1)
     ml_item_description_window_seconds: int = Field(default=60, ge=1)
     process_file_chunk_pause_seconds: int = 2 * 60
     compatibility_chunk_pause_seconds: int = 3 * 60 + 30

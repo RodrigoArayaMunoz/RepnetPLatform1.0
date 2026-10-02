@@ -93,7 +93,7 @@ class DescriptionWorkbookTests(unittest.TestCase):
 
 
 class DescriptionRequestTests(unittest.IsolatedAsyncioTestCase):
-    async def run_row(self, outcomes, attempts=3):
+    async def run_row(self, outcomes, attempts=3, text="Nueva descripción\nñ"):
         calls = []
         def respond(request):
             calls.append(request)
@@ -113,7 +113,7 @@ class DescriptionRequestTests(unittest.IsolatedAsyncioTestCase):
         global_write.penalize = AsyncMock()
         combined = CombinedRateLimiter(endpoint, global_write)
         metrics = JobMetrics()
-        row = {"item_id": "MLC123", "plain_text": "Nueva descripción\nñ", "excel_row": 2}
+        row = {"item_id": "MLC123", "plain_text": text, "excel_row": 2}
         try:
             with (
                 patch("services.item_description_service.ml_client", client),
@@ -159,6 +159,33 @@ class DescriptionRequestTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["action"], "unchanged")
         self.assertEqual(len(calls), 1)
         global_write.acquire.assert_not_awaited()
+
+    async def test_get_without_terminal_newline_does_not_repeat_a_successful_write(self):
+        result, calls, metrics, _, global_write = await self.run_row([
+            (200, {"plain_text": ' "Primera\n\nSegunda"'}, {}),
+        ], text=' "Primera\r\n\r\nSegunda"\r\n')
+        self.assertEqual(result["action"], "unchanged")
+        self.assertEqual([call.method for call in calls], ["GET"])
+        self.assertEqual(metrics.ml_requests, 1)
+        self.assertEqual(global_write.acquire.await_count, 0)
+
+    async def test_internal_blank_lines_and_spaces_still_require_replacement(self):
+        text = ' Primera\n\nSegunda \n'
+        result, calls, _, _, _ = await self.run_row([
+            (200, {"plain_text": 'Primera\nSegunda'}, {}),
+            (200, {"plain_text": text.rstrip('\n')}, {}),
+        ], text=text)
+        self.assertEqual(result["action"], "updated")
+        self.assertEqual(json.loads(calls[1].content), {"plain_text": text})
+
+    async def test_metadata_readback_accepts_api_trimming_terminal_newline(self):
+        result, calls, _, _, _ = await self.run_row([
+            (200, {"plain_text": 'Anterior'}, {}),
+            (200, {"last_updated": '2026-10-02'}, {}),
+            (200, {"plain_text": 'Nueva\n\nDescripción'}, {}),
+        ], text='Nueva\n\nDescripción\n')
+        self.assertTrue(result["ok"])
+        self.assertEqual([call.method for call in calls], ["GET", "PUT", "GET"])
 
     async def test_429_retries_spend_both_budgets_and_penalize_shared_state(self):
         result, calls, metrics, endpoint, global_write = await self.run_row([
