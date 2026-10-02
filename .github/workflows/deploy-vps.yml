@@ -64,6 +64,22 @@ jobs:
           ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
+      - name: Configure REFAX backend credentials
+        if: github.event_name != 'workflow_dispatch' || inputs.notifications_only != true
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+          REFAX_PROVIDER_CODE: ${{ secrets.REFAX_PROVIDER_CODE }}
+          REFAX_API_KEY: ${{ secrets.REFAX_API_KEY }}
+          REFAX_API_BASE_URL: ${{ secrets.REFAX_API_BASE_URL }}
+          REFAX_COUNTRY_CODE: ${{ secrets.REFAX_COUNTRY_CODE }}
+        run: |
+          python src/backend/compatibilties/scripts/configure_refax_env.py \
+            --ssh-host "$VPS_USER@$VPS_HOST" \
+            --identity ~/.ssh/deploy_key \
+            --app-dir "$VPS_APP_DIR"
+
       - name: Deploy
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -154,6 +170,9 @@ jobs:
             fi
 
             docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps
+            echo '[DEPLOY] Comprobando autenticacion y persistencia REFAX...'
+            docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
+              exec -T api python -m scripts.check_refax_connection --download-products
             curl --fail --silent --show-error --retry 12 --retry-delay 5 \
               https://repnet.online/api/webhooks/mercadolibre/health
             docker image prune -f

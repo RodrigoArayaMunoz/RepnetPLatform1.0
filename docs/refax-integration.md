@@ -3,6 +3,10 @@
 La autenticación se ejecuta exclusivamente desde el backend. El navegador nunca
 recibe el código, la clave ni el token de REFAX.
 
+La tabla `refax_global_connection` guarda el token y las fechas de renovación;
+no contiene el código del proveedor ni la clave necesarios para obtener un nuevo
+token. El nombre `refax_global_connecction` no corresponde a la tabla existente.
+
 ## Configuración del backend
 
 Agrega estas variables al entorno donde se ejecuta FastAPI:
@@ -28,6 +32,33 @@ SUPABASE_REFAX_CONNECTION_TABLE=refax_global_connection
 Aplica la migración `202609290001_create_refax_global_connection.sql` antes de
 usar el botón. La tabla tiene RLS habilitado, no entrega permisos a `anon` ni a
 `authenticated` y solo es accedida por el backend mediante `service_role`.
+
+## Configuración de producción (GitHub Actions / VPS)
+
+El `.env` local está excluido de Git y de la imagen Docker. Configura los secretos
+`REFAX_PROVIDER_CODE` y `REFAX_API_KEY` en el repositorio de GitHub para que el
+workflow `Deploy VPS` los transfiera al `.env` del backend en el VPS por la entrada
+estándar de SSH. `REFAX_API_BASE_URL` y `REFAX_COUNTRY_CODE` también se pueden
+configurar como secretos; si se omiten, se conserva la configuración del VPS.
+
+La actualización valida que código y clave estén presentes juntos, conserva las
+otras variables y reemplaza el archivo de forma atómica con permisos privados.
+Los valores no se incluyen en comandos ni en logs. Los despliegues de solo
+notificaciones no modifican esta configuración.
+
+Después de recrear los servicios, el workflow autentica REFAX, guarda el token
+en Supabase y comprueba la descarga del Excel. Si REFAX o Supabase rechazan la
+operación, el despliegue reporta el fallo en vez de informar una conexión exitosa.
+
+Para verificar también la descarga desde el VPS:
+
+```sh
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
+  exec -T api python -m scripts.check_refax_connection --download-products
+```
+
+El comando solo informa el estado, el vencimiento y el tamaño del Excel;
+no imprime credenciales ni productos.
 
 ## Renovación
 
