@@ -14,7 +14,7 @@ from dotenv import dotenv_values
 
 from scripts.configure_refax_env import sync_over_ssh, update_env
 from scripts.check_refax_connection import check_connection
-from scripts.diagnose_refax_connection import check_authentication
+from scripts.diagnose_refax_connection import check_authentication, check_packet_flow
 
 
 class RefaxEnvironmentTests(unittest.TestCase):
@@ -115,6 +115,31 @@ class RefaxDeploymentCheckTests(unittest.IsolatedAsyncioTestCase):
 
 
 class RefaxNetworkDiagnosticTests(unittest.TestCase):
+    def test_packet_diagnostic_observes_only_refax_tcp_headers_without_payload_capture(self):
+        output = StringIO()
+        captured = (
+            "IP 192.0.2.10.40000 > 203.0.113.5.443: Flags [S], length 0\n"
+            "IP 192.0.2.10.40000 > 203.0.113.5.443: Flags [S], length 0\n"
+            "IP 203.0.113.5.443 > 192.0.2.10.40000: Flags [S.], length 0\n"
+        )
+        with (
+            patch("scripts.diagnose_refax_connection.subprocess.Popen") as popen,
+            patch("scripts.diagnose_refax_connection.time.sleep"),
+            patch("scripts.diagnose_refax_connection.check_socket") as connect,
+            redirect_stdout(output),
+        ):
+            popen.return_value.communicate.return_value = (captured, "")
+            popen.return_value.returncode = 124
+            check_packet_flow("203.0.113.5", 443)
+        command = popen.call_args.args[0]
+        self.assertEqual(command[-1], "host 203.0.113.5 and tcp port 443")
+        for flag in ("-w", "-A", "-X"):
+            self.assertNotIn(flag, command)
+        connect.assert_called_once_with("203.0.113.5", 443, use_tls=False)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["outbound_syn_packets"], 2)
+        self.assertEqual(result["inbound_syn_ack_packets"], 1)
+
     def test_network_diagnostic_never_prints_tokens_response_bodies_or_raw_errors(self):
         import httpx
 

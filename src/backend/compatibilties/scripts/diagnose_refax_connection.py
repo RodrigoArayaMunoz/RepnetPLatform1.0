@@ -63,6 +63,38 @@ def check_authentication(*, force_ipv4: bool) -> None:
                elapsed=round(time.monotonic() - started, 2))
 
 
+def check_packet_flow(address: str, port: int) -> None:
+    # Observe TCP headers for this destination only; never capture payloads or a pcap.
+    try:
+        observer = subprocess.Popen(
+            ["sudo", "-n", "timeout", "8", "tcpdump", "-n", "-i", "any",
+             "-c", "12", f"host {address} and tcp port {port}"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+    except OSError as error:
+        report(check="tcp_packets", error_type=type(error).__name__)
+        return
+    try:
+        time.sleep(0.3)
+        check_socket(address, port, use_tls=False)
+        captured, _stderr = observer.communicate(timeout=10)
+    except subprocess.TimeoutExpired:
+        observer.kill()
+        observer.communicate()
+        report(check="tcp_packets", error_type="ObservationTimeout")
+        return
+    outbound = f"> {address}.{port}:"
+    inbound = f"{address}.{port} >"
+    headers = captured.splitlines()
+    report(
+        check="tcp_packets", return_code=observer.returncode,
+        outbound_syn_packets=sum(outbound in line and "Flags [S]" in line for line in headers),
+        inbound_syn_ack_packets=sum(inbound in line and "Flags [S.]" in line for line in headers),
+        inbound_reset_packets=sum(inbound in line and "Flags [R" in line for line in headers),
+        observed_tcp_headers=headers,
+    )
+
+
 def main() -> None:
     host_only = "--host" in sys.argv[1:]
     if host_only:
@@ -108,6 +140,8 @@ def main() -> None:
                            output=elevated.stdout.splitlines())
             except (OSError, subprocess.SubprocessError) as error:
                 report(check="host_network", command=command, error_type=type(error).__name__)
+        if addresses:
+            check_packet_flow(addresses[0][4][0], parsed.port or 443)
 
 
 if __name__ == "__main__":
