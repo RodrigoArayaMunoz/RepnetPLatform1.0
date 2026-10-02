@@ -1,4 +1,6 @@
 import json
+from contextlib import redirect_stdout
+from io import StringIO
 import os
 from pathlib import Path
 import shlex
@@ -12,6 +14,7 @@ from dotenv import dotenv_values
 
 from scripts.configure_refax_env import sync_over_ssh, update_env
 from scripts.check_refax_connection import check_connection
+from scripts.diagnose_refax_connection import check_authentication
 
 
 class RefaxEnvironmentTests(unittest.TestCase):
@@ -109,6 +112,30 @@ class RefaxDeploymentCheckTests(unittest.IsolatedAsyncioTestCase):
             result = await check_connection()
         connection.connect.assert_awaited_once()
         self.assertEqual(result, {"connected": True, "expires_at": "2026-10-02T18:00:00Z"})
+
+
+class RefaxNetworkDiagnosticTests(unittest.TestCase):
+    def test_network_diagnostic_never_prints_tokens_response_bodies_or_raw_errors(self):
+        import httpx
+
+        private = "must-not-appear-in-diagnostic-output"
+        outcomes = [
+            httpx.Response(200, json={"token": private, "details": private}),
+            httpx.ConnectTimeout(private),
+        ]
+        for outcome in outcomes:
+            with self.subTest(outcome=type(outcome).__name__):
+                output = StringIO()
+                with patch("httpx.Client") as client, redirect_stdout(output):
+                    post = client.return_value.__enter__.return_value.post
+                    if isinstance(outcome, Exception):
+                        post.side_effect = outcome
+                    else:
+                        post.return_value = outcome
+                    check_authentication(force_ipv4=False)
+                self.assertNotIn(private, output.getvalue())
+                result = json.loads(output.getvalue())
+                self.assertEqual(result["check"], "authentication")
 
 
 if __name__ == "__main__":

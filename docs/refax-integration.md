@@ -60,6 +60,20 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml \
 El comando solo informa el estado, el vencimiento y el tamaño del Excel;
 no imprime credenciales ni productos.
 
+Si la autenticación funciona localmente pero el VPS devuelve `ConnectTimeout`,
+ejecuta el workflow en modo de diagnóstico, sin recrear servicios:
+
+```sh
+gh workflow run deploy-vps.yml --ref calidad-revision-lc \
+  -f refax_diagnostics_only=true
+```
+
+El diagnóstico compara DNS y conexiones TCP/TLS en el contenedor y en el host,
+prueba autenticación sin registrar credenciales y consulta reglas del firewall
+si el usuario del VPS tiene permisos. Si ambos entornos agotan el tiempo de
+conexión a `api.refax.com:443`, se debe revisar el acceso de red con el proveedor
+del VPS y REFAX, incluyendo la autorización de la IP pública del servidor.
+
 ## Renovación
 
 El backend intenta renovar el token al llegar a 7 horas y 45 minutos. Revisa el

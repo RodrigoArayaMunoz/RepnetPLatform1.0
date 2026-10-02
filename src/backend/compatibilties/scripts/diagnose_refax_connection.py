@@ -75,6 +75,7 @@ def main() -> None:
     report(check="configuration", host=host,
            runtime="host" if host_only else "container",
            proxies={key: bool(os.environ.get(key)) for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")})
+    addresses = []
     try:
         addresses = socket.getaddrinfo(host, parsed.port or 443, type=socket.SOCK_STREAM)
         report(check="dns", addresses=list(dict.fromkeys(item[4][0] for item in addresses)))
@@ -88,7 +89,7 @@ def main() -> None:
         check_authentication(force_ipv4=True)
     else:
         for command in (
-            ["ip", "route", "get", addresses[0][4][0]],
+            ["ip", "route", "get", addresses[0][4][0] if addresses else host],
             ["iptables", "-S", "OUTPUT"],
             ["iptables", "-S", "FORWARD"],
             ["iptables", "-S", "DOCKER-USER"],
@@ -98,6 +99,13 @@ def main() -> None:
                 result = subprocess.run(command, capture_output=True, text=True, timeout=5)
                 report(check="host_network", command=command, return_code=result.returncode,
                        output=result.stdout.splitlines())
+                if result.returncode and command[0] in {"iptables", "ufw"}:
+                    elevated = subprocess.run(
+                        ["sudo", "-n", *command], capture_output=True, text=True, timeout=5
+                    )
+                    report(check="host_firewall", command=command,
+                           return_code=elevated.returncode,
+                           output=elevated.stdout.splitlines())
             except (OSError, subprocess.SubprocessError) as error:
                 report(check="host_network", command=command, error_type=type(error).__name__)
 
