@@ -13,6 +13,7 @@ import DownloadPublications from "./frontend/pages/DownloadPublications.jsx";
 import Returns from "./frontend/pages/Returns.jsx";
 import SellerSales from "./frontend/pages/SellerSales.jsx";
 import SupplierIntegrations from "./frontend/pages/SupplierIntegrations.jsx";
+import ExcelFormats from "./frontend/pages/ExcelFormats.jsx";
 
 function AuthLoadingScreen() {
   return <div className="app-root" />;
@@ -200,6 +201,20 @@ export default function App() {
           }
         >
           <Route index element={<CompatibilityCopy />} />
+        </Route>
+
+        <Route
+          path="/procesos/formatos-excel"
+          element={
+            <RequireAuth
+              canAccessProtectedRoutes={canAccessProtectedRoutes}
+              authLoading={authLoading}
+            >
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<ExcelFormats />} />
         </Route>
 
         <Route

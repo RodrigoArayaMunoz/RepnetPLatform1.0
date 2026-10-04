@@ -70,6 +70,11 @@ const navItems = [
         label: "Copia de Compatibilidades",
         icon: CopyPlus,
       },
+      {
+        to: "/procesos/formatos-excel",
+        label: "Formatos Excel",
+        icon: FileSpreadsheet,
+      },
     ],
   },
   {
@@ -81,6 +86,7 @@ const navItems = [
         to: "/gestion/ventas",
         label: "Gestión de Pedidos",
         icon: ShoppingCart,
+        hidden: true,
       },
 
       {
@@ -196,7 +202,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, projectionMode = 
             GESTION
           </span>
 
-          {gestionItems.map((item) => {
+          {gestionItems.filter((item) => !item.hidden).map((item) => {
             const ItemIcon = item.icon;
             const active = isChildActive(item.to);
 

@@ -10,6 +10,7 @@ const ROUTE_LABELS = {
     "Carga de Familias",
   ],
   "/procesos/copia-compatibilidades": ["Procesos", "Copia de Compatibilidades"],
+  "/procesos/formatos-excel": ["Procesos", "Formatos Excel"],
   "/compatibilidades/carga-masiva": ["Compatibilidades", "Carga Masiva"],
   "/compatibilidades/no-compatibilidades": [
     "Compatibilidades",

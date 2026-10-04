@@ -42,6 +42,9 @@ src/backend/compatibilties/uploads/
 *.xlsx
 *.csv
 
+# Downloadable Excel formats bundled with the frontend
+!public/excel-formats/*.xlsx
+
 # =========================
 # ENV VARIABLES (MUY IMPORTANTE)
 # =========================
