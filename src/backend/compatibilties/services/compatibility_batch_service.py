@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
+from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Iterable
 
 from fastapi import HTTPException
@@ -9,13 +10,32 @@ from fastapi import HTTPException
 from config import settings
 from services.compatibility_service import (
     JobMetrics,
-    WRITE_RATE_LIMITER,
+    JobCaches,
+    COMPATIBILITY_WRITE_RATE_LIMITER,
     build_product_family_key,
     call_ml,
+    get_item_detail_cached,
 )
 from services.ml_client import ml_client
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CompatibilityBatchState:
+    """Caches belong to one job, including all of its file chunks."""
+
+    caches: JobCaches = field(default_factory=JobCaches)
+    successful_rows: dict[tuple, dict] = field(default_factory=dict)
+    item_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
+
+
+def _applied_row_key(row: dict) -> tuple:
+    return (
+        _safe_text(row.get("item_id")), _resolved_row_key(row),
+        _norm(row.get("familia")), _norm(row.get("posicion_dt")),
+        _norm(row.get("posicion_id")),
+    )
 
 DEFAULT_COMPATIBILITY_NOTE = (
     "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO "
@@ -198,7 +218,7 @@ def chunked(items: list[str], size: int) -> Iterable[list[str]]:
 
 
 def _error_type_for_status(status_code: int | None) -> str:
-    if status_code is not None and 400 <= status_code < 500:
+    if status_code is not None and 400 <= status_code < 500 and status_code != 429:
         return "functional"
     return "technical"
 
@@ -236,14 +256,11 @@ async def get_item_compact_cached(
     user_id: int | str,
     item_id: str,
     metrics: JobMetrics,
+    caches: JobCaches | None = None,
 ) -> dict:
     logger.debug("[BATCH][ITEM_FETCH] item_id=%s", item_id)
-    item_detail = await call_ml(
-        ml_client.get_item_detail,
-        access_token,
-        item_id,
-        user_id=user_id,
-        metrics=metrics,
+    item_detail = await get_item_detail_cached(
+        access_token, user_id, item_id, caches or JobCaches(), metrics,
     )
 
     compact = {
@@ -335,6 +352,18 @@ def validate_resolved_family_rows(rows: list[dict]) -> list[dict]:
             and not unexpected_attribute_ids
         )
         if has_exact_attributes:
+            try:
+                matched_products = int(row.get("family_product_count", 1) or 1)
+            except (TypeError, ValueError):
+                matched_products = 0
+            if not 1 <= matched_products <= MAX_PRODUCTS_PER_ML_REQUEST:
+                reason = "La familia debe coincidir con entre 1 y 200 productos"
+                validated_rows.append({
+                    **row, "ok": False, "error_type": "functional",
+                    "error_code": "PRODUCT_FAMILY_LIMIT_EXCEEDED",
+                    "reason": reason, "error_message": reason,
+                })
+                continue
             validated_rows.append(row)
             continue
 
@@ -480,6 +509,7 @@ async def post_compatibilities_batch(
     product_ids: list[str],
     restrictions: list | None = None,
     metrics: JobMetrics,
+    caches: JobCaches | None = None,
 ) -> dict:
     batch_size = min(
         100,
@@ -493,6 +523,7 @@ async def post_compatibilities_batch(
             user_id=user_id,
             item_id=item_id,
             metrics=metrics,
+            caches=caches,
         )
 
         category_id = item_compact.get("category_id")
@@ -530,7 +561,8 @@ async def post_compatibilities_batch(
             restrictions=restrictions if restrictions is not None else [],
             user_id=user_id,
             metrics=metrics,
-            limiter=WRITE_RATE_LIMITER,
+            limiter=COMPATIBILITY_WRITE_RATE_LIMITER,
+            client_managed_retry=True,
         )
 
         logger.debug(
@@ -608,6 +640,7 @@ async def post_compatibility_families_batch(
     family_entries: list[dict],
     metrics: JobMetrics,
     item_compact: dict | None = None,
+    caches: JobCaches | None = None,
 ) -> dict:
     batch_size = min(
         MAX_PRODUCT_FAMILIES_PER_ML_REQUEST,
@@ -628,6 +661,7 @@ async def post_compatibility_families_batch(
         max(1, int(entry.get("matched_products_count", 1) or 1))
         for entry in family_entries
     )
+    response = None
 
     try:
         if not item_compact or not (
@@ -639,6 +673,7 @@ async def post_compatibility_families_batch(
                 user_id=user_id,
                 item_id=item_id,
                 metrics=metrics,
+                caches=caches,
             )
 
         category_id = item_compact.get("category_id")
@@ -663,7 +698,8 @@ async def post_compatibility_families_batch(
             product_families=product_families,
             user_id=user_id,
             metrics=metrics,
-            limiter=WRITE_RATE_LIMITER,
+            limiter=COMPATIBILITY_WRITE_RATE_LIMITER,
+            client_managed_retry=True,
         )
 
         extended_information_families = [
@@ -681,7 +717,8 @@ async def post_compatibility_families_batch(
                 product_families=extended_information_families,
                 user_id=user_id,
                 metrics=metrics,
-                limiter=WRITE_RATE_LIMITER,
+                limiter=COMPATIBILITY_WRITE_RATE_LIMITER,
+                client_managed_retry=True,
             )
             logger.info(
                 "[BATCH][FAMILY_UPDATE_RESULT] item_id=%s user_product_id=%s "
@@ -741,7 +778,9 @@ async def post_compatibility_families_batch(
                 f"ML_HTTP_{status_code}" if status_code else "ML_HTTP_ERROR"
             ),
             "error_message": error_message,
-            "response": None,
+            "response": response,
+            "creation_committed": response is not None,
+            "created_compatibilities_count": int((response or {}).get("created_compatibilities_count", 0) or 0),
         }
     except Exception as exc:
         logger.exception(
@@ -756,7 +795,9 @@ async def post_compatibility_families_batch(
             "error_type": "technical",
             "error_code": "UNEXPECTED_BATCH_ERROR",
             "error_message": str(exc),
-            "response": None,
+            "response": response,
+            "creation_committed": response is not None,
+            "created_compatibilities_count": int((response or {}).get("created_compatibilities_count", 0) or 0),
         }
 
 
@@ -925,7 +966,6 @@ def build_compat_summary(final_rows: list[dict], batch_results: list[dict], metr
     total_created = sum(
         int(result.get("created_compatibilities_count", 0) or 0)
         for result in batch_results
-        if result.get("ok")
     )
 
     return {
@@ -976,9 +1016,25 @@ async def process_compatibility_batches(
     rows: list[dict],
     metrics: JobMetrics | None = None,
     on_progress: Callable[[int, int, int], Awaitable[None]] | None = None,
+    state: CompatibilityBatchState | None = None,
 ) -> dict:
     metrics = metrics or JobMetrics()
     rows = validate_resolved_family_rows(rows)
+    state = state or CompatibilityBatchState()
+    original_rows = rows
+    reused_rows: dict[int, dict] = {}
+    pending_indices: list[int] = []
+    rows = []
+    for index, row in enumerate(original_rows):
+        cached = state.successful_rows.get(_applied_row_key(row)) if row.get("ok") else None
+        if cached is not None:
+            metrics.cache_hits += 1
+            reused_rows[index] = {**cached, **row, "ok": True,
+                                  "success_count": 1, "error_count": 0,
+                                  "results": cached["results"], "was_reused": True}
+        else:
+            pending_indices.append(index)
+            rows.append(row)
     grouped_products, restriction_data = build_grouped_product_ids(rows)
     grouped_families = build_grouped_product_families(rows)
     batch_size = min(
@@ -1046,7 +1102,10 @@ async def process_compatibility_batches(
         mode = str(batch_spec["mode"])
         sent_count = 0
 
-        async with semaphore:
+        entries = batch_spec.get("entries", [])
+        item_compact = entries[0].get("item_compact", {}) if entries else {}
+        target_id = item_compact.get("user_product_id") or item_id
+        async with state.item_locks.setdefault(str(target_id), asyncio.Lock()), semaphore:
             try:
                 if mode == "product_family":
                     entries = batch_spec.get("entries", [])
@@ -1057,6 +1116,7 @@ async def process_compatibility_batches(
                         item_id=item_id,
                         family_entries=entries,
                         metrics=metrics,
+                        caches=state.caches,
                         item_compact=(
                             entries[0].get("item_compact")
                             if entries
@@ -1074,6 +1134,7 @@ async def process_compatibility_batches(
                         product_ids=product_ids,
                         restrictions=batch_spec.get("restrictions", []),
                         metrics=metrics,
+                        caches=state.caches,
                     )
             except Exception as exc:
                 logger.exception(
@@ -1105,13 +1166,15 @@ async def process_compatibility_batches(
 
             async with progress_lock:
                 completed += 1
-                if result.get("ok"):
-                    created_compatibilities += int(
-                        result.get("created_compatibilities_count", 0) or 0
-                    )
+                created_compatibilities += int(
+                    result.get("created_compatibilities_count", 0) or 0
+                )
                 completed_snapshot = completed
                 created_snapshot = created_compatibilities
-                should_notify = on_progress is not None
+                should_notify = on_progress is not None and (
+                    completed % settings.job_progress_update_every == 0
+                    or completed == len(all_batches)
+                )
 
             logger.debug(
                 "[BATCH][PROGRESS] completed=%s/%s last_item=%s "
@@ -1150,7 +1213,13 @@ async def process_compatibility_batches(
         for r in batch_results
     ]
 
-    final_rows = build_final_row_results(rows, final_batch_results)
+    pending_results = build_final_row_results(rows, final_batch_results)
+    mapped_results = dict(reused_rows)
+    for index, result in zip(pending_indices, pending_results):
+        mapped_results[index] = result
+        if result.get("ok"):
+            state.successful_rows[_applied_row_key(result)] = result
+    final_rows = [mapped_results[index] for index in range(len(original_rows))]
     summary = build_compat_summary(final_rows, final_batch_results, metrics)
 
     logger.info(

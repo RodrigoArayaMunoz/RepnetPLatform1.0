@@ -101,10 +101,15 @@ class Settings(BaseSettings):
     ml_write_max_requests_per_window: int = Field(default=100, ge=1)
     ml_write_window_seconds: int = Field(default=60, ge=1)
     ml_write_cooldown_seconds: float = 120.0
-    ml_compatibility_write_requests_per_second: float = 100 / 60
-    ml_compatibility_max_requests_per_window: int = 100
-    ml_compatibility_window_seconds: int = 60
+    ml_compatibility_write_requests_per_second: float = Field(default=100 / 60, gt=0)
+    ml_compatibility_max_requests_per_window: int = Field(default=100, ge=1)
+    ml_compatibility_window_seconds: int = Field(default=60, ge=1)
     ml_compatibility_cooldown_seconds: float = 120.0
+    ml_item_pictures_requests_per_second: float = Field(default=100 / 60, gt=0)
+    ml_item_pictures_max_requests_per_window: int = Field(default=100, ge=1)
+    ml_item_pictures_window_seconds: int = Field(default=60, ge=1)
+    ml_item_pictures_http_timeout_seconds: float = Field(default=60.0, gt=0)
+    ml_compatibility_http_timeout_seconds: float = Field(default=60.0, gt=0)
     ml_compatibility_exception_write_requests_per_second: float = 100 / 60
     ml_compatibility_exception_max_requests_per_window: int = 100
     ml_compatibility_exception_window_seconds: int = 60
@@ -183,7 +188,11 @@ class Settings(BaseSettings):
     job_progress_update_every: int = Field(default=25, ge=1)
 
     compat_batch_size: int = 100
-    compat_batch_concurrency: int = 2
+    compat_batch_concurrency: int = Field(default=4, ge=1, le=20)
+    compatibility_chunk_size: int = Field(default=300, ge=1, le=5000)
+    compatibility_max_concurrency: int = Field(default=4, ge=1, le=20)
+    item_pictures_chunk_size: int = Field(default=300, ge=1, le=5000)
+    item_pictures_max_concurrency: int = Field(default=4, ge=1, le=20)
     process_file_chunk_size: int = 100
     price_stock_chunk_size: int = Field(default=300, ge=1, le=5000)
     price_stock_max_concurrency: int = Field(default=4, ge=1, le=20)
@@ -195,10 +204,10 @@ class Settings(BaseSettings):
     ml_item_description_max_requests_per_window: int = Field(default=400, ge=1)
     ml_item_description_window_seconds: int = Field(default=60, ge=1)
     process_file_chunk_pause_seconds: int = 2 * 60
-    compatibility_chunk_pause_seconds: int = 3 * 60 + 30
-    compatibility_exception_chunk_pause_seconds: int = 2 * 60
+    compatibility_chunk_pause_seconds: int = Field(default=0, ge=0)
+    compatibility_exception_chunk_pause_seconds: int = Field(default=0, ge=0)
     price_stock_chunk_pause_seconds: int = Field(default=0, ge=0)
-    item_pictures_chunk_pause_seconds: int = 2 * 60
+    item_pictures_chunk_pause_seconds: int = Field(default=0, ge=0)
     sku_description_chunk_pause_seconds: int = 2 * 60
     process_queue_delay_seconds: int = Field(default=5 * 60, ge=0)
 

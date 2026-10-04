@@ -25,6 +25,7 @@ from services.ml_client import MercadoLibreClient
 from services.process_chunking_service import (
     get_compatibility_chunk_pause_seconds,
     get_process_file_chunk_size,
+    get_compatibility_chunk_size,
 )
 
 
@@ -93,6 +94,8 @@ class MercadoLibreCompatibilityClientTests(unittest.IsolatedAsyncioTestCase):
                 "attributes": attributes,
             },
             user_id="123",
+            rate_limiter=None,
+            metrics=None,
         )
 
     async def test_user_product_write_sends_product_families(self):
@@ -120,9 +123,12 @@ class MercadoLibreCompatibilityClientTests(unittest.IsolatedAsyncioTestCase):
             json_body={
                 "domain_id": settings.ml_domain_id,
                 "category_id": "MLC1748",
-                "products_families": product_families,
+            "products_families": product_families,
             },
             user_id="123",
+            rate_limiter=None,
+            metrics=None,
+            timeout_seconds=settings.ml_compatibility_http_timeout_seconds,
         )
 
     async def test_user_product_update_sends_family_note_and_restrictions(self):
@@ -172,6 +178,9 @@ class MercadoLibreCompatibilityClientTests(unittest.IsolatedAsyncioTestCase):
                 "update": {"products_families": [expected_family]},
             },
             user_id="123",
+            rate_limiter=None,
+            metrics=None,
+            timeout_seconds=settings.ml_compatibility_http_timeout_seconds,
         )
 
 
@@ -702,12 +711,13 @@ class CompatibilityFamilyBatchTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CompatibilityChunkPolicyTests(unittest.IsolatedAsyncioTestCase):
-    def test_default_policy_is_100_rows_and_210_seconds(self):
+    def test_default_policy_has_300_rows_and_no_fixed_pause(self):
         self.assertEqual(get_process_file_chunk_size(), 100)
-        self.assertEqual(get_compatibility_chunk_pause_seconds(), 210)
+        self.assertEqual(get_compatibility_chunk_size(), settings.compatibility_chunk_size)
+        self.assertEqual(get_compatibility_chunk_pause_seconds(), settings.compatibility_chunk_pause_seconds)
         self.assertEqual(settings.compat_batch_size, 100)
 
-    async def test_orchestrator_pauses_between_100_row_chunks(self):
+    async def test_orchestrator_processes_chunks_without_fixed_pauses(self):
         rows = [{"row": index} for index in range(101)]
         empty_resolution_summary = {
             "processed_rows": 0,
@@ -747,6 +757,8 @@ class CompatibilityChunkPolicyTests(unittest.IsolatedAsyncioTestCase):
             }
 
         with (
+            patch.object(settings, "compatibility_chunk_size", 100),
+            patch.object(settings, "compatibility_chunk_pause_seconds", 0),
             patch(
                 "services.compatibility_orchestrator_service.build_vehicle_resolution_plan",
                 return_value=([{}] * 101, []),
@@ -782,7 +794,7 @@ class CompatibilityChunkPolicyTests(unittest.IsolatedAsyncioTestCase):
             [len(call.kwargs["rows"]) for call in process_rows.await_args_list],
             [100, 1],
         )
-        sleep.assert_awaited_once_with(210)
+        sleep.assert_not_awaited()
         self.assertTrue(
             any(
                 call.kwargs.get("compatibilities_created") == 6

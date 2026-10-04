@@ -2,7 +2,9 @@ import asyncio
 import json
 import logging
 import os
+from collections import defaultdict
 from typing import Any
+from urllib.parse import urlsplit
 
 import pandas as pd
 from fastapi import HTTPException
@@ -14,7 +16,7 @@ from services.compatibility_service import (
     call_ml,
     get_write_rate_policy,
 )
-from services.excel_service import extract_item_id, normalize_for_compare
+from services.excel_service import extract_item_id, normalize_for_compare, open_xlsx_rows
 from services.job_store import JobStore
 from services.ml_client import ml_client
 from services.process_chunking_service import (
@@ -22,7 +24,7 @@ from services.process_chunking_service import (
     count_chunks,
     format_pause_minutes,
     get_item_pictures_chunk_pause_seconds,
-    get_process_file_chunk_size,
+    get_item_pictures_chunk_size,
 )
 
 logger = logging.getLogger(__name__)
@@ -200,32 +202,15 @@ def _resolve_picture_columns(df: pd.DataFrame) -> tuple[str | None, list[str]]:
     return urls_column, photo_columns
 
 
-def _collect_picture_urls(
-    df: pd.DataFrame,
-    index: int,
-    *,
-    urls_column: str | None,
-    photo_columns: list[str],
-) -> list[str]:
-    picture_urls: list[str] = []
-
-    if urls_column:
-        picture_urls.extend(_parse_picture_urls(df[urls_column].iloc[index]))
-
-    for photo_column in photo_columns:
-        photo_url = _cell_to_text(df[photo_column].iloc[index])
-        if photo_url:
-            picture_urls.append(photo_url)
-
-    return picture_urls
-
-
 def load_item_picture_rows(file_path: str) -> list[dict[str, Any]]:
+    if os.path.splitext(file_path)[1].lower() == ".xlsx":
+        with open_xlsx_rows(file_path) as (headers, values):
+            return _build_item_picture_rows(pd.DataFrame(columns=headers), values)
     df = _load_dataframe(file_path)
+    return _build_item_picture_rows(df, df.itertuples(index=False, name=None))
 
-    if len(df.index) == 0:
-        raise ValueError("El archivo no tiene filas")
 
+def _build_item_picture_rows(df: pd.DataFrame, values) -> list[dict[str, Any]]:
     mlc_column = _resolve_column(df, MLC_COLUMN_ALIASES, "MLC")
     urls_column, photo_columns = _resolve_picture_columns(df)
 
@@ -243,14 +228,18 @@ def load_item_picture_rows(file_path: str) -> list[dict[str, Any]]:
 
     rows: list[dict[str, Any]] = []
 
-    for index in range(len(df)):
-        mlc_raw = _cell_to_text(df[mlc_column].iloc[index])
-        picture_urls = _collect_picture_urls(
-            df,
-            index,
-            urls_column=urls_column,
-            photo_columns=photo_columns,
-        )
+    selected_columns = [mlc_column, *([urls_column] if urls_column else []), *photo_columns]
+    column_indices = [list(df.columns).index(column) for column in selected_columns]
+    for index, full_row in enumerate(values):
+        cells = [full_row[column_index] if column_index < len(full_row) else None
+                 for column_index in column_indices]
+        mlc_raw = _cell_to_text(cells[0])
+        picture_urls = _parse_picture_urls(cells[1]) if urls_column else []
+        for value in cells[2 if urls_column else 1:]:
+            photo_url = _cell_to_text(value)
+            if photo_url:
+                picture_urls.append(photo_url)
+        picture_urls = list(dict.fromkeys(picture_urls))
 
         rows.append(
             {
@@ -266,6 +255,21 @@ def load_item_picture_rows(file_path: str) -> list[dict[str, Any]]:
             }
         )
 
+    if not rows:
+        raise ValueError("El archivo no tiene filas")
+    groups: dict[str, list[int]] = defaultdict(list)
+    for index, row in enumerate(rows):
+        if row["item_id"] and row["picture_urls"]:
+            groups[row["item_id"]].append(index)
+    for item_id, indexes in groups.items():
+        if len({tuple(rows[index]["picture_urls"]) for index in indexes}) > 1:
+            for index in indexes:
+                rows[index]["validation_error"] = (
+                    f"MLC duplicado con fotografías diferentes: {item_id}"
+                )
+        else:
+            for index in indexes[1:]:
+                rows[index]["duplicate_of"] = indexes[0]
     return rows
 
 
@@ -280,6 +284,28 @@ async def _process_item_picture_row(
     original_row_index = row.get("original_row_index")
     picture_urls = row.get("picture_urls") or []
     pictures_count = int(row.get("pictures_count") or 0)
+
+    validation_error = row.get("validation_error")
+    if not validation_error:
+        try:
+            invalid_url = any(
+                urlsplit(url).scheme.lower() not in {"http", "https"}
+                or not urlsplit(url).hostname
+                for url in picture_urls
+            )
+        except ValueError:
+            invalid_url = True
+        if invalid_url:
+            validation_error = "Las fotografías deben tener URLs HTTP o HTTPS válidas"
+    if validation_error:
+        return {
+            "ok": False, "item_id": item_id, "brand_name": "Mercado Libre",
+            "model_name": "Actualización de fotos", "reason": validation_error,
+            "error_code": "INVALID_PICTURE_ROW", "pictures_count": pictures_count,
+            "original_row_index": original_row_index,
+            "results": [{"ok": False, "item_id": item_id, "reason": validation_error,
+                         "error_code": "INVALID_PICTURE_ROW", "original_row_index": original_row_index}],
+        }
 
     if not item_id:
         return {
@@ -332,6 +358,7 @@ async def _process_item_picture_row(
             user_id=user_id,
             metrics=metrics,
             limiter=ITEM_PICTURES_WRITE_RATE_LIMITER,
+            client_managed_retry=True,
         )
 
         return {
@@ -402,16 +429,24 @@ async def process_item_pictures_job(
     rows = load_item_picture_rows(file_path)
     total_rows = len(rows)
     metrics = JobMetrics()
-    chunk_size = get_process_file_chunk_size()
+    chunk_size = get_item_pictures_chunk_size()
     pause_seconds = get_item_pictures_chunk_pause_seconds()
-    total_chunks = count_chunks(total_rows, chunk_size)
+    duplicates: dict[int, list[int]] = defaultdict(list)
+    indexed_rows = []
+    for index, row in enumerate(rows):
+        if "duplicate_of" in row:
+            duplicates[row["duplicate_of"]].append(index)
+        else:
+            indexed_rows.append((index, row))
+    total_unique_rows = len(indexed_rows)
+    total_chunks = count_chunks(total_unique_rows, chunk_size)
 
     JobStore.update(
         job_id,
         status="processing",
         progress=5,
         total_rows=total_rows,
-        total_unique_rows=total_rows,
+        total_unique_rows=total_unique_rows,
         total_chunks=total_chunks,
         completed_chunks=0,
         message="Preparando archivo para actualizar fotos...",
@@ -437,7 +472,7 @@ async def process_item_pictures_job(
         return {"results": [], "summary": summary}
 
     access_token = await ml_client.get_valid_token(int(user_id))
-    max_concurrency = max(1, int(getattr(settings, "max_row_concurrency", 2)))
+    max_concurrency = settings.item_pictures_max_concurrency
     write_policy = get_write_rate_policy()
 
     logger.info(
@@ -454,8 +489,8 @@ async def process_item_pictures_job(
     progress_lock = asyncio.Lock()
     results: list[dict[str, Any] | None] = [None] * total_rows
     completed = 0
+    completed_unique = 0
     successful_updates = 0
-    indexed_rows = list(enumerate(rows))
 
     async def worker(
         index: int,
@@ -464,7 +499,7 @@ async def process_item_pictures_job(
         chunk_number: int,
         total_chunks_count: int,
     ) -> None:
-        nonlocal completed, successful_updates
+        nonlocal completed, completed_unique, successful_updates
         result = await _process_item_picture_row(
             access_token=access_token,
             row=row,
@@ -474,7 +509,7 @@ async def process_item_pictures_job(
         results[index] = result
 
         async with progress_lock:
-            completed += 1
+            completed_unique += 1
             if result.get("ok"):
                 successful_updates += 1
                 if successful_updates % 100 == 0:
@@ -485,14 +520,25 @@ async def process_item_pictures_job(
                         completed,
                         total_rows,
                     )
-            progress = 10 + int((completed / max(total_rows, 1)) * 85)
-            JobStore.update(
-                job_id,
-                progress=min(progress, 95),
-                processed_rows=completed,
-                processed_unique_rows=completed,
-                message=f"Procesando archivo: {completed}/{total_rows} filas actualizadas",
-            )
+            for duplicate_index in duplicates[index]:
+                metrics.cache_hits += 1
+                results[duplicate_index] = {
+                    **result, "original_row_index": rows[duplicate_index].get("original_row_index"),
+                    "duplicate_of": index,
+                    "results": [{**detail, "original_row_index": rows[duplicate_index].get("original_row_index")}
+                                for detail in result.get("results", [])],
+                }
+            for _ in [index, *duplicates[index]]:
+                completed += 1
+                if completed % settings.job_progress_update_every == 0 or completed == total_rows:
+                    progress = 10 + int((completed / max(total_rows, 1)) * 85)
+                    JobStore.update(
+                        job_id,
+                        progress=min(progress, 95),
+                        processed_rows=completed,
+                        processed_unique_rows=completed_unique,
+                        message=f"Procesando archivo: {completed}/{total_rows} filas procesadas",
+                    )
 
     for chunk_number, (_, chunk_entries) in enumerate(
         chunk_sequence(indexed_rows, chunk_size),
@@ -574,11 +620,12 @@ async def process_item_pictures_job(
         "process_type": "item_pictures",
         "processed_rows": total_rows,
         "unique_rows": unique_items,
+        "duplicated_rows": total_rows - total_unique_rows,
         "success_count": success_count,
         "error_count": error_count,
         "failed_item_ids": failed_item_ids,
         "items_total": total_rows,
-        "updated_items": success_count,
+        "updated_items": successful_updates,
         "picture_update_errors": error_count,
         "picture_sources_total": total_picture_sources,
         "compatibilities_total": total_rows,
@@ -597,7 +644,7 @@ async def process_item_pictures_job(
         result_path=result_path,
         summary=summary,
         processed_rows=total_rows,
-        processed_unique_rows=total_rows,
+        processed_unique_rows=total_unique_rows,
         message="Actualización de fotos finalizada",
     )
 

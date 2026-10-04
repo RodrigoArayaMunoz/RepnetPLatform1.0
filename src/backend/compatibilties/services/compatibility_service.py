@@ -20,7 +20,7 @@ from services.excel_service import (
 )
 from services.job_store import JobStore
 from services.ml_client import ml_client
-from services.redis_rate_limiter import RedisWindowRateLimiter
+from services.redis_rate_limiter import CombinedRateLimiter, RedisWindowRateLimiter
 
 
 @dataclass
@@ -31,6 +31,9 @@ class JobCaches:
         tuple[str | None, str | None, str | None, str | None, str | None, str | None],
         int,
     ] = field(default_factory=dict)
+    family_product_count_locks: dict[tuple, asyncio.Lock] = field(default_factory=dict)
+    resolved_vehicles: dict[tuple, dict] = field(default_factory=dict)
+    resolved_vehicle_locks: dict[tuple, asyncio.Lock] = field(default_factory=dict)
 
 
 @dataclass
@@ -100,10 +103,28 @@ WRITE_RATE_LIMITER = RedisWindowRateLimiter(
     ),
 )
 
-COMPATIBILITY_WRITE_RATE_LIMITER = WRITE_RATE_LIMITER
-COMPATIBILITY_EXCEPTION_WRITE_RATE_LIMITER = WRITE_RATE_LIMITER
+COMPATIBILITY_RATE_LIMITER = RedisWindowRateLimiter(
+    redis_url=settings.redis_url,
+    namespace="ml:compatibility",
+    requests_per_second=settings.ml_compatibility_write_requests_per_second,
+    max_requests_per_window=settings.ml_compatibility_max_requests_per_window,
+    window_seconds=settings.ml_compatibility_window_seconds,
+)
+COMPATIBILITY_WRITE_RATE_LIMITER = CombinedRateLimiter(
+    COMPATIBILITY_RATE_LIMITER, WRITE_RATE_LIMITER,
+)
+COMPATIBILITY_EXCEPTION_WRITE_RATE_LIMITER = COMPATIBILITY_WRITE_RATE_LIMITER
 PRICE_STOCK_WRITE_RATE_LIMITER = WRITE_RATE_LIMITER
-ITEM_PICTURES_WRITE_RATE_LIMITER = WRITE_RATE_LIMITER
+ITEM_PICTURES_RATE_LIMITER = RedisWindowRateLimiter(
+    redis_url=settings.redis_url,
+    namespace="ml:item_pictures",
+    requests_per_second=settings.ml_item_pictures_requests_per_second,
+    max_requests_per_window=settings.ml_item_pictures_max_requests_per_window,
+    window_seconds=settings.ml_item_pictures_window_seconds,
+)
+ITEM_PICTURES_WRITE_RATE_LIMITER = CombinedRateLimiter(
+    ITEM_PICTURES_RATE_LIMITER, WRITE_RATE_LIMITER,
+)
 
 RETRY_ATTEMPTS = int(_settings_value("ml_retry_attempts", 4))
 RETRY_BASE_DELAY = float(_settings_value("ml_retry_base_delay", 1.0))
@@ -150,10 +171,16 @@ async def call_ml(
     *args,
     metrics: JobMetrics,
     limiter=None,
+    client_managed_retry: bool = False,
     **kwargs,
 ) -> Any:
     last_exc: Exception | None = None
     limiter = limiter or READ_RATE_LIMITER
+
+    # The HTTP client owns retries for these methods. Every actual attempt,
+    # including token renewal and network retries, acquires the same budget.
+    if client_managed_retry:
+        return await fn(*args, rate_limiter=limiter, metrics=metrics, **kwargs)
 
     for attempt in range(RETRY_ATTEMPTS):
         try:
@@ -292,19 +319,23 @@ async def count_vehicle_family_products(
     if key in caches.family_product_count:
         return int(cached), attributes
 
-    count = await call_ml(
-        ml_client.count_vehicle_family_products,
-        access_token=access_token,
-        user_id=user_id,
-        attributes=attributes,
-        domain_id=settings.ml_domain_id,
-        metrics=metrics,
-        limiter=READ_RATE_LIMITER,
-    )
-
-    resolved_count = max(0, int(count or 0))
-    caches.family_product_count[key] = resolved_count
-    return resolved_count, attributes
+    async with caches.family_product_count_locks.setdefault(key, asyncio.Lock()):
+        if key in caches.family_product_count:
+            metrics.cache_hits += 1
+            return caches.family_product_count[key], attributes
+        count = await call_ml(
+            ml_client.count_vehicle_family_products,
+            access_token=access_token,
+            user_id=user_id,
+            attributes=attributes,
+            domain_id=settings.ml_domain_id,
+            metrics=metrics,
+            limiter=READ_RATE_LIMITER,
+            client_managed_retry=True,
+        )
+        resolved_count = max(0, int(count or 0))
+        caches.family_product_count[key] = resolved_count
+        return resolved_count, attributes
 
 
 async def get_item_detail_cached(
@@ -331,6 +362,7 @@ async def get_item_detail_cached(
             user_id=user_id,
             metrics=metrics,
             limiter=READ_RATE_LIMITER,
+            client_managed_retry=True,
         )
         caches.item_detail[item_id] = data
         return data
@@ -826,6 +858,25 @@ async def resolve_vehicle_product_row(
         )
 
 
+async def resolve_vehicle_product_row_cached(
+    *, access_token: str, user_id: int | str | None, row: dict,
+    catalog_cache: CatalogPreloadService, caches: JobCaches, metrics: JobMetrics,
+) -> dict:
+    key = vehicle_resolution_key(row)
+    async with caches.resolved_vehicle_locks.setdefault(key, asyncio.Lock()):
+        if key in caches.resolved_vehicles:
+            metrics.cache_hits += 1
+            return dict(caches.resolved_vehicles[key])
+        result = await resolve_vehicle_product_row(
+            access_token=access_token, user_id=user_id, row=row,
+            catalog_cache=catalog_cache, caches=caches, metrics=metrics,
+        )
+        # Failures remain retryable on another row; cache only resolved vehicles.
+        if result.get("ok"):
+            caches.resolved_vehicles[key] = dict(result)
+        return result
+
+
 def expand_resolved_rows_to_originals(
     *,
     unique_results: list[dict],
@@ -894,7 +945,7 @@ async def process_unique_rows_chunk(
         catalog_cache.call_ml = call_ml
     catalog_cache.metrics = metrics
 
-    max_concurrency = max(1, int(_settings_value("max_row_concurrency", 2)))
+    max_concurrency = settings.compatibility_max_concurrency
     progress_every = max(1, int(_settings_value("chunk_progress_update_every", 25)))
 
     semaphore = asyncio.Semaphore(max_concurrency)
@@ -922,7 +973,7 @@ async def process_unique_rows_chunk(
         nonlocal completed
 
         async with semaphore:
-            result = await resolve_vehicle_product_row(
+            result = await resolve_vehicle_product_row_cached(
                 access_token=access_token,
                 user_id=user_id,
                 row=entry["row"],
@@ -1057,7 +1108,7 @@ async def process_rows_for_job(
             },
         }
 
-    semaphore = asyncio.Semaphore(int(_settings_value("max_row_concurrency", 3)))
+    semaphore = asyncio.Semaphore(settings.compatibility_max_concurrency)
     progress_lock = asyncio.Lock()
 
     completed = 0
@@ -1067,7 +1118,7 @@ async def process_rows_for_job(
         nonlocal completed
 
         async with semaphore:
-            result = await resolve_vehicle_product_row(
+            result = await resolve_vehicle_product_row_cached(
                 access_token=access_token,
                 user_id=user_id,
                 row=entry["row"],

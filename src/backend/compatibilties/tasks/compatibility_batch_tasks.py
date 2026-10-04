@@ -8,6 +8,7 @@ from celery_app import celery_app
 from services.worker_async_runner import run_worker_coroutine
 from config import settings
 from services.compatibility_batch_service import (
+    CompatibilityBatchState,
     build_compat_summary,
     process_compatibility_batches,
 )
@@ -19,7 +20,7 @@ from services.process_chunking_service import (
     count_chunks,
     format_pause_minutes,
     get_compatibility_chunk_pause_seconds,
-    get_process_file_chunk_size,
+    get_compatibility_chunk_size,
 )
 
 logger = get_task_logger(__name__)
@@ -91,10 +92,11 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
             access_token = await ml_client.get_valid_token(int(user_id))
             logger.info("[TASK BATCH] Token válido obtenido")
 
-            chunk_size = get_process_file_chunk_size()
+            chunk_size = get_compatibility_chunk_size()
             pause_seconds = get_compatibility_chunk_pause_seconds()
             total_chunks = count_chunks(len(rows), chunk_size)
             metrics = JobMetrics()
+            batch_state = CompatibilityBatchState()
             all_results: list[dict] = []
             all_batch_results: list[dict] = []
             processed_rows = 0
@@ -140,6 +142,7 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
                     rows=chunk_rows,
                     metrics=metrics,
                     on_progress=on_progress,
+                    state=batch_state,
                 )
                 all_results.extend(chunk_outcome.get("results", []))
                 all_batch_results.extend(
@@ -153,6 +156,14 @@ async def _add_compatibilities_batch_job(job_id: str, user_id: str, resolved_pat
                     or 0
                 )
                 processed_rows += len(chunk_rows)
+                JobStore.update(
+                    job_id,
+                    progress=min(95, 10 + int(processed_rows / max(len(rows), 1) * 85)),
+                    processed_rows=processed_rows,
+                    completed_chunks=chunk_number,
+                    compatibilities_created=created_compatibilities,
+                    message=f"Bloque {chunk_number}/{total_chunks} completado",
+                )
 
                 if chunk_number < total_chunks and pause_seconds > 0:
                     JobStore.update(

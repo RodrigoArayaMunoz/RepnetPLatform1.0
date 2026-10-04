@@ -22,7 +22,7 @@ from services.process_chunking_service import (
     count_chunks,
     format_pause_minutes,
     get_compatibility_exception_chunk_pause_seconds,
-    get_process_file_chunk_size,
+    get_compatibility_chunk_size,
 )
 
 logger = logging.getLogger(__name__)
@@ -158,6 +158,7 @@ async def _process_exception_row(
             user_id=user_id,
             metrics=metrics,
             limiter=COMPATIBILITY_EXCEPTION_WRITE_RATE_LIMITER,
+            client_managed_retry=True,
         )
         return {
             "ok": True,
@@ -228,7 +229,7 @@ async def process_compatibility_exceptions_job(
     total_rows = len(rows)
     comment = settings.ml_compatibility_exception_comment
     metrics = JobMetrics()
-    chunk_size = get_process_file_chunk_size()
+    chunk_size = get_compatibility_chunk_size()
     pause_seconds = get_compatibility_exception_chunk_pause_seconds()
     total_chunks = count_chunks(total_rows, chunk_size)
 
@@ -259,7 +260,7 @@ async def process_compatibility_exceptions_job(
 
     access_token = await ml_client.get_valid_token(int(user_id))
 
-    max_concurrency = max(1, int(getattr(settings, "max_row_concurrency", 2)))
+    max_concurrency = settings.compatibility_max_concurrency
     write_policy = get_write_rate_policy()
 
     logger.info(
@@ -297,6 +298,8 @@ async def process_compatibility_exceptions_job(
 
         async with progress_lock:
             completed += 1
+            if completed % settings.job_progress_update_every and completed != total_rows:
+                return
             progress = 10 + int((completed / max(total_rows, 1)) * 85)
             JobStore.update(
                 job_id,

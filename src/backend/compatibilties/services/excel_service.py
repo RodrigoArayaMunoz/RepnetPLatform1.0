@@ -3,10 +3,12 @@ import re
 import shutil
 import unicodedata
 import uuid
+from contextlib import contextmanager
 from typing import Any
 
 import pandas as pd
 from fastapi import UploadFile
+from openpyxl import load_workbook
 
 from config import settings
 
@@ -113,11 +115,39 @@ def _rename_to_logical_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=rename_map)
 
 
+@contextmanager
+def open_xlsx_rows(file_path: str, sheet_name: str = "Hoja1"):
+    """Read rows sequentially and always close the workbook, even on errors."""
+    workbook = load_workbook(file_path, read_only=True, data_only=True)
+    try:
+        if not workbook.sheetnames:
+            raise ValueError("El archivo Excel no contiene hojas")
+        worksheet = workbook[sheet_name if sheet_name in workbook.sheetnames else workbook.sheetnames[0]]
+        values = worksheet.iter_rows(values_only=True)
+        headers = [str(value).strip() if value is not None else f"Unnamed: {index}"
+                   for index, value in enumerate(next(values, ()))]
+        yield headers, values
+    finally:
+        workbook.close()
+
+
 def load_excel_rows(file_path: str, sheet_name: str = "Hoja1") -> list[dict]:
     if not os.path.exists(file_path):
         raise ValueError(f"No existe el archivo: {file_path}")
 
     ext = os.path.splitext(file_path)[1].lower()
+
+    if ext == ".xlsx":
+        with open_xlsx_rows(file_path, sheet_name) as (headers, values):
+            frame = pd.DataFrame(columns=headers)
+            missing = validate_dataframe_columns(frame)
+            if missing:
+                raise ValueError(f"Faltan columnas requeridas: {missing}")
+            columns = list(_rename_to_logical_columns(frame).columns)
+            rows = [dict(zip(columns, cells)) for cells in values]
+        if not rows:
+            raise ValueError("El archivo no tiene filas")
+        return rows
 
     try:
         if ext == ".csv":

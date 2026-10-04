@@ -134,6 +134,7 @@ class CatalogPreloadService:
                     ),
                     user_id=user_id,
                     metrics=self.metrics,
+                    client_managed_retry=True,
                 )
             )
             self._context_tasks[context_key] = task

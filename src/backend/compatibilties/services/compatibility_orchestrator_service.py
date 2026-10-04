@@ -3,6 +3,7 @@ import logging
 
 from services.catalog_preload_service import CatalogPreloadService
 from services.compatibility_batch_service import (
+    CompatibilityBatchState,
     build_compat_summary,
     process_compatibility_batches,
 )
@@ -20,7 +21,7 @@ from services.process_chunking_service import (
     count_chunks,
     format_pause_minutes,
     get_compatibility_chunk_pause_seconds,
-    get_process_file_chunk_size,
+    get_compatibility_chunk_size,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ async def process_excel_compatibilities_end_to_end(
     rows: list[dict],
 ) -> dict:
     total_rows = len(rows)
-    chunk_size = get_process_file_chunk_size()
+    chunk_size = get_compatibility_chunk_size()
     pause_seconds = get_compatibility_chunk_pause_seconds()
     total_chunks = count_chunks(total_rows, chunk_size)
     unique_entries, _ = build_vehicle_resolution_plan(rows)
@@ -91,6 +92,7 @@ async def process_excel_compatibilities_end_to_end(
 
     metrics = JobMetrics()
     caches = JobCaches()
+    batch_state = CompatibilityBatchState(caches=caches)
     catalog_cache = CatalogPreloadService(call_ml=call_ml, metrics=metrics)
     write_policy = get_write_rate_policy()
 
@@ -158,6 +160,9 @@ async def process_excel_compatibilities_end_to_end(
             manage_job_updates=False,
         )
         resolved_rows = chunk_resolution.get("results", [])
+        for resolved_row in resolved_rows:
+            if "original_row_index" in resolved_row:
+                resolved_row["original_row_index"] += start_index
         chunk_resolution_summary = chunk_resolution.get("summary", {})
 
         resolution_summary["processed_rows"] += int(
@@ -217,6 +222,7 @@ async def process_excel_compatibilities_end_to_end(
             rows=resolved_rows,
             metrics=metrics,
             on_progress=on_batch_progress,
+            state=batch_state,
         )
 
         all_final_rows.extend(batch_result.get("results", []))

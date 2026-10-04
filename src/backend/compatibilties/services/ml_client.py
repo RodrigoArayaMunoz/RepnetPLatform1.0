@@ -2,6 +2,9 @@ import asyncio
 import logging
 import random
 import time
+import math
+from datetime import timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -19,9 +22,17 @@ def _parse_retry_after_seconds(response: httpx.Response) -> float | None:
     retry_after = response.headers.get("retry-after")
     if retry_after:
         try:
-            return max(0.0, float(retry_after))
+            seconds = float(retry_after)
+            if math.isfinite(seconds):
+                return max(0.0, seconds)
         except ValueError:
-            return None
+            try:
+                retry_at = parsedate_to_datetime(retry_after)
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=timezone.utc)
+                return max(0.0, retry_at.timestamp() - time.time())
+            except (TypeError, ValueError, OverflowError):
+                pass
 
     for header_name in ("x-ratelimit-reset", "x-rate-limit-reset"):
         header_value = response.headers.get(header_name)
@@ -30,7 +41,7 @@ def _parse_retry_after_seconds(response: httpx.Response) -> float | None:
         try:
             reset_at = float(header_value)
             now = time.time()
-            if reset_at > now:
+            if math.isfinite(reset_at) and reset_at > now:
                 return max(0.0, reset_at - now)
         except ValueError:
             continue
@@ -108,6 +119,7 @@ class MercadoLibreClient:
         rate_limiter: Any | None = None,
         metrics: Any | None = None,
         expected_status_codes: set[int] | None = None,
+        timeout_seconds: float | None = None,
     ) -> Any:
         if not self.client:
             raise RuntimeError("MercadoLibreClient no inicializado")
@@ -145,6 +157,7 @@ class MercadoLibreClient:
                     headers=headers,
                     json=json_body,
                     params=params,
+                    **({"timeout": timeout_seconds} if timeout_seconds is not None else {}),
                 )
                 retryable_unknown_forbidden = (
                     method.upper() in {"GET", "HEAD"}
@@ -430,12 +443,16 @@ class MercadoLibreClient:
         access_token: str | None,
         item_id: str,
         user_id: int | str | None = None,
+        rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> dict:
         data = await self.request(
             "GET",
             f"/items/{item_id}",
             access_token=access_token,
             user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
         )
         if not isinstance(data, dict):
             raise HTTPException(
@@ -516,6 +533,8 @@ class MercadoLibreClient:
         attribute_id: str,
         known_attributes: list[dict] | None = None,
         user_id: int | str | None = None,
+        rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> list[dict]:
         payload: dict[str, Any] = {}
         if known_attributes:
@@ -527,6 +546,8 @@ class MercadoLibreClient:
             access_token=access_token,
             json_body=payload,
             user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
         )
 
         if isinstance(response, list):
@@ -553,6 +574,8 @@ class MercadoLibreClient:
         attributes: list[dict[str, Any]] | None = None,
         domain_id: str | None = None,
         user_id: int | str | None = None,
+        rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> int:
         response = await self.request(
             "POST",
@@ -563,6 +586,8 @@ class MercadoLibreClient:
                 "attributes": attributes or [],
             },
             user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
         )
 
         if isinstance(response, dict):
@@ -611,6 +636,8 @@ class MercadoLibreClient:
         restrictions: list | None = None,
         user_id: int | str | None = None,
         note: str = "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+        rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> dict:
         if not product_ids:
             return {"results": []}
@@ -646,6 +673,9 @@ class MercadoLibreClient:
             access_token=access_token,
             json_body=body,
             user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
+            timeout_seconds=settings.ml_compatibility_http_timeout_seconds,
         )
 
         #print(f"[DEBUG] RESPONSE:\n{_json.dumps(data if isinstance(data, dict) else {'raw': str(data)}, indent=2, ensure_ascii=False)}")
@@ -660,6 +690,8 @@ class MercadoLibreClient:
         category_id: str,
         product_families: list[dict[str, Any]],
         user_id: int | str | None = None,
+        rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> dict:
         if not product_families:
             return {"created_compatibilities_count": 0}
@@ -676,6 +708,9 @@ class MercadoLibreClient:
             access_token=access_token,
             json_body=body,
             user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
+            timeout_seconds=settings.ml_compatibility_http_timeout_seconds,
         )
 
         return data if isinstance(data, dict) else {"raw_response": data}
@@ -687,6 +722,8 @@ class MercadoLibreClient:
         category_id: str,
         product_families: list[dict[str, Any]],
         user_id: int | str | None = None,
+        rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> dict:
         if not product_families:
             return {"updated_compatibilities_count": 0}
@@ -711,6 +748,9 @@ class MercadoLibreClient:
             access_token=access_token,
             json_body=body,
             user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
+            timeout_seconds=settings.ml_compatibility_http_timeout_seconds,
         )
 
         return data if isinstance(data, dict) else {"raw_response": data}
@@ -755,6 +795,8 @@ class MercadoLibreClient:
         item_id: str,
         picture_urls: list[str] | None = None,
         user_id: int | str | None = None,
+        rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> dict:
         pictures = [
             {"source": str(url).strip()}
@@ -771,6 +813,9 @@ class MercadoLibreClient:
             access_token=access_token,
             json_body={"pictures": pictures},
             user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
+            timeout_seconds=settings.ml_item_pictures_http_timeout_seconds,
         )
 
         return data if isinstance(data, dict) else {"raw_response": data}
@@ -781,6 +826,8 @@ class MercadoLibreClient:
         item_id: str,
         comment: str,
         user_id: int | str | None = None,
+        rate_limiter: Any | None = None,
+        metrics: Any | None = None,
     ) -> dict:
         data = await self.request(
             "POST",
@@ -788,6 +835,9 @@ class MercadoLibreClient:
             access_token=access_token,
             json_body={"comment": comment},
             user_id=user_id,
+            rate_limiter=rate_limiter,
+            metrics=metrics,
+            timeout_seconds=settings.ml_compatibility_http_timeout_seconds,
         )
         return data if isinstance(data, dict) else {"raw_response": data}
 

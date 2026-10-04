@@ -21,7 +21,7 @@ def get_compatibility_chunk_pause_seconds() -> int:
             getattr(
                 settings,
                 "compatibility_chunk_pause_seconds",
-                3 * 60 + 30,
+                0,
             )
         ),
     )
@@ -34,7 +34,7 @@ def get_compatibility_exception_chunk_pause_seconds() -> int:
             getattr(
                 settings,
                 "compatibility_exception_chunk_pause_seconds",
-                get_process_file_chunk_pause_seconds(),
+                0,
             )
         ),
     )
@@ -64,10 +64,18 @@ def get_item_pictures_chunk_pause_seconds() -> int:
             getattr(
                 settings,
                 "item_pictures_chunk_pause_seconds",
-                get_process_file_chunk_pause_seconds(),
+                0,
             )
         ),
     )
+
+
+def get_item_pictures_chunk_size() -> int:
+    return max(1, int(getattr(settings, "item_pictures_chunk_size", 300)))
+
+
+def get_compatibility_chunk_size() -> int:
+    return max(1, int(getattr(settings, "compatibility_chunk_size", 300)))
 
 
 def get_sku_description_chunk_pause_seconds() -> int:
