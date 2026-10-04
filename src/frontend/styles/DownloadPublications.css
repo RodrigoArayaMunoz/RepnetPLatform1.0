@@ -52,6 +52,11 @@
   gap: 12px;
 }
 
+.download-publications-load-section[hidden],
+.download-publications-divider[hidden] {
+  display: none;
+}
+
 .download-publications-section-label,
 .download-publications-date-field label {
   color: #69758a;

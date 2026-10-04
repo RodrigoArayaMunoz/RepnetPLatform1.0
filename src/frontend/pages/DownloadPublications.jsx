@@ -392,7 +392,7 @@ export default function DownloadPublications({ authUserId }) {
         </header>
 
         <div className="download-publications-card">
-          <div className="download-publications-load-section">
+          <div className="download-publications-load-section" hidden>
             <span className="download-publications-section-label">
               Publicaciones de Mercado Libre
             </span>
@@ -477,6 +477,7 @@ export default function DownloadPublications({ authUserId }) {
           <div
             className="download-publications-divider"
             aria-hidden="true"
+            hidden
           />
 
           <div className="download-publications-filter-row">
