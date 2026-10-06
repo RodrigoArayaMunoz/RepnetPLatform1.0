@@ -36,6 +36,14 @@ class RefaxExportStreamTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_stream_route_sends_row_progress_and_exact_excel(self):
         products = [{"numero_refax": str(i).zfill(5), "precio": 1500, "stock": "Disponible"} for i in range(100)]
+        products[0].update({
+            "nombre_producto": "ESPEJO EXTERIOR",
+            "aplicaciones": ["CHEVROLET S10 [1994 - 1998]", "CHEVROLET BLAZER [1995 - 2000]"],
+            "imagenes_url": ["https://example.test/imagenA.jpg", "https://example.test/imagenB.jpg"],
+            "codigo_oem": ["17540-85E00", "4708770", "51821653"],
+            "codigo_fabrica": ["0-N1526", "27365", "534-0053-10"],
+            "fabrica": ["OPTIMAL", "FEBI BILSTEIN", "INA"],
+        })
         connection = SimpleNamespace(get_valid_token=AsyncMock(return_value="private-token"))
         service = RefaxProductsService(connection)
         service._request_products = AsyncMock(return_value=httpx.Response(200, json=products))
@@ -61,6 +69,13 @@ class RefaxExportStreamTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(workbook.active.max_row, 101)
             self.assertEqual(workbook.active["A2"].value, "00000")
             self.assertEqual(workbook.active["C2"].value, "Disponible")
+            self.assertEqual(workbook.active.max_column, 19)
+            self.assertEqual(workbook.active["D2"].value, "ESPEJO EXTERIOR")
+            self.assertEqual(workbook.active["L2"].value.splitlines(), products[0]["imagenes_url"])
+            self.assertEqual(workbook.active["Q2"].value.splitlines(), products[0]["aplicaciones"])
+            self.assertEqual(workbook.active["M2"].value.splitlines(), products[0]["codigo_oem"])
+            self.assertEqual(workbook.active["O2"].value.splitlines(), products[0]["codigo_fabrica"])
+            self.assertEqual(workbook.active["P2"].value.splitlines(), products[0]["fabrica"])
         finally:
             workbook.close()
         self.assertNotIn("private-token", response.text)

@@ -9,6 +9,9 @@
 
 .supplier-integrations-layout {
   width: min(100%, 1500px);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
   margin: 0 auto;
   padding: 38px 48px;
   box-sizing: border-box;
@@ -56,12 +59,40 @@
   color: #5f82f4;
 }
 
-.supplier-integration-card h1 {
+.supplier-integration-card h2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   margin: 0;
   color: #111827;
   font-size: 1.18rem;
   font-weight: 900;
   line-height: 1.25;
+}
+
+.supplier-integration-card__environment {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border: 1px solid;
+  border-radius: 6px;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.supplier-integration-card__environment--production {
+  border-color: #bce7d1;
+  background: #eaf8f0;
+  color: #178453;
+}
+
+.supplier-integration-card__environment--test {
+  border-color: #f5dfa4;
+  background: #fff8e6;
+  color: #9b690b;
 }
 
 .supplier-integration-card p {
@@ -137,10 +168,14 @@
   transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.supplier-integration-card__button:hover {
+.supplier-integration-card__button:not(:disabled):hover {
   background: #5f82f4;
   box-shadow: 0 10px 22px rgba(107, 140, 255, 0.28);
   transform: translateY(-1px);
+}
+
+.supplier-integration-card__button--idle:disabled {
+  cursor: not-allowed;
 }
 
 .supplier-integration-card__button--connecting,

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -10,18 +11,47 @@ from zipfile import ZipFile
 
 import httpx
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 from config import settings
 from services.refax_connection_service import (
     RefaxConnectionError,
     RefaxConnectionService,
     refax_connection_service,
+    refax_test_connection_service,
 )
 
 logger = logging.getLogger(__name__)
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ProgressCallback = Callable[[int, str, str], None]
+PRODUCT_COLUMNS = (
+    ("SKU", "numero_refax", 25),
+    ("PRECIO", "precio", 18),
+    ("STOCK", "stock", 20),
+    ("NOMBRE_PRODUCTO", "nombre_producto", 35),
+    ("GLOSA_1", "glosa_1", 45),
+    ("GLOSA_2", "glosa_2", 45),
+    ("GLOSA_3", "glosa_3", 45),
+    ("FACTOR", "factor", 15),
+    ("MARCA_PRODUCTO", "marca_producto", 25),
+    ("ORIGEN", "origen", 20),
+    ("RUBRO_COMERCIAL", "rubro_comercial", 25),
+    ("IMAGENES_URL", "imagenes_url", 80),
+    ("CODIGO_OEM", "codigo_oem", 25),
+    ("MARCA_OEM", "marca_oem", 25),
+    ("CODIGO_FABRICA", "codigo_fabrica", 25),
+    ("FABRICA", "fabrica", 25),
+    ("APLICACIONES", "aplicaciones", 80),
+    ("PRECIO_OFERTA_WEB", "precio_oferta_web", 25),
+    ("CANTIDAD_OFERTA_WEB", "cantidad_oferta_web", 25),
+)
+_NUMERIC_COLUMNS = {"PRECIO", "FACTOR", "PRECIO_OFERTA_WEB", "CANTIDAD_OFERTA_WEB"}
+_FIELD_ALIASES = {
+    "aplicaciones": ("aplicaciones", "aplicacion"),
+    "imagenes_url": ("imagenes_url", "imagen_url"),
+}
+_ILLEGAL_EXCEL_CHARACTERS = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F]")
 
 
 class RefaxProductsError(RuntimeError):
@@ -41,14 +71,28 @@ class RefaxProductsService:
 
     def __init__(
         self,
-        connection_service: RefaxConnectionService = refax_connection_service,
+        connection_service: RefaxConnectionService | None = None,
+        *,
+        environment: str = "production",
     ) -> None:
-        self.connection_service = connection_service
+        if environment not in {"production", "test"}:
+            raise ValueError("Ambiente REFAX no valido")
+        self.environment = environment
+        self.connection_service = connection_service if connection_service is not None else (
+            refax_test_connection_service
+            if environment == "test"
+            else refax_connection_service
+        )
 
     async def _request_products(
         self, token: str, on_progress: ProgressCallback | None = None
     ) -> httpx.Response:
-        url = f"{settings.refax_api_base_url.rstrip('/')}{self.PRODUCTS_PATH}"
+        prefix = "refax_test" if self.environment == "test" else "refax"
+        base_url = getattr(settings, f"{prefix}_api_base_url")
+        provider_code = getattr(settings, f"{prefix}_provider_code")
+        if not provider_code:
+            raise RefaxProductsError(f"Configura {prefix.upper()}_PROVIDER_CODE en el backend")
+        url = f"{base_url.rstrip('/')}{self.PRODUCTS_PATH}"
         timeout = httpx.Timeout(
             settings.refax_products_http_timeout_seconds,
             connect=min(15.0, settings.refax_products_http_timeout_seconds),
@@ -58,7 +102,7 @@ class RefaxProductsService:
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     request_options = {
-                        "params": {"codigo": settings.refax_provider_code},
+                        "params": {"codigo": provider_code},
                         "headers": {
                             "Authorization": f"Bearer {token}",
                             "Accept": "application/json",
@@ -152,6 +196,73 @@ class RefaxProductsService:
         text = format(number, "f")
         return text.rstrip("0").rstrip(".") if "." in text else text
 
+    @classmethod
+    def _field_text(
+        cls, value, *, row_number: int, column: str, required: bool = False,
+    ) -> str:
+        if isinstance(value, list):
+            # Cualquier campo puede tener varios valores. Conservar su orden
+            # y la estructura JSON de objetos y listas anidados.
+            text = "\n".join(
+                json.dumps(item, ensure_ascii=False)
+                if isinstance(item, (dict, list))
+                else cls._field_text(item, row_number=row_number, column=column)
+                for item in value
+            )
+            if required and not text.strip():
+                raise RefaxProductsError(
+                    f"REFAX entregó {column} inválido en el producto {row_number}."
+                )
+            return text
+        if isinstance(value, dict):
+            return json.dumps(value, ensure_ascii=False)
+        if value is None or value == "":
+            if required:
+                raise RefaxProductsError(
+                    f"REFAX entregó {column} inválido en el producto {row_number}."
+                )
+            return ""
+        if column == "SKU":
+            if isinstance(value, (str, int)) and not isinstance(value, bool) and str(value).strip():
+                return str(value)
+            raise RefaxProductsError(
+                f"REFAX entregó SKU inválido en el producto {row_number}."
+            )
+        if column in _NUMERIC_COLUMNS or (column == "STOCK" and not isinstance(value, str)):
+            return cls._decimal_text(
+                cls._number(value, row_number=row_number, column=column)
+            )
+        if isinstance(value, bool):
+            return json.dumps(value)
+        if isinstance(value, (str, int, float)):
+            return str(value)
+        raise RefaxProductsError(
+            f"REFAX entregó {column} inválido en el producto {row_number}."
+        )
+
+    @staticmethod
+    def _product_value(product: dict, field: str):
+        # PRODUCCION usa nombres plurales; TEST devuelve estos campos en singular.
+        for name in _FIELD_ALIASES.get(field, (field,)):
+            value = product.get(name)
+            if value not in (None, "", []):
+                return value
+        return None
+
+    @staticmethod
+    def _validate_excel_text(value: str, *, row_number: int, column: str) -> None:
+        # Excel recorta silenciosamente celdas largas. No entregar datos incompletos.
+        if len(value) > 32767:
+            raise RefaxProductsError(
+                f"{column} del producto {row_number} supera el límite de "
+                "32.767 caracteres por celda de Excel."
+            )
+        if _ILLEGAL_EXCEL_CHARACTERS.search(value):
+            raise RefaxProductsError(
+                f"REFAX entregó caracteres incompatibles con Excel en "
+                f"{column} del producto {row_number}."
+            )
+
     @staticmethod
     def _mark_export_as_intentional_text(content: bytes, last_row: int) -> bytes:
         # openpyxl no serializa ignoredErrors. Añadir la regla OOXML solo
@@ -167,7 +278,7 @@ class RefaxProductsService:
                         ElementTree.SubElement(
                             ignored,
                             f"{{{namespace}}}ignoredError",
-                            sqref=f"A2:C{last_row}",
+                            sqref=f"A2:{get_column_letter(len(PRODUCT_COLUMNS))}{last_row}",
                             numberStoredAsText="1",
                         )
                         data = ElementTree.tostring(sheet, encoding="utf-8")
@@ -197,14 +308,16 @@ class RefaxProductsService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "Productos"
-        worksheet.append(["SKU", "PRECIO", "STOCK"])
+        worksheet.append([header for header, _field, _width in PRODUCT_COLUMNS])
         worksheet.freeze_panes = "A2"
-        for column, width in (("A", 25), ("B", 18), ("C", 20)):
+        for column_index, (_header, _field, width) in enumerate(PRODUCT_COLUMNS, start=1):
+            column = get_column_letter(column_index)
             worksheet.column_dimensions[column].width = width
             worksheet.column_dimensions[column].number_format = "@"
         for cell in worksheet[1]:
             cell.font = Font(bold=True, color="FFFFFF")
             cell.fill = PatternFill("solid", fgColor="6B8CFF")
+        data_alignment = Alignment(wrap_text=True, vertical="top")
 
         try:
             for index, product in enumerate(products, start=1):
@@ -214,28 +327,29 @@ class RefaxProductsService:
                     raise RefaxProductsError(
                         f"Faltan SKU, PRECIO o STOCK en el producto {index} de REFAX."
                     )
-                sku = product["numero_refax"]
-                if not isinstance(sku, (str, int)) or isinstance(sku, bool) or not str(sku).strip():
-                    raise RefaxProductsError(f"REFAX entregó un SKU inválido en el producto {index}.")
-                price = cls._number(product["precio"], row_number=index, column="PRECIO")
-                stock = product["stock"]
-                # REFAX puede expresar disponibilidad sin cantidad. Conservarla
-                # literalmente, sin inventar unidades ni convertirla en cero.
-                if not isinstance(stock, str):
-                    stock = cls._decimal_text(
-                        cls._number(stock, row_number=index, column="STOCK")
+                values = [
+                    cls._field_text(
+                        cls._product_value(product, field), row_number=index, column=header,
+                        required=header in {"SKU", "PRECIO"},
                     )
-                worksheet.append([str(sku), cls._decimal_text(price), stock])
-                for cell in worksheet[index + 1]:
+                    for header, field, _width in PRODUCT_COLUMNS
+                ]
+                for (header, _field, _width), value in zip(PRODUCT_COLUMNS, values):
+                    cls._validate_excel_text(value, row_number=index, column=header)
+                worksheet.append(values)
+                for column_index in range(1, len(PRODUCT_COLUMNS) + 1):
+                    cell = worksheet.cell(row=index + 1, column=column_index)
                     # Texto real y formato Texto; evitar fórmulas y preservar SKU.
                     cell.data_type = "s"
                     cell.number_format = "@"
+                    cell.alignment = data_alignment
                 if on_progress and (index % max(1, total // 30) == 0 or index == total):
                     on_progress(
                         60 + int(30 * index / total), "building",
                         f"Generando Excel: {index:,} de {total:,} productos.",
                     )
-            worksheet.auto_filter.ref = f"A1:C{len(products) + 1}"
+            last_column = get_column_letter(len(PRODUCT_COLUMNS))
+            worksheet.auto_filter.ref = f"A1:{last_column}{len(products) + 1}"
             with BytesIO() as output:
                 if on_progress:
                     on_progress(90, "packaging", "Guardando las hojas del Excel…")
@@ -292,3 +406,4 @@ class RefaxProductsService:
 
 
 refax_products_service = RefaxProductsService()
+refax_test_products_service = RefaxProductsService(environment="test")

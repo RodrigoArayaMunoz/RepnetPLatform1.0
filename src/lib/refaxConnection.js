@@ -27,9 +27,25 @@ export function connectRefax() {
   return requestRefax("/refax/connect", { method: "POST" });
 }
 
-export async function downloadRefaxProducts({ onProgress, signal } = {}) {
+export function getTestRefaxStatus() {
+  return requestRefax("/refax/test/status", { method: "GET" });
+}
+
+export function connectTestRefax() {
+  return requestRefax("/refax/test/connect", { method: "POST" });
+}
+
+export function downloadRefaxProducts(options = {}) {
+  return downloadProducts("/refax/products/download", options);
+}
+
+export function downloadTestRefaxProducts(options = {}) {
+  return downloadProducts("/refax/test/products/download", options);
+}
+
+async function downloadProducts(path, { onProgress, signal } = {}) {
   onProgress?.({ stage: "preparing", percentage: 0 });
-  const response = await authFetch(`${API_BASE}/refax/products/download?progress=true`, {
+  const response = await authFetch(`${API_BASE}${path}?progress=true`, {
     method: "GET",
     credentials: "include",
     signal,

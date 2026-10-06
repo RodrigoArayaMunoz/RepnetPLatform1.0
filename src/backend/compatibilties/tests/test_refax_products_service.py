@@ -1,3 +1,4 @@
+import json
 import unittest
 from io import BytesIO
 from unittest.mock import AsyncMock, patch
@@ -16,6 +17,13 @@ from services.refax_products_service import (
     XLSX_CONTENT_TYPE,
 )
 
+EXPECTED_HEADERS = (
+    "SKU", "PRECIO", "STOCK", "NOMBRE_PRODUCTO", "GLOSA_1", "GLOSA_2",
+    "GLOSA_3", "FACTOR", "MARCA_PRODUCTO", "ORIGEN", "RUBRO_COMERCIAL",
+    "IMAGENES_URL", "CODIGO_OEM", "MARCA_OEM", "CODIGO_FABRICA", "FABRICA",
+    "APLICACIONES", "PRECIO_OFERTA_WEB", "CANTIDAD_OFERTA_WEB",
+)
+
 
 class RefaxProductsServiceTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -28,13 +36,13 @@ class RefaxProductsServiceTests(unittest.IsolatedAsyncioTestCase):
         service = RefaxProductsService(connection_service)
         return service, connection_service
 
-    async def test_download_returns_excel_with_only_sku_price_and_stock(self):
+    async def test_download_preserves_text_format_and_adds_product_columns(self):
         service, connection_service = self.build_service()
         service._request_products = AsyncMock(
             return_value=httpx.Response(
                 200,
                 json=[
-                    {"numero_refax": "00123", "precio": 1500, "stock": "5", "nombre_producto": "Omitir"},
+                    {"numero_refax": "00123", "precio": 1500, "stock": "5", "nombre_producto": "ESPEJO EXTERIOR"},
                     {"numero_refax": "ABC", "precio": 19.95, "stock": "Disponible"},
                     {"numero_refax": "=1+1", "precio": 0, "stock": "0"},
                     {"numero_refax": "00000", "precio": "1250.00", "stock": 6},
@@ -50,18 +58,19 @@ class RefaxProductsServiceTests(unittest.IsolatedAsyncioTestCase):
         try:
             sheet = workbook["Productos"]
             self.assertEqual(list(sheet.values), [
-                ("SKU", "PRECIO", "STOCK"),
-                ("00123", "1500", "5"),
-                ("ABC", "19.95", "Disponible"),
-                ("=1+1", "0", "0"),
-                ("00000", "1250", "6"),
+                EXPECTED_HEADERS,
+                ("00123", "1500", "5", "ESPEJO EXTERIOR") + (None,) * 15,
+                ("ABC", "19.95", "Disponible") + (None,) * 16,
+                ("=1+1", "0", "0") + (None,) * 16,
+                ("00000", "1250", "6") + (None,) * 16,
             ])
             for row in sheet.iter_rows(min_row=2):
                 for cell in row:
-                    self.assertEqual(cell.data_type, "s")
+                    if cell.value is not None:
+                        self.assertEqual(cell.data_type, "s")
                     self.assertEqual(cell.number_format, "@")
             self.assertEqual(sheet.freeze_panes, "A2")
-            self.assertEqual(sheet.auto_filter.ref, "A1:C5")
+            self.assertEqual(sheet.auto_filter.ref, "A1:S5")
         finally:
             workbook.close()
         # Excel consulta esta regla, no basta con aplicar el formato Texto.
@@ -71,9 +80,270 @@ class RefaxProductsServiceTests(unittest.IsolatedAsyncioTestCase):
             namespace = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
             ignored = sheet_xml.find("s:ignoredErrors/s:ignoredError", namespace)
             self.assertIsNotNone(ignored)
-            self.assertEqual(ignored.attrib, {"sqref": "A2:C5", "numberStoredAsText": "1"})
+            self.assertEqual(ignored.attrib, {"sqref": "A2:S5", "numberStoredAsText": "1"})
         connection_service.get_valid_token.assert_awaited_once()
         service._request_products.assert_awaited_once_with("private-token")
+
+    async def test_download_exports_all_fields_from_refax_example(self):
+        images = [
+            f"https://imagenes.refaxchile.cl:9092/FOTOGRAFIAS/0000001/0000001{suffix}.jpg"
+            for suffix in "ABCD"
+        ]
+        application = "CHEVROLET S10 PICK UP 2200 134CID L4 SOHC 8 VALV [1994 - 1998]"
+        product = {
+            "numero_refax": "0000001", "stock": "DISPONIBLE", "precio": 13990,
+            "nombre_producto": "ESPEJO EXTERIOR", "glosa_1": "IZQUIERDO ELECTRICO NEGRO",
+            "glosa_2": "", "glosa_3": "", "factor": 1, "marca_producto": "TYC",
+            "origen": "TAIWAN", "rubro_comercial": "ESPEJOS", "imagenes_url": images,
+            "codigo_oem": "17801665", "marca_oem": "", "codigo_fabrica": "388-GMD016",
+            "fabrica": "TYC", "aplicaciones": application,
+            "precio_oferta_web": 13990.00, "cantidad_oferta_web": 1,
+        }
+        service, _ = self.build_service()
+        service._request_products = AsyncMock(return_value=httpx.Response(200, json=[product]))
+
+        result = await service.download()
+
+        workbook = load_workbook(BytesIO(result.content))
+        try:
+            sheet = workbook["Productos"]
+            self.assertEqual(list(sheet.values), [
+                EXPECTED_HEADERS,
+                ("0000001", "13990", "DISPONIBLE", "ESPEJO EXTERIOR",
+                 "IZQUIERDO ELECTRICO NEGRO", None, None, "1", "TYC", "TAIWAN",
+                 "ESPEJOS", "\n".join(images), "17801665", None, "388-GMD016",
+                 "TYC", application, "13990", "1"),
+            ])
+            self.assertTrue(sheet["L2"].alignment.wrap_text)
+            self.assertTrue(sheet["Q2"].alignment.wrap_text)
+        finally:
+            workbook.close()
+
+    async def test_applications_preserve_single_text_multiple_texts_and_json_nodes(self):
+        applications = [
+            "CHEVROLET S10 [1994 - 1998]",
+            "CHEVROLET S10 [1994 - 1998]\nCHEVROLET BLAZER [1995 - 2000]",
+            ["CHEVROLET S10 [1994 - 1998]", "CHEVROLET BLAZER [1995 - 2000]"],
+            [
+                {"marca": "CHEVROLET", "modelo": "S10", "años": [1994, 1998]},
+                {"marca": "CHEVROLET", "modelo": "BLAZER", "años": [1995, 2000]},
+            ],
+            {"marca": "CHEVROLET", "modelos": ["S10", "BLAZER"]},
+            [], None,
+        ]
+        products = [
+            {"numero_refax": str(index).zfill(7), "precio": 0, "stock": "DISPONIBLE",
+             "aplicaciones": value, "factor": 0, "precio_oferta_web": 0,
+             "cantidad_oferta_web": 0, "imagenes_url": []}
+            for index, value in enumerate(applications)
+        ]
+        service, _ = self.build_service()
+        service._request_products = AsyncMock(return_value=httpx.Response(200, json=products))
+
+        result = await service.download()
+
+        workbook = load_workbook(BytesIO(result.content))
+        try:
+            rows = list(workbook.active.values)[1:]
+            self.assertEqual(rows[0][16], applications[0])
+            self.assertEqual(rows[1][16], applications[1])
+            self.assertEqual(rows[2][16].splitlines(), applications[2])
+            self.assertEqual([json.loads(line) for line in rows[3][16].splitlines()], applications[3])
+            self.assertEqual(json.loads(rows[4][16]), applications[4])
+            self.assertIsNone(rows[5][16])
+            self.assertIsNone(rows[6][16])
+            for row in rows:
+                self.assertEqual((row[7], row[17], row[18]), ("0", "0", "0"))
+                self.assertIsNone(row[11])
+        finally:
+            workbook.close()
+
+    async def test_singular_test_fields_preserve_single_and_multiple_applications_and_images(self):
+        products = [
+            {
+                "numero_refax": "0000001", "precio": 1500, "stock": "Disponible",
+                "aplicacion": "CHEVROLET S10 [1994 - 1998]",
+                "imagen_url": ["https://example.test/a.jpg", "https://example.test/b.jpg"],
+            },
+            {
+                "numero_refax": "0000002", "precio": 0, "stock": 0,
+                "aplicacion": ["CHEVROLET S10 [1994 - 1998]", "CHEVROLET COMBO [2003 - 2005]"],
+                "imagen_url": "https://example.test/c.jpg",
+            },
+        ]
+        service, _ = self.build_service()
+        service._request_products = AsyncMock(return_value=httpx.Response(200, json=products))
+        result = await service.download()
+        workbook = load_workbook(BytesIO(result.content))
+        try:
+            sheet = workbook["Productos"]
+            self.assertEqual(tuple(cell.value for cell in sheet[1]), EXPECTED_HEADERS)
+            self.assertEqual(sheet["Q2"].value, products[0]["aplicacion"])
+            self.assertEqual(sheet["Q3"].value.splitlines(), products[1]["aplicacion"])
+            self.assertEqual(sheet["L2"].value.splitlines(), products[0]["imagen_url"])
+            self.assertEqual(sheet["L3"].value, products[1]["imagen_url"])
+            self.assertEqual(sheet["B3"].value, "0")
+            self.assertEqual(sheet["C3"].value, "0")
+            for coordinate in ("L2", "L3", "Q2", "Q3"):
+                self.assertEqual(sheet[coordinate].data_type, "s")
+                self.assertEqual(sheet[coordinate].number_format, "@")
+                self.assertTrue(sheet[coordinate].alignment.wrap_text)
+        finally:
+            workbook.close()
+
+    async def test_aliases_preserve_plural_values_and_use_singular_when_plural_is_empty(self):
+        products = [
+            {
+                "numero_refax": str(index).zfill(7), "precio": 0, "stock": "Disponible",
+                "aplicaciones": value, "aplicacion": "APPLICATION FROM TEST",
+                "imagenes_url": value, "imagen_url": "https://example.test/test.jpg",
+            }
+            for index, value in enumerate((None, "", [], "CANONICAL VALUE"))
+        ]
+        service, _ = self.build_service()
+        service._request_products = AsyncMock(return_value=httpx.Response(200, json=products))
+        result = await service.download()
+        workbook = load_workbook(BytesIO(result.content))
+        try:
+            rows = list(workbook["Productos"].values)[1:]
+            for row in rows[:3]:
+                self.assertEqual(row[16], "APPLICATION FROM TEST")
+                self.assertEqual(row[11], "https://example.test/test.jpg")
+            self.assertEqual(rows[3][16], "CANONICAL VALUE")
+            self.assertEqual(rows[3][11], "CANONICAL VALUE")
+        finally:
+            workbook.close()
+
+    async def test_long_singular_application_fails_instead_of_being_silently_truncated(self):
+        service, _ = self.build_service()
+        service._request_products = AsyncMock(return_value=httpx.Response(200, json=[{
+            "numero_refax": "0000001", "precio": 0, "stock": "Disponible",
+            "aplicacion": "x" * 32768,
+        }]))
+        with self.assertRaisesRegex(RefaxProductsError, "APLICACIONES.*32.767"):
+            await service.download()
+
+    async def test_additional_fields_are_text_and_never_excel_formulas(self):
+        service, _ = self.build_service()
+        service._request_products = AsyncMock(return_value=httpx.Response(200, json=[{
+            "numero_refax": "0000001", "precio": 1, "stock": "DISPONIBLE",
+            "nombre_producto": "=1+1", "codigo_oem": "0000123",
+            "aplicaciones": ["=1+1", "+2"],
+        }]))
+
+        result = await service.download()
+
+        workbook = load_workbook(BytesIO(result.content))
+        try:
+            self.assertEqual(workbook.active["D2"].value, "=1+1")
+            self.assertEqual(workbook.active["M2"].value, "0000123")
+            self.assertEqual(workbook.active["Q2"].value, "=1+1\n+2")
+            for column in ("D", "M", "Q"):
+                self.assertEqual(workbook.active[f"{column}2"].data_type, "s")
+        finally:
+            workbook.close()
+
+    async def test_download_exports_oem_factory_codes_and_factories_as_lists(self):
+        product = {
+            "numero_refax": "0000006", "precio": 13990, "stock": "DISPONIBLE",
+            "codigo_oem": ["17540-85E00", "4708770", "51821653"],
+            "codigo_fabrica": ["0-N1526", "27365", "534-0053-10"],
+            "fabrica": ["OPTIMAL", "FEBI BILSTEIN", "INA"],
+            "aplicaciones": ["CHEVROLET COMBO VAN 1300 Z13DT DOHC 16 VALV [2005 - 2011]"],
+        }
+        service, _ = self.build_service()
+        service._request_products = AsyncMock(return_value=httpx.Response(200, json=[product]))
+
+        result = await service.download()
+
+        workbook = load_workbook(BytesIO(result.content))
+        try:
+            sheet = workbook["Productos"]
+            self.assertEqual(sheet["M2"].value.splitlines(), product["codigo_oem"])
+            self.assertEqual(sheet["O2"].value.splitlines(), product["codigo_fabrica"])
+            self.assertEqual(sheet["P2"].value.splitlines(), product["fabrica"])
+            self.assertEqual(sheet["A2"].value, "0000006")
+        finally:
+            workbook.close()
+
+    async def test_every_column_accepts_lists_including_prices_stock_and_sku(self):
+        product = {
+            "numero_refax": ["0000006"], "precio": [13990.00, 0, "19.95"],
+            "stock": ["DISPONIBLE", 0], "nombre_producto": ["ESPEJO", "=1+1"],
+            "glosa_1": ["IZQUIERDO", "NEGRO"], "glosa_2": ["A", "B"],
+            "glosa_3": ["C", "D"], "factor": [1, 0],
+            "marca_producto": ["TYC", "INA"], "origen": ["TAIWAN", "CHINA"],
+            "rubro_comercial": ["ESPEJOS", "ACCESORIOS"],
+            "imagenes_url": ["https://example.test/A.jpg", "https://example.test/B.jpg"],
+            "codigo_oem": ["00001", "00002"], "marca_oem": ["GM", "OPEL"],
+            "codigo_fabrica": ["0-N1526", "27365"], "fabrica": ["OPTIMAL", "INA"],
+            "aplicaciones": ["CHEVROLET COMBO", "OPEL CORSA"],
+            "precio_oferta_web": ["1250.00", 0], "cantidad_oferta_web": [1, 2],
+        }
+        service, _ = self.build_service()
+        service._request_products = AsyncMock(return_value=httpx.Response(200, json=[product]))
+
+        result = await service.download()
+
+        workbook = load_workbook(BytesIO(result.content))
+        try:
+            sheet = workbook["Productos"]
+            self.assertEqual(list(sheet.values), [
+                EXPECTED_HEADERS,
+                ("0000006", "13990\n0\n19.95", "DISPONIBLE\n0", "ESPEJO\n=1+1",
+                 "IZQUIERDO\nNEGRO", "A\nB", "C\nD", "1\n0", "TYC\nINA",
+                 "TAIWAN\nCHINA", "ESPEJOS\nACCESORIOS",
+                 "https://example.test/A.jpg\nhttps://example.test/B.jpg",
+                 "00001\n00002", "GM\nOPEL", "0-N1526\n27365", "OPTIMAL\nINA",
+                 "CHEVROLET COMBO\nOPEL CORSA", "1250\n0", "1\n2"),
+            ])
+            for cell in sheet[2]:
+                self.assertEqual(cell.data_type, "s")
+                self.assertEqual(cell.number_format, "@")
+                self.assertTrue(cell.alignment.wrap_text)
+        finally:
+            workbook.close()
+
+    async def test_optional_fields_preserve_nested_nodes_empty_values_and_numeric_zero(self):
+        nested = {"fabricantes": ["INA", "OPTIMAL"], "codigo": "00001", "activo": False}
+        products = [
+            {"numero_refax": "0000006", "precio": 0, "stock": "DISPONIBLE",
+             "codigo_oem": ["00001", nested, ["00002", "00003"], None, ""],
+             "fabrica": nested, "glosa_1": False,
+             "factor": [None, "", 0, 1.5], "precio_oferta_web": [],
+             "cantidad_oferta_web": None},
+            {"numero_refax": "0000007", "precio": 0, "stock": "DISPONIBLE",
+             "codigo_oem": [], "codigo_fabrica": None, "fabrica": []},
+        ]
+        service, _ = self.build_service()
+        service._request_products = AsyncMock(return_value=httpx.Response(200, json=products))
+
+        result = await service.download()
+
+        workbook = load_workbook(BytesIO(result.content))
+        try:
+            sheet = workbook["Productos"]
+            entries = sheet["M2"].value.split("\n")
+            self.assertEqual(entries[0], "00001")
+            self.assertEqual(json.loads(entries[1]), nested)
+            self.assertEqual(json.loads(entries[2]), ["00002", "00003"])
+            self.assertEqual(entries[3:], ["", ""])
+            self.assertEqual(json.loads(sheet["P2"].value), nested)
+            self.assertEqual(sheet["E2"].value, "false")
+            self.assertEqual(sheet["H2"].value, "\n\n0\n1.5")
+            for coordinate in ("R2", "S2", "M3", "O3", "P3"):
+                self.assertIsNone(sheet[coordinate].value)
+        finally:
+            workbook.close()
+
+    async def test_long_application_text_fails_instead_of_silently_truncating(self):
+        service, _ = self.build_service()
+        service._request_products = AsyncMock(return_value=httpx.Response(200, json=[{
+            "numero_refax": "0000001", "precio": 1, "stock": "DISPONIBLE",
+            "aplicaciones": "x" * 32768,
+        }]))
+        with self.assertRaisesRegex(RefaxProductsError, "APLICACIONES.*32.767"):
+            await service.download()
 
     async def test_download_renews_and_retries_an_unauthorized_token(self):
         service, connection_service = self.build_service()

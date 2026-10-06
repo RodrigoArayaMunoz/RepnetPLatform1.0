@@ -11,7 +11,7 @@ from services.refax_products_service import RefaxProductsDownload, RefaxProducts
 logger = logging.getLogger(__name__)
 
 
-async def stream_refax_export(service):
+async def stream_refax_export(service, *, filename_prefix="productos_refax"):
     """Progreso y archivo de una sola consulta autenticada, sin trabajos huérfanos."""
     queue = asyncio.Queue()
     loop = asyncio.get_running_loop()
@@ -60,7 +60,7 @@ async def stream_refax_export(service):
                 continue
             if isinstance(event, RefaxProductsDownload):
                 timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
-                yield encode({"type": "file", "filename": f"productos_refax_{timestamp}.xlsx",
+                yield encode({"type": "file", "filename": f"{filename_prefix}_{timestamp}.xlsx",
                               "content_type": event.content_type, "size": len(event.content)})
                 for offset in range(0, len(event.content), 32 * 1024):
                     yield encode({"type": "chunk", "data": base64.b64encode(

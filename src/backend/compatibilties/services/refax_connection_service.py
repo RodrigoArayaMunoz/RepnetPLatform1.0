@@ -10,6 +10,7 @@ from config import settings
 from services.supabase_refax_connection_store import (
     SupabaseRefaxConnectionStore,
     supabase_refax_connection_store,
+    supabase_refax_test_connection_store,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,9 +25,18 @@ class RefaxConnectionService:
 
     def __init__(
         self,
-        store: SupabaseRefaxConnectionStore = supabase_refax_connection_store,
+        store: SupabaseRefaxConnectionStore | None = None,
+        *,
+        environment: str = "production",
     ) -> None:
-        self.store = store
+        if environment not in SupabaseRefaxConnectionStore.ENVIRONMENT_IDS:
+            raise ValueError("Ambiente REFAX no valido")
+        self.environment = environment
+        self.store = store if store is not None else (
+            supabase_refax_test_connection_store
+            if environment == "test"
+            else supabase_refax_connection_store
+        )
         self._refresh_lock = asyncio.Lock()
         self._refresh_task: asyncio.Task | None = None
 
@@ -46,10 +56,20 @@ class RefaxConnectionService:
             parsed = parsed.replace(tzinfo=UTC)
         return parsed.astimezone(UTC)
 
-    @staticmethod
-    def _configuration_error() -> str | None:
-        if not settings.refax_provider_code or not settings.refax_api_key:
-            return "Configura REFAX_PROVIDER_CODE y REFAX_API_KEY en el backend"
+    def _connection_settings(self) -> tuple[str, str | None, str | None, int]:
+        prefix = "refax_test" if self.environment == "test" else "refax"
+        return (
+            getattr(settings, f"{prefix}_api_base_url"),
+            getattr(settings, f"{prefix}_provider_code"),
+            getattr(settings, f"{prefix}_api_key"),
+            getattr(settings, f"{prefix}_country_code"),
+        )
+
+    def _configuration_error(self) -> str | None:
+        _, provider_code, api_key, _ = self._connection_settings()
+        if not provider_code or not api_key:
+            prefix = "REFAX_TEST" if self.environment == "test" else "REFAX"
+            return f"Configura {prefix}_PROVIDER_CODE y {prefix}_API_KEY en el backend"
         if (
             settings.refax_token_refresh_after_seconds
             >= settings.refax_token_lifetime_seconds
@@ -62,11 +82,12 @@ class RefaxConnectionService:
         if configuration_error:
             raise RefaxConnectionError(configuration_error)
 
-        url = f"{settings.refax_api_base_url.rstrip('/')}{self.TOKEN_PATH}"
+        base_url, provider_code, api_key, country_code = self._connection_settings()
+        url = f"{base_url.rstrip('/')}{self.TOKEN_PATH}"
         payload = {
-            "codigo": settings.refax_provider_code,
-            "clave": settings.refax_api_key,
-            "pais": settings.refax_country_code,
+            "codigo": provider_code,
+            "clave": api_key,
+            "pais": country_code,
         }
 
         try:
@@ -169,7 +190,7 @@ class RefaxConnectionService:
             try:
                 return await self._authenticate()
             except (RefaxConnectionError, RuntimeError) as error:
-                logger.warning("No se pudo renovar el token REFAX: %s", error)
+                logger.warning("No se pudo renovar el token REFAX %s: %s", self.environment, error)
                 expired = not self._is_connected(current)
                 with suppress(RuntimeError):
                     await self.store.record_failure(
@@ -212,19 +233,20 @@ class RefaxConnectionService:
             except asyncio.CancelledError:
                 raise
             except Exception as error:
-                logger.warning("Revision automatica de REFAX fallo: %s", error)
+                logger.warning("Revision automatica de REFAX %s fallo: %s", self.environment, error)
 
     async def startup(self) -> None:
         if self._refresh_task and not self._refresh_task.done():
             return
         if not self.store.can_access or self._configuration_error():
             logger.warning(
-                "Renovacion automatica REFAX inactiva: revisa credenciales y Supabase"
+                "Renovacion automatica REFAX %s inactiva: revisa credenciales y Supabase",
+                self.environment,
             )
             return
         self._refresh_task = asyncio.create_task(
             self._refresh_loop(),
-            name="refax-token-refresh",
+            name=f"refax-{self.environment}-token-refresh",
         )
 
     async def shutdown(self) -> None:
@@ -237,3 +259,4 @@ class RefaxConnectionService:
 
 
 refax_connection_service = RefaxConnectionService()
+refax_test_connection_service = RefaxConnectionService(environment="test")

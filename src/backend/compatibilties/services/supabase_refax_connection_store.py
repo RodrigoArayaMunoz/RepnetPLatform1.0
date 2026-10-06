@@ -9,9 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 class SupabaseRefaxConnectionStore:
-    SINGLETON_ID = 1
+    ENVIRONMENT_IDS = {"production": 1, "test": 2}
 
-    def __init__(self) -> None:
+    def __init__(self, environment: str = "production") -> None:
+        if environment not in self.ENVIRONMENT_IDS:
+            raise ValueError("Ambiente REFAX no valido")
+        self.environment = environment
+        self.connection_id = self.ENVIRONMENT_IDS[environment]
         self.table_name = settings.supabase_refax_connection_table
 
     @property
@@ -98,7 +102,8 @@ class SupabaseRefaxConnectionStore:
         data = await self._request(
             "GET",
             params={
-                "id": f"eq.{self.SINGLETON_ID}",
+                "id": f"eq.{self.connection_id}",
+                "environment": f"eq.{self.environment}",
                 "select": (
                     "id,is_active,access_token,obtained_at,refresh_at,"
                     "expires_at,last_error,updated_at"
@@ -115,7 +120,8 @@ class SupabaseRefaxConnectionStore:
             "POST",
             params={"on_conflict": "id"},
             json_body={
-                "id": self.SINGLETON_ID,
+                "id": self.connection_id,
+                "environment": self.environment,
                 "is_active": True,
                 "access_token": payload["access_token"],
                 "obtained_at": payload["obtained_at"],
@@ -143,7 +149,10 @@ class SupabaseRefaxConnectionStore:
                 update["is_active"] = False
             await self._request(
                 "PATCH",
-                params={"id": f"eq.{self.SINGLETON_ID}"},
+                params={
+                    "id": f"eq.{self.connection_id}",
+                    "environment": f"eq.{self.environment}",
+                },
                 json_body=update,
             )
             return
@@ -152,7 +161,8 @@ class SupabaseRefaxConnectionStore:
             "POST",
             params={"on_conflict": "id"},
             json_body={
-                "id": self.SINGLETON_ID,
+                "id": self.connection_id,
+                "environment": self.environment,
                 "is_active": False,
                 "last_error": message[:1000],
             },
@@ -161,3 +171,4 @@ class SupabaseRefaxConnectionStore:
 
 
 supabase_refax_connection_store = SupabaseRefaxConnectionStore()
+supabase_refax_test_connection_store = SupabaseRefaxConnectionStore("test")

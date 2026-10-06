@@ -15,20 +15,33 @@ REFAX_KEYS = (
     "REFAX_API_KEY",
     "REFAX_API_BASE_URL",
     "REFAX_COUNTRY_CODE",
+    "REFAX_TEST_PROVIDER_CODE",
+    "REFAX_TEST_API_KEY",
+    "REFAX_TEST_API_BASE_URL",
+    "REFAX_TEST_COUNTRY_CODE",
 )
 
 
 def validate_values(values: dict[str, str]) -> None:
-    if not values.get("REFAX_PROVIDER_CODE") or not values.get("REFAX_API_KEY"):
-        raise ValueError("Configura ambos secretos REFAX_PROVIDER_CODE y REFAX_API_KEY")
     for key, value in values.items():
         if key not in REFAX_KEYS or not isinstance(value, str):
             raise ValueError("Configuracion REFAX no valida")
         if any(character in value for character in "\r\n\x00"):
             raise ValueError(f"{key} debe contener un valor de una sola linea")
-    country = values.get("REFAX_COUNTRY_CODE")
-    if country and (not country.isdigit() or int(country) < 1):
-        raise ValueError("REFAX_COUNTRY_CODE debe ser un entero positivo")
+    if not values:
+        raise ValueError("Faltan las credenciales REFAX")
+    for prefix in ("REFAX", "REFAX_TEST"):
+        keys = (
+            f"{prefix}_PROVIDER_CODE", f"{prefix}_API_KEY",
+            f"{prefix}_API_BASE_URL", f"{prefix}_COUNTRY_CODE",
+        )
+        if not any(key in values for key in keys):
+            continue
+        if not values.get(keys[0]) or not values.get(keys[1]):
+            raise ValueError(f"Configura ambos secretos {keys[0]} y {keys[1]}")
+        country = values.get(keys[3])
+        if country and (not country.isdigit() or int(country) < 1):
+            raise ValueError(f"{keys[3]} debe ser un entero positivo")
 
 
 def update_env(env_path: Path, values: dict[str, str]) -> None:

@@ -7,10 +7,12 @@ from services.refax_export_stream import stream_refax_export
 from services.refax_connection_service import (
     RefaxConnectionError,
     refax_connection_service,
+    refax_test_connection_service,
 )
 from services.refax_products_service import (
     RefaxProductsError,
     refax_products_service,
+    refax_test_products_service,
 )
 
 router = APIRouter(prefix="/refax", tags=["REFAX"])
@@ -38,16 +40,51 @@ async def refax_connect():
         ) from error
 
 
+@router.get("/test/status")
+async def refax_test_status():
+    try:
+        return await refax_test_connection_service.status()
+    except RefaxConnectionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+
+
+@router.post("/test/connect")
+async def refax_test_connect():
+    try:
+        return await refax_test_connection_service.connect()
+    except RefaxConnectionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
+
+
 @router.get("/products/download")
 async def download_refax_products(progress: bool = Query(False)):
+    return await _download_refax_products(
+        refax_products_service, progress=progress, filename_prefix="productos_refax"
+    )
+
+
+@router.get("/test/products/download")
+async def download_test_refax_products(progress: bool = Query(False)):
+    return await _download_refax_products(
+        refax_test_products_service, progress=progress, filename_prefix="productos_refax_test"
+    )
+
+
+async def _download_refax_products(service, *, progress: bool, filename_prefix: str):
     if progress is True:
         return StreamingResponse(
-            stream_refax_export(refax_products_service),
+            stream_refax_export(service, filename_prefix=filename_prefix),
             media_type="application/x-ndjson",
             headers={"Cache-Control": "no-store, no-transform", "X-Accel-Buffering": "no"},
         )
     try:
-        download = await refax_products_service.download()
+        download = await service.download()
     except RefaxProductsError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -60,7 +97,7 @@ async def download_refax_products(progress: bool = Query(False)):
         media_type=download.content_type.split(";", 1)[0],
         headers={
             "Content-Disposition": (
-                f'attachment; filename="productos_refax_{timestamp}.xlsx"'
+                f'attachment; filename="{filename_prefix}_{timestamp}.xlsx"'
             ),
             "Cache-Control": "no-store",
         },

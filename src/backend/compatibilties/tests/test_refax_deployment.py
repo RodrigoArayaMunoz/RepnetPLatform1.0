@@ -56,6 +56,26 @@ class RefaxEnvironmentTests(unittest.TestCase):
         update_env(self.env_path, self.values)
         self.assertEqual(self.env_path.read_text(encoding="utf-8"), first)
 
+    def test_test_credentials_can_be_updated_without_changing_production(self):
+        values = {
+            "REFAX_TEST_PROVIDER_CODE": "test-provider",
+            "REFAX_TEST_API_KEY": "private-test-key#@",
+            "REFAX_TEST_API_BASE_URL": "http://apitest.refax.com:8098",
+            "REFAX_TEST_COUNTRY_CODE": "1",
+        }
+        production_before = dotenv_values(self.env_path, interpolate=False)
+        update_env(self.env_path, values)
+        parsed = dotenv_values(self.env_path, interpolate=False)
+        for key, value in production_before.items():
+            self.assertEqual(parsed[key], value)
+        for key, value in values.items():
+            self.assertEqual(parsed[key], value)
+
+    def test_incomplete_test_credentials_never_modify_env(self):
+        with self.assertRaises(ValueError):
+            update_env(self.env_path, {**self.values, "REFAX_TEST_PROVIDER_CODE": "test-provider"})
+        self.assertEqual(self.env_path.read_text(encoding="utf-8"), self.original)
+
     def test_invalid_or_incomplete_configuration_never_modifies_env(self):
         invalid_values = [
             {"REFAX_PROVIDER_CODE": "only-code"},

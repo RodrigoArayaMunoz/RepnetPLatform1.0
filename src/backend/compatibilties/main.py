@@ -16,7 +16,10 @@ from schemas import JobResponse
 from services.auth_guard import is_public_path, verify_supabase_request
 from services.ml_publicationswithout_service import ml_publications_service
 from services.supabase_meli_connection_store import supabase_meli_connection_store
-from services.refax_connection_service import refax_connection_service
+from services.refax_connection_service import (
+    refax_connection_service,
+    refax_test_connection_service,
+)
 from services.token_store import token_store, require_ml_env
 from services.job_store import JobStore
 from services.ml_client import ml_client
@@ -38,7 +41,9 @@ async def lifespan(app: FastAPI):
     await ml_client.startup()
     await supabase_meli_connection_store.restore_token_store()
     await refax_connection_service.startup()
+    await refax_test_connection_service.startup()
     yield
+    await refax_test_connection_service.shutdown()
     await refax_connection_service.shutdown()
     await ml_client.shutdown()
 

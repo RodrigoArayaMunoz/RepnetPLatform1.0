@@ -80,6 +80,10 @@ jobs:
           REFAX_API_KEY: ${{ secrets.REFAX_API_KEY }}
           REFAX_API_BASE_URL: ${{ secrets.REFAX_API_BASE_URL }}
           REFAX_COUNTRY_CODE: ${{ secrets.REFAX_COUNTRY_CODE }}
+          REFAX_TEST_PROVIDER_CODE: ${{ secrets.REFAX_TEST_PROVIDER_CODE }}
+          REFAX_TEST_API_KEY: ${{ secrets.REFAX_TEST_API_KEY }}
+          REFAX_TEST_API_BASE_URL: ${{ secrets.REFAX_TEST_API_BASE_URL }}
+          REFAX_TEST_COUNTRY_CODE: ${{ secrets.REFAX_TEST_COUNTRY_CODE }}
         run: |
           python src/backend/compatibilties/scripts/configure_refax_env.py \
             --ssh-host "$VPS_USER@$VPS_HOST" \

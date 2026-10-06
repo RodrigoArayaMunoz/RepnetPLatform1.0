@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     refax_provider_code: str | None = None
     refax_api_key: str | None = None
     refax_country_code: int = 1
+    refax_test_api_base_url: str = "http://apitest.refax.com:8098"
+    refax_test_provider_code: str | None = None
+    refax_test_api_key: str | None = None
+    refax_test_country_code: int = 1
     refax_token_lifetime_seconds: int = Field(default=8 * 60 * 60, ge=60)
     refax_token_refresh_after_seconds: int = Field(
         default=7 * 60 * 60 + 45 * 60,

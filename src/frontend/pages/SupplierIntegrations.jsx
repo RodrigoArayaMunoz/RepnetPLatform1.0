@@ -3,17 +3,23 @@ import { Download, LoaderCircle, Plug } from "lucide-react";
 import RefaxDownloadModal from "../components/RefaxDownloadModal.jsx";
 import {
   connectRefax as requestRefaxConnection,
+  connectTestRefax as requestTestRefaxConnection,
   downloadRefaxProducts as requestRefaxProducts,
+  downloadTestRefaxProducts as requestTestRefaxProducts,
   getRefaxStatus as requestRefaxStatus,
+  getTestRefaxStatus as requestTestRefaxStatus,
 } from "../../lib/refaxConnection.js";
 import "../styles/SupplierIntegrations.css";
 
-export default function SupplierIntegrations({
-  connectRefax = requestRefaxConnection,
-  getRefaxStatus = requestRefaxStatus,
-  onDownloadProducts = requestRefaxProducts,
+function RefaxIntegrationCard({
+  environment,
+  connectRefax,
+  getRefaxStatus,
+  onDownloadProducts,
 }) {
-  const [connectionStatus, setConnectionStatus] = useState("checking");
+  const [connectionStatus, setConnectionStatus] = useState(
+    getRefaxStatus ? "checking" : "idle"
+  );
   const [connectionError, setConnectionError] = useState("");
   const [downloadStatus, setDownloadStatus] = useState("idle");
   const [downloadError, setDownloadError] = useState("");
@@ -37,6 +43,8 @@ export default function SupplierIntegrations({
   }, [downloadStatus]);
 
   useEffect(() => {
+    if (!getRefaxStatus) return undefined;
+
     let isMounted = true;
 
     getRefaxStatus()
@@ -59,7 +67,7 @@ export default function SupplierIntegrations({
   }, [getRefaxStatus]);
 
   const handleConnect = async () => {
-    if (isBusy || isConnected) return;
+    if (!connectRefax || isBusy || isConnected) return;
 
     setConnectionStatus("connecting");
     setConnectionError("");
@@ -80,7 +88,12 @@ export default function SupplierIntegrations({
   };
 
   const handleDownloadProducts = async () => {
-    if (!isConnected || isDownloading || downloadController.current) return;
+    if (
+      !onDownloadProducts ||
+      !isConnected ||
+      isDownloading ||
+      downloadController.current
+    ) return;
 
     const controller = new AbortController();
     downloadController.current = controller;
@@ -128,76 +141,119 @@ export default function SupplierIntegrations({
         : "Conectar";
 
   return (
-    <section className="supplier-integrations-page">
+    <>
       {isDownloading && (
         <RefaxDownloadModal
           progress={downloadProgress}
           complete={downloadStatus === "complete"}
         />
       )}
-      <div className="supplier-integrations-layout">
-        <article className="supplier-integration-card">
-          <div className="supplier-integration-card__content">
-            <div className="supplier-integration-card__identity">
-              <span className="supplier-integration-card__icon" aria-hidden="true">
-                <Plug size={23} strokeWidth={2} />
-              </span>
+      <article
+        className="supplier-integration-card"
+        aria-label={`Integración REFAX ${environment}`}
+      >
+        <div className="supplier-integration-card__content">
+          <div className="supplier-integration-card__identity">
+            <span className="supplier-integration-card__icon" aria-hidden="true">
+              <Plug size={23} strokeWidth={2} />
+            </span>
 
-              <div>
-                <h1>Integración REFAX</h1>
-                <p>Conecta tu cuenta de proveedor con la plataforma.</p>
-              </div>
+            <div>
+              <h2>
+                Integración REFAX
+                <span
+                  className={`supplier-integration-card__environment supplier-integration-card__environment--${environment === "TEST" ? "test" : "production"}`}
+                >
+                  {environment}
+                </span>
+              </h2>
+              <p>Conecta tu cuenta de proveedor con la plataforma.</p>
             </div>
-
-            <button
-              type="button"
-              className="supplier-integration-card__download-button"
-              onClick={handleDownloadProducts}
-              disabled={!isConnected || isDownloading}
-              aria-busy={isDownloading}
-              title={
-                isConnected
-                  ? "Descargar Excel con SKU, PRECIO y STOCK desde REFAX"
-                  : "Conecta REFAX correctamente para descargar productos"
-              }
-            >
-              {isDownloading ? (
-                <LoaderCircle
-                  className="supplier-integration-card__spinner"
-                  size={17}
-                  aria-hidden="true"
-                />
-              ) : (
-                <Download size={17} aria-hidden="true" />
-              )}
-              {isDownloading ? "Preparando Excel..." : "Descargar Productos"}
-            </button>
-
-            {connectionError || downloadError ? (
-              <p className="supplier-integration-card__error" role="alert">
-                {connectionError || downloadError}
-              </p>
-            ) : null}
           </div>
 
           <button
             type="button"
-            className={`supplier-integration-card__button supplier-integration-card__button--${connectionStatus}`}
-            onClick={handleConnect}
-            disabled={isBusy || isConnected}
-            aria-busy={isBusy}
-            aria-live="polite"
+            className="supplier-integration-card__download-button"
+            onClick={handleDownloadProducts}
+            disabled={!onDownloadProducts || !isConnected || isDownloading}
+            aria-busy={isDownloading}
+            title={
+              !onDownloadProducts
+                ? "La descarga de productos TEST está pendiente de configuración"
+                : isConnected
+                  ? "Descargar Excel con todos los datos de productos REFAX, imágenes y aplicaciones por SKU"
+                  : "Conecta REFAX correctamente para descargar productos"
+            }
           >
-            {isBusy ? (
+            {isDownloading ? (
               <LoaderCircle
                 className="supplier-integration-card__spinner"
                 size={17}
                 aria-hidden="true"
               />
-            ) : null}
-            {buttonLabel}
+            ) : (
+              <Download size={17} aria-hidden="true" />
+            )}
+            {isDownloading ? "Preparando Excel..." : "Descargar Productos"}
           </button>
-        </article>
+
+          {connectionError || downloadError ? (
+            <p className="supplier-integration-card__error" role="alert">
+              {connectionError || downloadError}
+            </p>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
+          className={`supplier-integration-card__button supplier-integration-card__button--${connectionStatus}`}
+          onClick={handleConnect}
+          disabled={!connectRefax || isBusy || isConnected}
+          aria-busy={isBusy}
+          aria-live="polite"
+          title={
+            !connectRefax
+              ? "La conexión TEST está pendiente de configuración"
+              : undefined
+          }
+        >
+          {isBusy ? (
+            <LoaderCircle
+              className="supplier-integration-card__spinner"
+              size={17}
+              aria-hidden="true"
+            />
+          ) : null}
+          {buttonLabel}
+        </button>
+      </article>
+    </>
+  );
+}
+
+export default function SupplierIntegrations({
+  connectRefax = requestRefaxConnection,
+  getRefaxStatus = requestRefaxStatus,
+  onDownloadProducts = requestRefaxProducts,
+  connectTestRefax = requestTestRefaxConnection,
+  getTestRefaxStatus = requestTestRefaxStatus,
+  onDownloadTestProducts = requestTestRefaxProducts,
+}) {
+  return (
+    <section className="supplier-integrations-page">
+      <div className="supplier-integrations-layout">
+        <RefaxIntegrationCard
+          environment="PRODUCCIÓN"
+          connectRefax={connectRefax}
+          getRefaxStatus={getRefaxStatus}
+          onDownloadProducts={onDownloadProducts}
+        />
+        <RefaxIntegrationCard
+          environment="TEST"
+          connectRefax={connectTestRefax}
+          getRefaxStatus={getTestRefaxStatus}
+          onDownloadProducts={onDownloadTestProducts}
+        />
       </div>
     </section>
   );
