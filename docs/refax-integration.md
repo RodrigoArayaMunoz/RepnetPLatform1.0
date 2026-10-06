@@ -71,6 +71,12 @@ utilizan las credenciales de PRODUCCIÓN.
 
 ## Configuración de producción (GitHub Actions / VPS)
 
+La etapa `Validate backend tests` se ejecuta antes de configurar las credenciales
+del VPS. Las pruebas usan endpoints, códigos y tokens ficticios, con las
+peticiones HTTP simuladas, para validar producción y TEST sin depender del
+`.env` local ni de secretos reales. La prueba de descarga con progreso cubre
+ambos ambientes, con y sin `Content-Length`, y comprueba el contenido del Excel.
+
 El `.env` local está excluido de Git y de la imagen Docker. Configura los secretos
 `REFAX_PROVIDER_CODE` y `REFAX_API_KEY` en el repositorio de GitHub para que el
 workflow `Deploy VPS` los transfiera al `.env` del backend en el VPS por la entrada

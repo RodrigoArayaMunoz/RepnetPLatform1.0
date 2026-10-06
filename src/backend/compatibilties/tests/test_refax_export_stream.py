@@ -10,12 +10,23 @@ import httpx
 from fastapi import FastAPI
 from openpyxl import load_workbook
 
+from config import settings
 from routers.refax_router import router
 from services.refax_export_stream import stream_refax_export
 from services.refax_products_service import RefaxProductsService, RefaxProductsDownload, RefaxProductsError, XLSX_CONTENT_TYPE
 
 
 class RefaxExportStreamTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        # CI has no backend .env; these requests must use only test fixtures.
+        self.enterContext(patch.multiple(
+            settings,
+            refax_api_base_url="https://production.refax.example.test",
+            refax_provider_code="production-provider",
+            refax_test_api_base_url="http://test.refax.example.test:8098",
+            refax_test_provider_code="test-provider",
+        ))
+
     async def test_reports_progress_before_result_and_cancels_on_disconnect(self):
         cancelled = asyncio.Event()
 
@@ -97,27 +108,51 @@ class RefaxExportStreamTests(unittest.IsolatedAsyncioTestCase):
                 for offset in range(0, len(content), 32768):
                     yield content[offset:offset + 32768]
 
-        for known_size in (False, True):
-            with self.subTest(known_size=known_size):
-                def handle(request):
-                    self.assertEqual(request.headers["authorization"], "Bearer private-token")
-                    headers = {"content-length": str(len(content))} if known_size else {}
-                    return httpx.Response(200, headers=headers, stream=Body())
+        for environment, base_url, provider_code in (
+            ("production", "https://production.refax.example.test", "production-provider"),
+            ("test", "http://test.refax.example.test:8098", "test-provider"),
+        ):
+            for known_size in (False, True):
+                with self.subTest(environment=environment, known_size=known_size):
+                    token = f"{environment}-private-token"
 
-                real_client = httpx.AsyncClient
-                def client_factory(**kwargs):
-                    return real_client(transport=httpx.MockTransport(handle), **kwargs)
+                    def handle(request):
+                        self.assertEqual(request.method, "GET")
+                        self.assertEqual(
+                            str(request.url.copy_with(query=None)),
+                            f"{base_url}/api/Productos/Listado",
+                        )
+                        self.assertEqual(dict(request.url.params), {"codigo": provider_code})
+                        self.assertEqual(request.headers["authorization"], f"Bearer {token}")
+                        headers = {"content-length": str(len(content))} if known_size else {}
+                        return httpx.Response(200, headers=headers, stream=Body())
 
-                service = RefaxProductsService(SimpleNamespace(get_valid_token=AsyncMock(return_value="private-token")))
-                progress = []
-                with patch("services.refax_products_service.httpx.AsyncClient", side_effect=client_factory):
-                    result = await service.download(on_progress=lambda *event: progress.append(event))
-                received = [event for event in progress if event[1] == "receiving"]
-                self.assertGreater(len(received), 2)
-                self.assertTrue(any("MB" in event[2] for event in received))
-                if known_size:
-                    self.assertTrue(any(10 < event[0] <= 55 for event in received))
-                else:
-                    self.assertTrue(all(event[0] == 10 for event in received))
-                self.assertEqual(progress[-1][0], 95)
-                self.assertTrue(result.content.startswith(b"PK"))
+                    real_client = httpx.AsyncClient
+
+                    def client_factory(**kwargs):
+                        return real_client(transport=httpx.MockTransport(handle), **kwargs)
+
+                    connection = SimpleNamespace(get_valid_token=AsyncMock(return_value=token))
+                    service = RefaxProductsService(connection, environment=environment)
+                    progress = []
+                    with patch("services.refax_products_service.httpx.AsyncClient", side_effect=client_factory):
+                        result = await service.download(on_progress=lambda *event: progress.append(event))
+                    connection.get_valid_token.assert_awaited_once()
+                    received = [event for event in progress if event[1] == "receiving"]
+                    self.assertGreater(len(received), 2)
+                    self.assertTrue(any("MB" in event[2] for event in received))
+                    if known_size:
+                        self.assertTrue(any(10 < event[0] <= 55 for event in received))
+                    else:
+                        self.assertTrue(all(event[0] == 10 for event in received))
+                    self.assertEqual(progress[-1][0], 95)
+                    self.assertEqual(result.content_type, XLSX_CONTENT_TYPE)
+                    workbook = load_workbook(BytesIO(result.content))
+                    try:
+                        self.assertEqual(workbook.active.max_row, 2)
+                        self.assertEqual(workbook.active.max_column, 19)
+                        self.assertEqual(workbook.active["A2"].value, "001")
+                        self.assertEqual(workbook.active["B2"].value, "20")
+                        self.assertEqual(workbook.active["C2"].value, "Disponible")
+                    finally:
+                        workbook.close()
