@@ -1,19 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CalendarDays,
   CloudDownload,
   Download,
   LoaderCircle,
+  Layers3,
 } from "lucide-react";
 import { authFetch } from "../../lib/apiClient.js";
+import usePublicationExport, { readPublicationError } from "../hooks/usePublicationExport.js";
+import PublicationExportStatus from "../components/PublicationExportStatus.jsx";
 import "../styles/DownloadPublications.css";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-const EXPORT_JOB_STORAGE_KEY_BASE = "repnet_publication_export_job_id";
-const DOWNLOADED_EXPORT_STORAGE_KEY_BASE =
-  "repnet_publication_export_downloaded_job_id";
-
 const getLocalToday = () => {
   const today = new Date();
   const timezoneOffset = today.getTimezoneOffset() * 60_000;
@@ -23,44 +22,14 @@ const getLocalToday = () => {
     .slice(0, 10);
 };
 
-const readErrorMessage = (data, fallback) => {
-  if (typeof data?.detail === "string") {
-    return data.detail;
-  }
-  if (typeof data?.detail?.message === "string") {
-    return data.detail.message;
-  }
-  if (typeof data?.message === "string") {
-    return data.message;
-  }
-  return fallback;
-};
-
-const userStorageKey = (baseKey, authUserId) =>
-  `${baseKey}:${authUserId || "anonymous"}`;
-
 export default function DownloadPublications({ authUserId }) {
-  const exportJobStorageKey = userStorageKey(
-    EXPORT_JOB_STORAGE_KEY_BASE,
-    authUserId
-  );
-  const downloadedExportStorageKey = userStorageKey(
-    DOWNLOADED_EXPORT_STORAGE_KEY_BASE,
-    authUserId
-  );
   const [publicationDate, setPublicationDate] = useState(getLocalToday);
   const [syncState, setSyncState] = useState(null);
   const [syncError, setSyncError] = useState("");
-  const [exportJob, setExportJob] = useState(null);
-  const [exportError, setExportError] = useState("");
-  const [isStartingExport, setIsStartingExport] = useState(false);
-  const downloadedExportRef = useRef("");
-  const exportRequestInFlightRef = useRef(false);
+  const dateExport = usePublicationExport({ authUserId, onRestoreDate: setPublicationDate });
+  const catalogExport = usePublicationExport({ authUserId, scope: "catalog" });
   const isSyncing = Boolean(syncState?.running);
-  const isExporting = ["queued", "processing", "retrying"].includes(
-    exportJob?.status
-  );
-  const isExportBusy = isStartingExport || isExporting;
+  const isExportBusy = dateExport.isBusy || catalogExport.isBusy;
 
   const loadSyncStatus = useCallback(async () => {
     try {
@@ -75,7 +44,7 @@ export default function DownloadPublications({ authUserId }) {
 
       if (!response.ok) {
         throw new Error(
-          readErrorMessage(
+          readPublicationError(
             data,
             "No se pudo consultar el estado de las publicaciones."
           )
@@ -107,174 +76,6 @@ export default function DownloadPublications({ authUserId }) {
     return () => window.clearInterval(interval);
   }, [isSyncing, loadSyncStatus]);
 
-  const downloadExportFile = useCallback(async (job) => {
-    const response = await authFetch(
-      `${API_BASE}/publications/export/${job.job_id}/download`,
-      {
-        method: "GET",
-        credentials: "include",
-      }
-    );
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(
-        readErrorMessage(data, "No se pudo descargar el Excel generado.")
-      );
-    }
-
-    const blob = await response.blob();
-    const objectUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download =
-      job.filename || `publicaciones_${job.publication_date}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(objectUrl);
-  }, []);
-
-  const downloadAndRememberExport = useCallback(
-    async (job) => {
-      await downloadExportFile(job);
-      downloadedExportRef.current = job.job_id;
-      window.localStorage.setItem(
-        downloadedExportStorageKey,
-        job.job_id
-      );
-    },
-    [downloadExportFile, downloadedExportStorageKey]
-  );
-
-  useEffect(() => {
-    setExportJob(null);
-    setExportError("");
-    downloadedExportRef.current = "";
-
-    const storedJobId = window.localStorage.getItem(exportJobStorageKey);
-    if (!storedJobId) {
-      return undefined;
-    }
-
-    downloadedExportRef.current =
-      window.localStorage.getItem(downloadedExportStorageKey) || "";
-
-    let cancelled = false;
-    const restoreExportJob = async () => {
-      try {
-        const response = await authFetch(
-          `${API_BASE}/publications/export/${storedJobId}`,
-          {
-            method: "GET",
-            credentials: "include",
-          }
-        );
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            window.localStorage.removeItem(exportJobStorageKey);
-            window.localStorage.removeItem(downloadedExportStorageKey);
-          }
-          throw new Error(
-            readErrorMessage(
-              data,
-              "No se pudo recuperar la exportacion en curso."
-            )
-          );
-        }
-
-        if (!cancelled) {
-          setExportJob(data);
-          if (data?.publication_date) {
-            setPublicationDate(data.publication_date);
-          }
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setExportError(
-            error?.message ||
-              "No se pudo recuperar la exportacion en curso."
-          );
-        }
-      }
-    };
-
-    restoreExportJob();
-    return () => {
-      cancelled = true;
-    };
-  }, [downloadedExportStorageKey, exportJobStorageKey]);
-
-  useEffect(() => {
-    const jobId = exportJob?.job_id;
-    if (!jobId || !isExporting) {
-      return undefined;
-    }
-
-    let cancelled = false;
-    const loadExportStatus = async () => {
-      try {
-        const response = await authFetch(
-          `${API_BASE}/publications/export/${jobId}`,
-          {
-            method: "GET",
-            credentials: "include",
-          }
-        );
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(
-            readErrorMessage(
-              data,
-              "No se pudo consultar el estado de la exportacion."
-            )
-          );
-        }
-
-        if (!cancelled) {
-          setExportJob(data);
-          if (data?.status !== "error") {
-            setExportError("");
-          }
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setExportError(
-            error?.message ||
-              "No se pudo consultar el estado de la exportacion."
-          );
-        }
-      }
-    };
-
-    loadExportStatus();
-    const interval = window.setInterval(loadExportStatus, 1000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [exportJob?.job_id, isExporting]);
-
-  useEffect(() => {
-    if (
-      !exportJob?.download_ready ||
-      downloadedExportRef.current === exportJob.job_id
-    ) {
-      return;
-    }
-
-    downloadedExportRef.current = exportJob.job_id;
-    downloadAndRememberExport(exportJob).catch((error) => {
-      downloadedExportRef.current = "";
-      setExportError(
-        error?.message || "No se pudo descargar el Excel generado."
-      );
-    });
-  }, [downloadAndRememberExport, exportJob]);
-
   const handleLoadPublications = async () => {
     if (isSyncing || isExportBusy) {
       return;
@@ -294,7 +95,7 @@ export default function DownloadPublications({ authUserId }) {
           setSyncState(data.detail.state);
         }
         throw new Error(
-          readErrorMessage(
+          readPublicationError(
             data,
             "No se pudo iniciar la carga de publicaciones."
           )
@@ -302,80 +103,12 @@ export default function DownloadPublications({ authUserId }) {
       }
 
       setSyncState(data);
-      setExportJob(null);
-      setExportError("");
-      downloadedExportRef.current = "";
-      window.localStorage.removeItem(exportJobStorageKey);
-      window.localStorage.removeItem(downloadedExportStorageKey);
+      dateExport.reset();
+      catalogExport.reset();
     } catch (error) {
       setSyncError(
         error?.message || "No se pudo iniciar la carga de publicaciones."
       );
-    }
-  };
-
-  const handleDownloadPublications = async () => {
-    if (
-      isExportBusy ||
-      isSyncing ||
-      exportRequestInFlightRef.current ||
-      !publicationDate
-    ) {
-      return;
-    }
-
-    if (exportJob?.download_ready) {
-      try {
-        setExportError("");
-        await downloadAndRememberExport(exportJob);
-      } catch (error) {
-        setExportError(
-          error?.message || "No se pudo descargar el Excel generado."
-        );
-      }
-      return;
-    }
-
-    try {
-      exportRequestInFlightRef.current = true;
-      setIsStartingExport(true);
-      setExportError("");
-      setExportJob(null);
-      downloadedExportRef.current = "";
-      window.localStorage.removeItem(downloadedExportStorageKey);
-
-      const response = await authFetch(`${API_BASE}/publications/export`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          publication_date: publicationDate,
-          refresh: true,
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          readErrorMessage(
-            data,
-            "No se pudo iniciar la exportacion de publicaciones."
-          )
-        );
-      }
-
-      window.localStorage.setItem(exportJobStorageKey, data.job_id);
-      setExportJob(data);
-    } catch (error) {
-      setExportError(
-        error?.message ||
-          "No se pudo iniciar la exportacion de publicaciones."
-      );
-    } finally {
-      exportRequestInFlightRef.current = false;
-      setIsStartingExport(false);
     }
   };
 
@@ -385,9 +118,9 @@ export default function DownloadPublications({ authUserId }) {
         <header className="download-publications-header">
           <h1>Descargar Publicaciones</h1>
           <p>
-            Actualiza las publicaciones y descarga un Excel con MLC, SKU,
-            NUMERO_PIEZA, TÍTULO, ESTADO y ¿POSEE COMPATIBILIDADES? desde la base
-            de datos para la fecha seleccionada.
+            Descarga un Excel con MLC, SKU, NUMERO_PIEZA, TÍTULO, ESTADO y
+            ¿POSEE COMPATIBILIDADES? Elige las publicaciones de una fecha o el
+            catálogo completo guardado en la base de datos.
           </p>
         </header>
 
@@ -480,6 +213,7 @@ export default function DownloadPublications({ authUserId }) {
             hidden
           />
 
+          <h2 className="download-publications-card-title">Publicaciones por fecha</h2>
           <div className="download-publications-filter-row">
             <div className="download-publications-date-field">
               <label htmlFor="publication-date">
@@ -495,11 +229,7 @@ export default function DownloadPublications({ authUserId }) {
                   disabled={isExportBusy}
                   onChange={(event) => {
                     setPublicationDate(event.target.value);
-                    setExportJob(null);
-                    setExportError("");
-                    downloadedExportRef.current = "";
-                    window.localStorage.removeItem(exportJobStorageKey);
-                    window.localStorage.removeItem(downloadedExportStorageKey);
+                    dateExport.reset();
                   }}
                 />
               </div>
@@ -508,10 +238,10 @@ export default function DownloadPublications({ authUserId }) {
             <button
               type="button"
               className="download-publications-download-button"
-              onClick={handleDownloadPublications}
+              onClick={() => { if (!isSyncing && !isExportBusy) dateExport.start(publicationDate); }}
               disabled={isExportBusy || isSyncing || !publicationDate}
             >
-              {isExportBusy ? (
+              {dateExport.isBusy ? (
                 <LoaderCircle
                   className="download-publications-button-spinner"
                   size={19}
@@ -520,71 +250,47 @@ export default function DownloadPublications({ authUserId }) {
               ) : (
                 <Download size={19} aria-hidden="true" />
               )}
-              {isExportBusy
+              {dateExport.isBusy
                 ? "Generando Excel..."
-                : exportJob?.download_ready
+                : dateExport.job?.download_ready
                   ? "Descargar Excel"
                   : "Descargar Publicaciones"}
             </button>
           </div>
 
-          {exportJob || exportError ? (
-            <div
-              className={`download-publications-sync-status download-publications-export-status ${
-                exportError || exportJob?.status === "error"
-                  ? "download-publications-sync-status--error"
-                  : ""
-              }`}
-              aria-live="polite"
-            >
-              <div className="download-publications-sync-heading">
-                <span>
-                  {exportError ||
-                    (exportJob?.status === "error"
-                      ? exportJob?.last_error
-                      : "") ||
-                    exportJob?.message ||
-                    "Preparando exportacion..."}
-                </span>
-                <strong>{Number(exportJob?.progress || 0)}%</strong>
-              </div>
-
-              {exportJob ? (
-                <>
-                  <div className="download-publications-progress-track">
-                    <span
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.max(0, Number(exportJob.progress || 0))
-                        )}%`,
-                      }}
-                    />
-                  </div>
-
-                  <div className="download-publications-sync-metrics">
-                    <span>
-                      Procesadas:{" "}
-                      {Number(exportJob.processed_rows || 0).toLocaleString(
-                        "es-CL"
-                      )}
-                      /
-                      {Number(exportJob.total_rows || 0).toLocaleString(
-                        "es-CL"
-                      )}
-                    </span>
-                    <span>
-                      Reintentos:{" "}
-                      {Number(exportJob.retry_count || 0).toLocaleString(
-                        "es-CL"
-                      )}
-                    </span>
-                  </div>
-                </>
-              ) : null}
-            </div>
-          ) : null}
+          <PublicationExportStatus job={dateExport.job} error={dateExport.error} />
         </div>
+
+        <section className="download-publications-card download-publications-catalog-card" aria-labelledby="catalog-title">
+          <div className="download-publications-catalog-heading">
+            <span className="download-publications-catalog-icon" aria-hidden="true">
+              <Layers3 size={24} />
+            </span>
+            <div>
+              <span className="download-publications-catalog-label">Mercado Libre · Todas las fechas</span>
+              <h2 id="catalog-title" className="download-publications-card-title">Catálogo completo Emilia</h2>
+            </div>
+          </div>
+          <p id="catalog-description" className="download-publications-catalog-description">
+            Exporta todas las publicaciones guardadas, de cualquier fecha y estado,
+            con las mismas columnas del Excel por fecha.
+          </p>
+          <button
+            type="button"
+            className="download-publications-catalog-button"
+            aria-describedby="catalog-description"
+            onClick={() => { if (!isSyncing && !isExportBusy) catalogExport.start(); }}
+            disabled={isSyncing || isExportBusy}
+          >
+            {catalogExport.isBusy ? (
+              <LoaderCircle className="download-publications-button-spinner" size={20} aria-hidden="true" />
+            ) : (
+              <Download size={20} aria-hidden="true" />
+            )}
+            {catalogExport.isBusy ? "Generando catálogo completo..." : "Descargar Catalogo Completo Emilia"}
+          </button>
+          <PublicationExportStatus job={catalogExport.job} error={catalogExport.error} />
+        </section>
       </div>
     </section>
   );

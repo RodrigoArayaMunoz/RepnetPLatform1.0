@@ -2,10 +2,11 @@ import os
 import time
 from datetime import date
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from config import settings
 from services.job_store import JobStore
@@ -21,8 +22,17 @@ PUBLICATION_EXPORT_SCHEMA_VERSION = 5
 
 
 class PublicationExportRequest(BaseModel):
-    publication_date: date
+    publication_date: date | None = None
+    export_scope: Literal["date", "catalog"] = "date"
     refresh: bool = False
+
+    @model_validator(mode="after")
+    def validate_scope(self):
+        if self.export_scope == "date" and self.publication_date is None:
+            raise ValueError("La exportacion por fecha requiere publication_date.")
+        if self.export_scope == "catalog" and self.publication_date is not None:
+            raise ValueError("El catalogo completo no admite un filtro de fecha.")
+        return self
 
 
 def _authenticated_user_id(request: Request) -> str:
@@ -86,6 +96,7 @@ def _export_job_response(job: dict) -> dict:
         "progress": int(job.get("progress") or 0),
         "message": job.get("message"),
         "publication_date": job.get("publication_date"),
+        "export_scope": job.get("export_scope") or "date",
         "total_rows": int(job.get("total_rows") or 0),
         "processed_rows": int(job.get("processed_rows") or 0),
         "retry_count": int(job.get("retry_count") or 0),
@@ -106,8 +117,8 @@ def _export_job_response(job: dict) -> dict:
 def _existing_export_job(
     *,
     requested_by_user_id: str,
-    seller_id: str,
-    creation_date: str,
+    seller_id: str | None,
+    creation_date: str | None,
     total_rows: int,
     refresh: bool = False,
 ) -> dict | None:
@@ -178,9 +189,9 @@ def _recover_stale_export_if_needed(job: dict) -> dict:
     if not publication_export_store.try_acquire_recovery_guard(job_id):
         return job
 
-    user_id = str(job.get("ml_user_id") or "")
-    creation_date = str(job.get("publication_date") or "")
-    if not user_id or not creation_date:
+    user_id = job.get("ml_user_id")
+    creation_date = job.get("publication_date")
+    if job.get("export_scope") != "catalog" and (not user_id or not creation_date):
         return job
 
     try:
@@ -260,16 +271,23 @@ async def start_publications_export(
     request: Request,
 ):
     requested_by_user_id = _authenticated_user_id(request)
-    seller_id = await _get_connected_ml_user_id()
-    creation_date = payload.publication_date.isoformat()
-    total_rows = await supabase_publications_store.count_by_creation_date(
-        creation_date,
-        seller_id=seller_id,
-    )
+    if payload.export_scope == "catalog":
+        seller_id = None
+        creation_date = None
+        total_rows = await supabase_publications_store.count_all()
+    else:
+        seller_id = await _get_connected_ml_user_id()
+        creation_date = payload.publication_date.isoformat()
+        total_rows = await supabase_publications_store.count_by_creation_date(
+            creation_date,
+            seller_id=seller_id,
+        )
     if total_rows == 0:
         raise HTTPException(
             status_code=404,
             detail=(
+                "No existen publicaciones guardadas para el catalogo completo."
+                if payload.export_scope == "catalog" else
                 "No existen publicaciones para la fecha seleccionada "
                 f"({creation_date})."
             ),
@@ -286,7 +304,10 @@ async def start_publications_export(
         recovered_job = _recover_stale_export_if_needed(existing_job)
         return _export_job_response(recovered_job)
 
-    filename = f"publicaciones_{creation_date}.xlsx"
+    filename = (
+        "catalogo_completo_emilia.xlsx" if payload.export_scope == "catalog"
+        else f"publicaciones_{creation_date}.xlsx"
+    )
     job = JobStore.create(filename)
     if not publication_export_store.claim_reference(
         requested_by_user_id=requested_by_user_id,
@@ -321,6 +342,7 @@ async def start_publications_export(
             f"Exportacion encolada para {total_rows} publicaciones."
         ),
         publication_date=creation_date,
+        export_scope=payload.export_scope,
         total_rows=total_rows,
         processed_rows=0,
         retry_count=0,

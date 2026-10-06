@@ -258,3 +258,28 @@ migracion. El despliegue de solo notificaciones no actualiza los otros workers.
 Para desplegar solamente la traduccion de estados en Excel, actualizar API y
 `worker_publication_exports`. No requiere una nueva migracion ni volver a cargar
 las publicaciones: la siguiente exportacion traduce los estados ya guardados.
+
+## 9. Descargar Catalogo Completo Emilia
+
+La pantalla de descarga tiene una tarjeta independiente para el catalogo
+completo, con amarillo `#ffe600` y azul `#2d3277` de Mercado Libre. La tarjeta
+por fecha conserva su propia descarga y su propio estado.
+
+El nuevo boton solicita `POST /publications/export` con
+`{"export_scope": "catalog", "refresh": true}`. El worker lee todos los registros
+de `publicaciones_ml`, sin filtros de fecha, vendedor, estado ni sincronizacion,
+y genera `catalogo_completo_emilia.xlsx` con las mismas seis columnas del Excel
+por fecha. Incluye publicaciones historicas con fecha desconocida. No consulta
+la API de Mercado Libre ni actualiza las publicaciones durante la exportacion.
+Por lo tanto, el catalogo refleja los datos almacenados hasta la ultima
+sincronizacion o notificacion procesada.
+
+La consulta pagina hasta completar los registros, respeta limites de pagina
+menores a 1.000 y mantiene un orden por `seller_id,mlc`. El avance se actualiza
+por pagina. Las tareas, reintentos y descargas quedan asociadas al usuario
+autenticado; las referencias y el almacenamiento del navegador son distintos
+para catalogo y fecha. Cada nuevo clic en el catalogo solicita un archivo
+actualizado; una tarea ya activa se reutiliza.
+
+Para habilitarlo en produccion, actualizar frontend, API y
+`worker_publication_exports` juntos. No requiere una migracion SQL.

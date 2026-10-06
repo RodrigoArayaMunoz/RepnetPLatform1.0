@@ -33,7 +33,7 @@ _PUBLICATION_STATUS_LABELS = {
     "not_yet_active": "pendiente de activación",
 }
 _EXPORT_ARTIFACT_NAME = re.compile(
-    r"^[0-9a-fA-F-]{36}_publicaciones_\d{4}-\d{2}-\d{2}"
+    r"^[0-9a-fA-F-]{36}_(?:publicaciones_\d{4}-\d{2}-\d{2}|catalogo_completo_emilia)"
     r"(?:\.xlsx(?:\.tmp)?|\.checkpoint\.jsonl)$"
 )
 
@@ -54,8 +54,8 @@ class PublicationExportService:
         self,
         *,
         job_id: str,
-        user_id: str,
-        creation_date: str,
+        user_id: str | None,
+        creation_date: str | None,
         heartbeat: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         self._cleanup_expired_artifacts()
@@ -68,13 +68,32 @@ class PublicationExportService:
             message="Leyendo publicaciones desde la base de datos...",
         )
 
-        publications = await supabase_publications_store.list_by_creation_date(
-            creation_date,
-            seller_id=user_id,
-        )
+        if creation_date is None:
+            if user_id is not None:
+                raise ValueError("El catalogo completo no admite un filtro de vendedor.")
+
+            def report_catalog_page(read_rows: int, expected_rows: int | None) -> None:
+                if heartbeat is not None:
+                    heartbeat()
+                JobStore.update(
+                    job_id,
+                    progress=min(65, 10 + int(55 * read_rows / expected_rows)) if expected_rows else 10,
+                    processed_rows=read_rows,
+                    **({"total_rows": expected_rows} if expected_rows is not None else {}),
+                    message=f"Leyendo catálogo completo: {read_rows:,} publicaciones desde la base de datos...",
+                )
+
+            publications = await supabase_publications_store.list_all(on_page=report_catalog_page)
+        else:
+            publications = await supabase_publications_store.list_by_creation_date(
+                creation_date,
+                seller_id=user_id,
+            )
         total = len(publications)
         if total == 0:
             raise ValueError(
+                "No existen publicaciones guardadas para el catalogo completo."
+                if creation_date is None else
                 f"No existen publicaciones con fecha de creacion {creation_date}."
             )
 
@@ -103,7 +122,10 @@ class PublicationExportService:
         if heartbeat is not None:
             heartbeat()
 
-        filename = f"publicaciones_{creation_date}.xlsx"
+        filename = (
+            "catalogo_completo_emilia.xlsx" if creation_date is None
+            else f"publicaciones_{creation_date}.xlsx"
+        )
         summary = {
             "total_rows": total,
             "source": "database",
@@ -218,10 +240,14 @@ class PublicationExportService:
         return workbook, worksheet
 
     @staticmethod
-    def _output_path(*, job_id: str, creation_date: str) -> str:
+    def _output_path(*, job_id: str, creation_date: str | None) -> str:
+        filename = (
+            "catalogo_completo_emilia.xlsx" if creation_date is None
+            else f"publicaciones_{creation_date}.xlsx"
+        )
         return os.path.join(
             settings.upload_dir,
-            f"{job_id}_publicaciones_{creation_date}.xlsx",
+            f"{job_id}_{filename}",
         )
 
 

@@ -1,0 +1,33 @@
+{
+  "passed": true,
+  "scenarios": [
+    "tarjetas separadas",
+    "paleta Mercado Libre",
+    "descarga automática",
+    "doble clic sin duplicados",
+    "fecha y catálogo independientes",
+    "restauración al recargar",
+    "error y reintento",
+    "escritorio y móvil sin desbordamiento"
+  ],
+  "requestBodies": [
+    {
+      "export_scope": "catalog",
+      "refresh": true
+    },
+    {
+      "publication_date": "2026-10-05",
+      "refresh": true
+    },
+    {
+      "export_scope": "catalog",
+      "refresh": true
+    },
+    {
+      "export_scope": "catalog",
+      "refresh": true
+    }
+  ],
+  "browserErrors": [],
+  "api": "Respuestas simuladas; el Excel real se verifica por separado con Supabase."
+}

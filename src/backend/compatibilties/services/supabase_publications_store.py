@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -135,6 +136,17 @@ class SupabasePublicationsStore:
         *,
         seller_id: str | None = None,
     ) -> int:
+        return await self._count_rows(creation_date=creation_date, seller_id=seller_id)
+
+    async def count_all(self) -> int:
+        return await self._count_rows()
+
+    async def _count_rows(
+        self,
+        *,
+        creation_date: str | None = None,
+        seller_id: str | None = None,
+    ) -> int:
         headers = self._headers()
         headers.update(
             {
@@ -144,10 +156,9 @@ class SupabasePublicationsStore:
             }
         )
 
-        params = {
-            "select": "mlc",
-            "fecha_creacion": f"eq.{creation_date}",
-        }
+        params = {"select": "mlc"}
+        if creation_date:
+            params["fecha_creacion"] = f"eq.{creation_date}"
         if seller_id:
             params["seller_id"] = f"eq.{seller_id}"
 
@@ -165,8 +176,8 @@ class SupabasePublicationsStore:
                 response.text[:1000],
             )
             raise RuntimeError(
-                "No se pudieron contar las publicaciones de la fecha "
-                f"{creation_date} ({response.status_code})."
+                "No se pudieron contar las publicaciones "
+                f"({response.status_code})."
             )
 
         content_range = response.headers.get("content-range", "")
@@ -223,10 +234,28 @@ class SupabasePublicationsStore:
         *,
         seller_id: str | None = None,
     ) -> list[dict[str, Any]]:
+        return await self._list_rows(creation_date=creation_date, seller_id=seller_id)
+
+    async def list_all(
+        self,
+        *,
+        on_page: Callable[[int, int | None], None] | None = None,
+    ) -> list[dict[str, Any]]:
+        return await self._list_rows(on_page=on_page)
+
+    async def _list_rows(
+        self,
+        *,
+        creation_date: str | None = None,
+        seller_id: str | None = None,
+        on_page: Callable[[int, int | None], None] | None = None,
+    ) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
+        total_rows: int | None = None
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            for start in range(0, 1_000_000, self.READ_PAGE_SIZE):
+            start = 0
+            while True:
                 headers = self._headers()
                 headers.update(
                     {
@@ -238,9 +267,12 @@ class SupabasePublicationsStore:
                 )
                 params = {
                     "select": "mlc,sku,part_number,titulo,status,has_compatibilities",
-                    "fecha_creacion": f"eq.{creation_date}",
-                    "order": "mlc.asc",
+                    "order": "seller_id.asc,mlc.asc",
                 }
+                if start == 0:
+                    headers["Prefer"] = "count=exact"
+                if creation_date:
+                    params["fecha_creacion"] = f"eq.{creation_date}"
                 if seller_id:
                     params["seller_id"] = f"eq.{seller_id}"
 
@@ -250,6 +282,11 @@ class SupabasePublicationsStore:
                     params=params,
                 )
 
+                match = re.search(r"/(\d+)$", response.headers.get("content-range", ""))
+                if match:
+                    total_rows = int(match.group(1))
+                if response.status_code == 416 and total_rows is not None and start >= total_rows:
+                    break
                 if response.status_code >= 400:
                     logger.error(
                         "[SUPABASE_PUBLICATIONS][LIST_DATE_ERROR] "
@@ -258,19 +295,29 @@ class SupabasePublicationsStore:
                         response.text[:1000],
                     )
                     raise RuntimeError(
-                        "No se pudieron consultar las publicaciones de la fecha "
-                        f"{creation_date} ({response.status_code})."
+                        "No se pudieron consultar las publicaciones "
+                        f"({response.status_code})."
                     )
 
                 batch = response.json()
-                if not isinstance(batch, list):
+                if not isinstance(batch, list) or any(
+                    not isinstance(item, dict) for item in batch
+                ):
                     raise RuntimeError(
                         "Supabase devolvio una respuesta invalida al filtrar "
                         "publicaciones."
                     )
 
-                rows.extend(item for item in batch if isinstance(item, dict))
-                if len(batch) < self.READ_PAGE_SIZE:
+                if not batch:
+                    break
+                rows.extend(batch)
+                start += len(batch)
+                if on_page is not None:
+                    on_page(start, total_rows)
+                # Respect the actual server page size, including lower limits.
+                if total_rows is not None and start >= total_rows:
+                    break
+                if total_rows is None and creation_date is not None and len(batch) < self.READ_PAGE_SIZE:
                     break
 
         return rows

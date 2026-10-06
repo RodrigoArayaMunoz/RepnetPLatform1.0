@@ -1,0 +1,20 @@
+{
+  "initial_database_count": 121307,
+  "exported_rows": 121307,
+  "final_database_count": 121307,
+  "headers": [
+    "MLC",
+    "SKU",
+    "NUMERO_PIEZA",
+    "TITULO",
+    "ESTADO",
+    "¿POSEE COMPATIBILIDADES?"
+  ],
+  "summary": {
+    "total_rows": 121307,
+    "source": "database",
+    "api_items_queried": 0
+  },
+  "bytes": 5353578,
+  "counts_match": true
+}

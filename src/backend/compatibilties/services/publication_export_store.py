@@ -28,8 +28,8 @@ class PublicationExportStore:
     @staticmethod
     def _reference_key(
         requested_by_user_id: str,
-        seller_id: str,
-        creation_date: str,
+        seller_id: str | None,
+        creation_date: str | None,
     ) -> str:
         identity = (
             f"{requested_by_user_id}:{seller_id}:{creation_date}"
@@ -49,8 +49,8 @@ class PublicationExportStore:
         self,
         *,
         requested_by_user_id: str,
-        seller_id: str,
-        creation_date: str,
+        seller_id: str | None,
+        creation_date: str | None,
     ) -> str | None:
         return self._client.get(
             self._reference_key(
@@ -64,8 +64,8 @@ class PublicationExportStore:
         self,
         *,
         requested_by_user_id: str,
-        seller_id: str,
-        creation_date: str,
+        seller_id: str | None,
+        creation_date: str | None,
         job_id: str,
     ) -> bool:
         return bool(
@@ -87,8 +87,8 @@ class PublicationExportStore:
         self,
         *,
         requested_by_user_id: str,
-        seller_id: str,
-        creation_date: str,
+        seller_id: str | None,
+        creation_date: str | None,
         job_id: str,
     ) -> None:
         self._client.eval(

@@ -45,8 +45,8 @@ def _retry_delay_seconds(retry_number: int) -> int:
 def export_publications_task(
     task,
     job_id: str,
-    user_id: str,
-    creation_date: str,
+    user_id: str | None,
+    creation_date: str | None,
 ) -> None:
     job = JobStore.get(job_id)
     if not job:
@@ -202,8 +202,8 @@ def export_publications_task(
 async def _export_publications_task(
     *,
     job_id: str,
-    user_id: str,
-    creation_date: str,
+    user_id: str | None,
+    creation_date: str | None,
     lock_owner: str,
 ) -> None:
     lock_lost = asyncio.Event()
