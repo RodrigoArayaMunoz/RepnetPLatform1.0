@@ -277,9 +277,18 @@ sincronizacion o notificacion procesada.
 La consulta pagina hasta completar los registros, respeta limites de pagina
 menores a 1.000 y mantiene un orden por `seller_id,mlc`. El avance se actualiza
 por pagina. Las tareas, reintentos y descargas quedan asociadas al usuario
-autenticado; las referencias y el almacenamiento del navegador son distintos
+autenticado; las referencias de las tareas son distintas
 para catalogo y fecha. Cada nuevo clic en el catalogo solicita un archivo
 actualizado; una tarea ya activa se reutiliza.
+
+Cada entrada a la pantalla comienza con ambas descargas limpias: sin trabajos,
+mensajes de exito o error ni barras de progreso anteriores. Se eliminan las
+referencias locales de versiones anteriores y no se restauran exportaciones
+al volver desde otra pantalla ni al recargar. La misma limpieza se aplica al
+seleccionar otra vez la opcion del menu. Al salir se detiene la consulta de
+progreso y se abortan solicitudes y descargas pendientes del navegador.
+La siguiente descarga solicita `refresh: true`; si un trabajo del mismo usuario
+y alcance sigue activo en el servidor, se reutiliza para evitar duplicados.
 
 Para habilitarlo en produccion, actualizar frontend, API y
 `worker_publication_exports` juntos. No requiere una migracion SQL.

@@ -6,8 +6,13 @@
     "descarga automática",
     "doble clic sin duplicados",
     "fecha y catálogo independientes",
-    "restauración al recargar",
+    "limpieza al recargar",
+    "limpieza al salir y volver",
+    "limpieza al seleccionar otra vez la misma opción del menú",
+    "limpieza de referencias antiguas de ambas descargas",
     "error y reintento",
+    "respuestas tardías de inicio, progreso y descarga ignoradas",
+    "nueva exportación por fecha después de volver",
     "escritorio y móvil sin desbordamiento"
   ],
   "requestBodies": [
@@ -17,6 +22,30 @@
     },
     {
       "publication_date": "2026-10-05",
+      "refresh": true
+    },
+    {
+      "export_scope": "catalog",
+      "refresh": true
+    },
+    {
+      "publication_date": "2026-10-05",
+      "refresh": true
+    },
+    {
+      "export_scope": "catalog",
+      "refresh": true
+    },
+    {
+      "export_scope": "catalog",
+      "refresh": true
+    },
+    {
+      "export_scope": "catalog",
+      "refresh": true
+    },
+    {
+      "export_scope": "catalog",
       "refresh": true
     },
     {

@@ -10,12 +10,7 @@ export const readPublicationError = (data, fallback) => {
   return fallback;
 };
 
-export default function usePublicationExport({
-  authUserId,
-  scope = "date",
-  onRestoreDate,
-}) {
-  // Preserve the existing date export keys and keep catalog jobs independent.
+export default function usePublicationExport({ authUserId, scope = "date", visitKey }) {
   const storageBase = scope === "catalog"
     ? "repnet_catalog_export"
     : "repnet_publication_export";
@@ -26,12 +21,53 @@ export default function usePublicationExport({
   const [isStarting, setIsStarting] = useState(false);
   const downloadedRef = useRef("");
   const requestInFlightRef = useRef(false);
+  const requestControllerRef = useRef(null);
+  const downloadControllerRef = useRef(null);
+  const generationRef = useRef(0);
   const isExporting = ["queued", "processing", "retrying"].includes(job?.status);
 
-  const downloadFile = useCallback(async (exportJob) => {
+  const clearStoredExport = useCallback(() => {
+    // Remove references left by older versions; exports now belong to this visit.
+    window.localStorage.removeItem(jobStorageKey);
+    window.localStorage.removeItem(downloadedStorageKey);
+  }, [downloadedStorageKey, jobStorageKey]);
+
+  const reset = useCallback(() => {
+    generationRef.current += 1;
+    requestControllerRef.current?.abort();
+    downloadControllerRef.current?.abort();
+    requestControllerRef.current = null;
+    requestInFlightRef.current = false;
+    downloadedRef.current = "";
+    setJob(null);
+    setError("");
+    setIsStarting(false);
+    clearStoredExport();
+  }, [clearStoredExport]);
+
+  useEffect(() => {
+    let cancelled = false;
+    clearStoredExport();
+    const initializeVisit = async () => {
+      await Promise.resolve();
+      if (!cancelled) reset();
+    };
+    initializeVisit();
+    return () => {
+      cancelled = true;
+      generationRef.current += 1;
+      requestControllerRef.current?.abort();
+      downloadControllerRef.current?.abort();
+      requestControllerRef.current = null;
+      requestInFlightRef.current = false;
+      clearStoredExport();
+    };
+  }, [clearStoredExport, reset, visitKey]);
+
+  const downloadFile = useCallback(async (exportJob, signal) => {
     const response = await authFetch(
       `${API_BASE}/publications/export/${exportJob.job_id}/download`,
-      { method: "GET", credentials: "include" }
+      { method: "GET", credentials: "include", signal }
     );
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -39,6 +75,7 @@ export default function usePublicationExport({
     }
 
     const blob = await response.blob();
+    signal.throwIfAborted();
     const objectUrl = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = objectUrl;
@@ -53,85 +90,32 @@ export default function usePublicationExport({
     window.URL.revokeObjectURL(objectUrl);
   }, [scope]);
 
-  const downloadAndRemember = useCallback(async (exportJob) => {
-    await downloadFile(exportJob);
-    downloadedRef.current = exportJob.job_id;
-    window.localStorage.setItem(downloadedStorageKey, exportJob.job_id);
-  }, [downloadFile, downloadedStorageKey]);
-
-  const reset = useCallback(() => {
-    setJob(null);
-    setError("");
-    downloadedRef.current = "";
-    window.localStorage.removeItem(jobStorageKey);
-    window.localStorage.removeItem(downloadedStorageKey);
-  }, [downloadedStorageKey, jobStorageKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const restoreJob = async () => {
-      // Reset after a user change without deleting their saved job.
-      await Promise.resolve();
-      if (cancelled) return;
-      setJob(null);
-      setError("");
-      downloadedRef.current = "";
-      const storedJobId = window.localStorage.getItem(jobStorageKey);
-      if (!storedJobId) return;
-      downloadedRef.current = window.localStorage.getItem(downloadedStorageKey) || "";
-      try {
-        const response = await authFetch(
-          `${API_BASE}/publications/export/${storedJobId}`,
-          { method: "GET", credentials: "include" }
-        );
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          if (response.status === 404) {
-            window.localStorage.removeItem(jobStorageKey);
-            window.localStorage.removeItem(downloadedStorageKey);
-          }
-          throw new Error(readPublicationError(data, "No se pudo recuperar la exportación en curso."));
-        }
-        if ((data.export_scope || "date") !== scope) {
-          throw new Error("La exportación guardada corresponde a otra descarga.");
-        }
-        if (!cancelled) {
-          setJob(data);
-          if (scope === "date" && data.publication_date) {
-            onRestoreDate?.(data.publication_date);
-          }
-        }
-      } catch (restoreError) {
-        if (!cancelled) setError(restoreError?.message || "No se pudo recuperar la exportación en curso.");
-      }
-    };
-    restoreJob();
-    return () => { cancelled = true; };
-  }, [downloadedStorageKey, jobStorageKey, onRestoreDate, scope]);
-
   useEffect(() => {
     const jobId = job?.job_id;
     if (!jobId || !isExporting) return undefined;
-    let cancelled = false;
+    const generation = generationRef.current;
+    const controller = new AbortController();
     let loading = false;
     const loadStatus = async () => {
-      if (loading) return;
+      if (loading || controller.signal.aborted) return;
       loading = true;
       try {
         const response = await authFetch(
           `${API_BASE}/publications/export/${jobId}`,
-          { method: "GET", credentials: "include" }
+          { method: "GET", credentials: "include", signal: controller.signal }
         );
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(readPublicationError(data, "No se pudo consultar el estado de la exportación."));
         }
-        if (!cancelled) {
+        if (!controller.signal.aborted && generation === generationRef.current) {
           setJob(data);
           if (data.status !== "error") setError("");
         }
       } catch (statusError) {
-        if (!cancelled) setError(statusError?.message || "No se pudo consultar el estado de la exportación.");
+        if (!controller.signal.aborted && generation === generationRef.current) {
+          setError(statusError?.message || "No se pudo consultar el estado de la exportación.");
+        }
       } finally {
         loading = false;
       }
@@ -139,37 +123,45 @@ export default function usePublicationExport({
     loadStatus();
     const interval = window.setInterval(loadStatus, 1000);
     return () => {
-      cancelled = true;
+      controller.abort();
       window.clearInterval(interval);
     };
   }, [job?.job_id, isExporting]);
 
   useEffect(() => {
-    if (!job?.download_ready || downloadedRef.current === job.job_id) return;
+    if (!job?.download_ready || downloadedRef.current === job.job_id) return undefined;
+    const generation = generationRef.current;
+    const controller = new AbortController();
     downloadedRef.current = job.job_id;
-    downloadAndRemember(job).catch((downloadError) => {
-      downloadedRef.current = "";
-      setError(downloadError?.message || "No se pudo descargar el Excel generado.");
+    downloadControllerRef.current = controller;
+    downloadFile(job, controller.signal).catch((downloadError) => {
+      if (!controller.signal.aborted && generation === generationRef.current) {
+        downloadedRef.current = "";
+        setError(downloadError?.message || "No se pudo descargar el Excel generado.");
+      }
     });
-  }, [downloadAndRemember, job]);
+    return () => controller.abort();
+  }, [downloadFile, job]);
 
   const start = async (publicationDate) => {
     if (isStarting || isExporting || requestInFlightRef.current || (scope === "date" && !publicationDate)) return;
+    const generation = generationRef.current;
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     requestInFlightRef.current = true;
     setIsStarting(true);
     setError("");
     try {
       if (job?.download_ready && scope === "date") {
-        await downloadAndRemember(job);
+        await downloadFile(job, controller.signal);
         return;
       }
       setJob(null);
       downloadedRef.current = "";
-      window.localStorage.removeItem(jobStorageKey);
-      window.localStorage.removeItem(downloadedStorageKey);
       const response = await authFetch(`${API_BASE}/publications/export`, {
         method: "POST",
         credentials: "include",
+        signal: controller.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(scope === "catalog"
           ? { export_scope: "catalog", refresh: true }
@@ -179,13 +171,17 @@ export default function usePublicationExport({
       if (!response.ok) {
         throw new Error(readPublicationError(data, "No se pudo iniciar la exportación de publicaciones."));
       }
-      window.localStorage.setItem(jobStorageKey, data.job_id);
-      setJob(data);
+      if (!controller.signal.aborted && generation === generationRef.current) setJob(data);
     } catch (startError) {
-      setError(startError?.message || "No se pudo iniciar la exportación de publicaciones.");
+      if (!controller.signal.aborted && generation === generationRef.current) {
+        setError(startError?.message || "No se pudo iniciar la exportación de publicaciones.");
+      }
     } finally {
-      requestInFlightRef.current = false;
-      setIsStarting(false);
+      if (generation === generationRef.current) {
+        requestInFlightRef.current = false;
+        requestControllerRef.current = null;
+        setIsStarting(false);
+      }
     }
   };
 

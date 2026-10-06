@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   CalendarDays,
   CloudDownload,
@@ -23,11 +24,12 @@ const getLocalToday = () => {
 };
 
 export default function DownloadPublications({ authUserId }) {
+  const { key: visitKey } = useLocation();
   const [publicationDate, setPublicationDate] = useState(getLocalToday);
   const [syncState, setSyncState] = useState(null);
   const [syncError, setSyncError] = useState("");
-  const dateExport = usePublicationExport({ authUserId, onRestoreDate: setPublicationDate });
-  const catalogExport = usePublicationExport({ authUserId, scope: "catalog" });
+  const dateExport = usePublicationExport({ authUserId, visitKey });
+  const catalogExport = usePublicationExport({ authUserId, scope: "catalog", visitKey });
   const isSyncing = Boolean(syncState?.running);
   const isExportBusy = dateExport.isBusy || catalogExport.isBusy;
 
