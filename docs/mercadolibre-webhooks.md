@@ -292,3 +292,33 @@ y alcance sigue activo en el servidor, se reutiliza para evitar duplicados.
 
 Para habilitarlo en produccion, actualizar frontend, API y
 `worker_publication_exports` juntos. No requiere una migracion SQL.
+
+### Actualizar el worker en desarrollo local
+
+El Compose local monta el codigo del backend en los contenedores. La API usa
+`uvicorn --reload`, pero Celery conserva los modulos cargados hasta que se
+reinicia su proceso. Hacer commit y push no reinicia el worker de Docker local.
+Despues de modificar el servicio, las consultas o la tarea de exportacion,
+ejecutar desde la raiz del repositorio:
+
+```powershell
+docker compose -f src/backend/compatibilties/docker-compose.yml restart worker_publication_exports
+```
+
+Tambien se puede ejecutar la tarea de VS Code
+`Desarrollo: reiniciar worker de exportaciones` desde `Terminal > Run Task`.
+El reinicio carga el codigo actualizado para ambas descargas.
+
+Si el catalogo falla con `fecha_creacion=eq.None` o
+`invalid input syntax for type date: "None"`, el worker sigue ejecutando la
+consulta anterior por fecha. La consulta del catalogo completo no debe enviar
+un filtro de fecha ni de vendedor. Revisar los logs despues del reinicio:
+
+```powershell
+docker compose -f src/backend/compatibilties/docker-compose.yml logs --tail 100 worker_publication_exports
+```
+
+Las consultas del catalogo deben responder HTTP 200 o 206 y el trabajo debe terminar
+en `success`, con `processed_rows` igual a `total_rows` y el Excel disponible.
+Una exportacion en reintento puede continuar con el worker actualizado;
+si ya termino en error, iniciar otra descarga desde la pantalla.
