@@ -2,29 +2,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
-  Download,
+  FileSpreadsheet,
   LoaderCircle,
   RefreshCw,
   Save,
-  Zap,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ProcessQueueErrorModal from "../components/ProcessQueueErrorModal.jsx";
+import ProcessBoard from "../components/ProcessBoard.jsx";
 import "../styles/MainSyncJobs.css";
 import { supabase } from "../../lib/supabase.js";
 import { authFetch } from "../../lib/apiClient.js";
 import { sanitizeStorageFileName } from "../utils/storageFileName.js";
+import { groupProcessRows, PROCESS_STATUS } from "../utils/processBoard.js";
 
 const SYNC_ROUTE = "/procesos/sincronizacion-procesos";
 const PROCESS_BUCKET = "excel-procesos";
-const PROCESS_STATUS = {
-  PENDING: "Pendiente",
-  PROCESSING: "Procesando",
-  PROCESSED: "Procesado",
-  PROCESSED_WITH_ERRORS: "Procesado con Errores",
-  ERROR: "Error",
-};
-const PROCESS_ROWS_PER_PAGE = 3;
 
 export default function MainSyncJobs() {
   const fileInputRef = useRef(null);
@@ -33,7 +26,7 @@ export default function MainSyncJobs() {
   const [now, setNow] = useState(new Date());
   const [processRows, setProcessRows] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingTable, setIsLoadingTable] = useState(true);
+  const [isLoadingProcesses, setIsLoadingProcesses] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState("info");
   const [isQueueRunning, setIsQueueRunning] = useState(false);
@@ -50,7 +43,6 @@ export default function MainSyncJobs() {
   const [isLoadingErrorDetails, setIsLoadingErrorDetails] = useState(false);
   const [errorDetailsLoadMessage, setErrorDetailsLoadMessage] = useState("");
   const [exportingRowId, setExportingRowId] = useState(null);
-  const [processPage, setProcessPage] = useState(1);
 
   const [isCheckingMl, setIsCheckingMl] = useState(true);
   const [isMercadoLibreConnected, setIsMercadoLibreConnected] = useState(false);
@@ -139,13 +131,11 @@ export default function MainSyncJobs() {
     return `${hours}:${minutes}:${seconds}`;
   }, [now]);
 
-  const pendingProcessCount = useMemo(() => {
-    return processRows.filter(
-      (row) =>
-        String(row.estado || "").toLowerCase() ===
-        PROCESS_STATUS.PENDING.toLowerCase()
-    ).length;
-  }, [processRows]);
+  const processGroups = useMemo(
+    () => groupProcessRows(processRows, isQueueRunning, queueCurrentProcessRowId),
+    [processRows, isQueueRunning, queueCurrentProcessRowId]
+  );
+  const pendingProcessCount = processGroups.pending.length;
 
   const hasPendingProcesses = pendingProcessCount > 0;
 
@@ -168,42 +158,6 @@ export default function MainSyncJobs() {
     pendingProcessCount,
     queueMessage,
   ]);
-
-  const totalProcessPages = Math.max(
-    1,
-    Math.ceil(processRows.length / PROCESS_ROWS_PER_PAGE)
-  );
-  const safeProcessPage = Math.min(processPage, totalProcessPages);
-  const processPageStartIndex = (safeProcessPage - 1) * PROCESS_ROWS_PER_PAGE;
-  const paginatedProcessRows = processRows.slice(
-    processPageStartIndex,
-    processPageStartIndex + PROCESS_ROWS_PER_PAGE
-  );
-  const processPageFirstItem =
-    processRows.length === 0 ? 0 : processPageStartIndex + 1;
-  const processPageLastItem = Math.min(
-    processPageStartIndex + PROCESS_ROWS_PER_PAGE,
-    processRows.length
-  );
-  const processPageNumbers = useMemo(() => {
-    const maxVisiblePages = 5;
-    const startPage = Math.max(
-      1,
-      Math.min(
-        safeProcessPage - 2,
-        totalProcessPages - maxVisiblePages + 1
-      )
-    );
-    const endPage = Math.min(
-      totalProcessPages,
-      startPage + maxVisiblePages - 1
-    );
-
-    return Array.from(
-      { length: endPage - startPage + 1 },
-      (_, index) => startPage + index
-    );
-  }, [safeProcessPage, totalProcessPages]);
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0] || null;
@@ -273,24 +227,25 @@ export default function MainSyncJobs() {
   const loadProcesses = async () => {
     if (!supabase) {
       setProcessRows([]);
-      setIsLoadingTable(false);
+      setIsLoadingProcesses(false);
       setStatusMessage("Supabase no está configurado.");
       setStatusType("error");
       return;
     }
 
     try {
-      setIsLoadingTable(true);
+      setIsLoadingProcesses(true);
 
       const { data, error } = await supabase
         .from("procesos")
         .select("id, proceso_id, archivo, fecha_proceso, hora_proceso, generado, estado")
         .order("fecha_proceso", { ascending: false })
-        .order("hora_proceso", { ascending: false });
+        .order("hora_proceso", { ascending: false })
+        .order("id", { ascending: false });
 
       if (error) {
         console.error("Error al cargar procesos:", error);
-        setStatusMessage("No se pudo cargar la tabla de procesos.");
+        setStatusMessage("No se pudieron cargar los procesos.");
         setStatusType("error");
         return;
       }
@@ -326,7 +281,7 @@ export default function MainSyncJobs() {
       setStatusMessage("Ocurrió un error inesperado al cargar procesos.");
       setStatusType("error");
     } finally {
-      setIsLoadingTable(false);
+      setIsLoadingProcesses(false);
     }
   };
 
@@ -466,7 +421,6 @@ export default function MainSyncJobs() {
       }
 
       setProcessRows((prev) => [mapProcessRow(data), ...prev]);
-      setProcessPage(1);
       setSelectedFile(null);
       setStatusMessage("Proceso guardado correctamente.");
       setStatusType("success");
@@ -644,35 +598,6 @@ export default function MainSyncJobs() {
     }
   };
 
-  const getStatusClass = (status) => {
-    const normalized = String(status || "").toLowerCase();
-
-    if (normalized === PROCESS_STATUS.PROCESSED_WITH_ERRORS.toLowerCase()) {
-      return "status-badge status-badge--success";
-    }
-
-    if (
-      normalized === PROCESS_STATUS.PROCESSED.toLowerCase() ||
-      normalized === "completado"
-    ) {
-      return "status-badge status-badge--success";
-    }
-
-    if (normalized === PROCESS_STATUS.PROCESSING.toLowerCase()) {
-      return "status-badge status-badge--info";
-    }
-
-    if (normalized === PROCESS_STATUS.PENDING.toLowerCase()) {
-      return "status-badge status-badge--warning";
-    }
-
-    if (normalized === PROCESS_STATUS.ERROR.toLowerCase()) {
-      return "status-badge status-badge--danger";
-    }
-
-    return "status-badge";
-  };
-
   const mlStatusText = isCheckingMl
     ? "Verificando conexión con Mercado Libre..."
     : isMercadoLibreConnected
@@ -729,11 +654,23 @@ export default function MainSyncJobs() {
       )}
 
       <header className="main-sync-jobs__page-header">
-        <h1>Sincronizacion de Procesos</h1>
-        <p>Gestiona archivos, cola de ejecucion y resultados de procesos masivos.</p>
+        <h1>Sincronización de Procesos</h1>
+        <p>Gestiona archivos, cola de ejecución y resultados de procesos masivos.</p>
       </header>
 
       <div className="main-sync-jobs__card">
+        <header className="main-sync-jobs__card-header">
+          <div className="main-sync-jobs__card-heading">
+            <span className="main-sync-jobs__card-icon">
+              <FileSpreadsheet size={21} aria-hidden="true" />
+            </span>
+            <h2>Carga y ejecución</h2>
+            <span className={`main-sync-jobs__queue-status status-badge status-badge--${isQueueRunning ? "info" : "neutral"}`}>
+              {isQueueRunning ? "Cola en ejecución" : "Motor disponible"}
+            </span>
+          </div>
+        </header>
+
         {!isMercadoLibreConnected && (
           <div className="main-sync-jobs__topbar">
             <div className="main-sync-jobs__connection">
@@ -772,14 +709,10 @@ export default function MainSyncJobs() {
                   <span className="main-sync-jobs__file-button">
                     Seleccionar archivo
                   </span>
-                  <span className="main-sync-jobs__file-name">
+                  <span className="main-sync-jobs__file-name" title={selectedFile?.name}>
                     {selectedFile?.name || "No hay archivo seleccionado"}
                   </span>
                 </label>
-                <p className="main-sync-jobs__queue-message">
-                  Para cargar descripciones: Excel .xlsx, Hoja1, columnas MLC y
-                  DESCRIPCION A. El texto reemplaza la descripción existente.
-                </p>
               </div>
 
               <div className="main-sync-jobs__field">
@@ -794,271 +727,64 @@ export default function MainSyncJobs() {
             </div>
           </div>
 
-          <div className="main-sync-jobs__quick-card">
-            <div className="main-sync-jobs__quick-title">
-              <Zap size={22} aria-hidden="true" />
-              <span>ACCIONES RÁPIDAS</span>
-            </div>
-
+          <div className="main-sync-jobs__actions" aria-label="Acciones de procesos">
             <button
               type="button"
-              className="main-sync-jobs__quick-button main-sync-jobs__quick-button--save"
+              className="main-sync-jobs__action-button main-sync-jobs__action-button--save"
               onClick={handleSaveProcess}
               disabled={isSaving || !selectedFile}
             >
-              <Save size={22} aria-hidden="true" />
+              <Save size={18} aria-hidden="true" />
               <span>{isSaving ? "Guardando..." : "Guardar proceso"}</span>
             </button>
 
             <button
               type="button"
-              className="main-sync-jobs__quick-button main-sync-jobs__quick-button--queue"
+              className="main-sync-jobs__action-button main-sync-jobs__action-button--queue"
+              title={isQueueRunning ? queueButtonText || "Procesos en ejecución" : "Ejecutar procesos"}
               onClick={handleGenerateProcesses}
               disabled={
                 isQueueRunning || !isMercadoLibreConnected || !hasPendingProcesses
               }
             >
-              <BarChart3 size={22} aria-hidden="true" />
+              <BarChart3 size={18} aria-hidden="true" />
               <span>
                 {isQueueRunning
                   ? queueButtonText || "Procesos en ejecución"
                   : "Ejecutar procesos"}
               </span>
             </button>
-
-            {(statusMessage || visibleQueueMessage) && (
-              <div className="main-sync-jobs__quick-feedback">
-                {statusMessage && (
-                  <p
-                    className={`main-sync-jobs__message main-sync-jobs__message--${statusType}`}
-                  >
-                    {statusMessage}
-                  </p>
-                )}
-
-                {visibleQueueMessage && (
-                  <p className="main-sync-jobs__queue-message">
-                    {visibleQueueMessage}
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="main-sync-jobs__quick-divider" />
-
-            <div className="main-sync-jobs__quick-uptime">
-              <span>Uptime del Motor</span>
-              <strong>99.98%</strong>
-            </div>
           </div>
         </div>
-      </div>
 
-      <div className="main-sync-jobs__table-card">
-        <div className="main-sync-jobs__table-header">
-          <h2 className="main-sync-jobs__table-title">
-            Procesos cargados
-          </h2>
-        </div>
-
-        <div className="main-sync-jobs__table-scroll">
-          <table className="process-table">
-            <thead>
-              <tr>
-                <th className="process-table__action-header" aria-label="Error" />
-                <th>Archivo</th>
-                <th>Fecha proceso</th>
-                <th>Generado por</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoadingTable ? (
-                <tr>
-                  <td colSpan="5" className="main-sync-jobs__empty-row">
-                    Cargando procesos...
-                  </td>
-                </tr>
-              ) : processRows.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="main-sync-jobs__empty-row">
-                    No hay procesos registrados todavía.
-                  </td>
-                </tr>
-              ) : (
-                paginatedProcessRows.map((row) => {
-                  const isCurrentlyProcessing =
-                    isQueueRunning && queueCurrentProcessRowId === row.id;
-                  const displayStatus = isCurrentlyProcessing
-                    ? PROCESS_STATUS.PROCESSING
-                    : row.displayEstado || row.estado;
-                  const hasProcessError = Boolean(row.hasErrorDetails);
-                  const isPartialProcess = Boolean(row.isPartialProcess);
-                  const hasExportResult = Boolean(row.hasExportResult);
-                  const isExportingCurrentRow = exportingRowId === row.id;
-                  const showProgressBar =
-                    isCurrentlyProcessing && jobTotalRows > 0;
-                  const showCompatibilityCounter =
-                    isCurrentlyProcessing &&
-                    queueCurrentProcessType === "compatibilities";
-                  const progressPercent = showProgressBar
-                    ? Math.min(
-                        100,
-                        Math.round((jobProcessedRows / jobTotalRows) * 100)
-                      )
-                    : 0;
-
-                  return (
-                    <tr key={row.id}>
-                      <td className="process-table__action-cell">
-                        {hasProcessError || hasExportResult ? (
-                          <div className="process-table__action-group">
-                            {hasProcessError ? (
-                              <button
-                                type="button"
-                                className={`process-table__error-button ${
-                                  isPartialProcess
-                                    ? "process-table__error-button--partial"
-                                    : ""
-                                }`}
-                                onClick={() => handleOpenErrorModal(row)}
-                                aria-label={`Ver detalle del proceso ${row.archivo}`}
-                                title="Ver detalle del proceso"
-                              >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  aria-hidden="true"
-                                  className="process-table__error-icon"
-                                >
-                                  <circle
-                                    cx="12"
-                                    cy="12"
-                                    r="9"
-                                    className="process-table__error-icon-ring"
-                                  />
-                                  <path
-                                    d="M8.5 8.5 15.5 15.5"
-                                    className="process-table__error-icon-cross"
-                                  />
-                                  <path
-                                    d="M15.5 8.5 8.5 15.5"
-                                    className="process-table__error-icon-cross"
-                                  />
-                                </svg>
-                              </button>
-                            ) : null}
-                            {hasExportResult ? (
-                              <button
-                                type="button"
-                                className="process-table__download-button"
-                                onClick={() => handleDownloadProcessResult(row)}
-                                aria-label={row.exportLabel || "Descargar resultado"}
-                                title={row.exportLabel || "Descargar resultado"}
-                                disabled={isExportingCurrentRow}
-                              >
-                                <Download size={16} aria-hidden="true" />
-                              </button>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <span
-                            className="process-table__error-placeholder"
-                            aria-hidden="true"
-                          />
-                        )}
-                      </td>
-                      <td>
-                        <span className="process-table__file-name">
-                          {row.archivo}
-                        </span>
-                      </td>
-                      <td>{row.fecha}</td>
-                      <td>{row.procesadoPor}</td>
-                      <td>
-                        <div className="status-cell">
-                          <span className={getStatusClass(displayStatus)}>
-                            {displayStatus}
-                          </span>
-                          {showProgressBar && (
-                            <div className="progress-container">
-                              <div className="progress-bar">
-                                <div
-                                  className="progress-bar__fill"
-                                  style={{ width: `${progressPercent}%` }}
-                                />
-                              </div>
-                              <span className="progress-label">
-                                <span>
-                                  {jobProcessedRows} / {jobTotalRows} filas procesadas
-                                </span>
-                                {showCompatibilityCounter ? (
-                                  <span className="progress-label__created">
-                                    {jobCompatibilitiesCreated} agregadas
-                                  </span>
-                                ) : null}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {!isLoadingTable && processRows.length > 0 && (
-          <div className="main-sync-jobs__pagination">
-            <span className="main-sync-jobs__pagination-summary">
-              Mostrando {processPageFirstItem}-{processPageLastItem} de{" "}
-              {processRows.length}
-            </span>
-
-            <div className="main-sync-jobs__pagination-controls">
-              <button
-                type="button"
-                className="main-sync-jobs__pagination-button"
-                onClick={() =>
-                  setProcessPage(Math.max(1, safeProcessPage - 1))
-                }
-                disabled={safeProcessPage === 1}
-              >
-                Anterior
-              </button>
-
-              {processPageNumbers.map((pageNumber) => (
-                <button
-                  key={pageNumber}
-                  type="button"
-                  className={`main-sync-jobs__pagination-button ${
-                    pageNumber === safeProcessPage
-                      ? "main-sync-jobs__pagination-button--active"
-                      : ""
-                  }`}
-                  onClick={() => setProcessPage(pageNumber)}
-                >
-                  {pageNumber}
-                </button>
-              ))}
-
-              <button
-                type="button"
-                className="main-sync-jobs__pagination-button"
-                onClick={() =>
-                  setProcessPage(
-                    Math.min(totalProcessPages, safeProcessPage + 1)
-                  )
-                }
-                disabled={safeProcessPage === totalProcessPages}
-              >
-                Siguiente
-              </button>
-            </div>
+        {(statusMessage || visibleQueueMessage) && (
+          <div className="main-sync-jobs__feedback" role="status">
+            {statusMessage && (
+              <p className={`main-sync-jobs__message main-sync-jobs__message--${statusType}`} title={statusMessage}>
+                {statusMessage}
+              </p>
+            )}
+            {visibleQueueMessage && (
+              <p className="main-sync-jobs__queue-message" title={visibleQueueMessage}>{visibleQueueMessage}</p>
+            )}
           </div>
         )}
       </div>
+
+      <ProcessBoard
+        groups={processGroups}
+        isLoading={isLoadingProcesses}
+        isQueueRunning={isQueueRunning}
+        currentProcessRowId={queueCurrentProcessRowId}
+        currentProcessType={queueCurrentProcessType}
+        jobMessage={jobMessage}
+        jobProcessedRows={jobProcessedRows}
+        jobTotalRows={jobTotalRows}
+        jobCompatibilitiesCreated={jobCompatibilitiesCreated}
+        exportingRowId={exportingRowId}
+        onOpenError={handleOpenErrorModal}
+        onDownloadResult={handleDownloadProcessResult}
+      />
 
       <ProcessQueueErrorModal
         row={selectedErrorRow}
