@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, patch
 WORKSPACE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(WORKSPACE / "src" / "backend" / "compatibilties"))
 
+from config import settings
 from services.compatibility_batch_service import build_restrictions
 from services.compatibility_orchestrator_service import process_excel_compatibilities_end_to_end
 from services.excel_service import get_row_value, load_excel_rows
@@ -109,6 +110,8 @@ async def audit(excel_path: Path) -> bool:
         resolve_vehicle_attribute_ids=resolve_attributes,
     )
     with (
+        patch.object(settings, "compatibility_family_cache_ttl_seconds", 0),
+        patch.object(settings, "compatibility_enable_copy", False),
         patch("services.compatibility_orchestrator_service.CatalogPreloadService", return_value=catalog),
         patch("services.compatibility_orchestrator_service.JobStore.update"),
         patch.object(ml_client, "request", new=AsyncMock(side_effect=request_response)) as request,
@@ -121,13 +124,13 @@ async def audit(excel_path: Path) -> bool:
     assert all(row["ok"] for row in outcome["results"])
     writes = [
         {"method": call.args[0], "path": call.args[1], "json_body": call.kwargs["json_body"]}
-        for call in request.await_args_list if call.args[1].startswith("/user-products/")
+        for call in request.await_args_list if call.args[1].startswith("/user-products/") and call.args[0] in {"POST", "PUT"}
     ]
     for sample in samples.values():
         item_id = get_row_value(sample["row"], "ASOCIACION ML")
         target = "/user-products/" + item_metadata[item_id]["user_product_id"] + "/compatibilities"
         matching_writes = [write for write in writes if write["path"] == target]
-        assert {write["method"] for write in matching_writes} == {"POST", "PUT"}
+        assert {write["method"] for write in matching_writes} == {"POST"}
         for write in matching_writes:
             body = write["json_body"]
             families = body["products_families"] if write["method"] == "POST" else body["update"]["products_families"]

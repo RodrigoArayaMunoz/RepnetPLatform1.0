@@ -142,6 +142,7 @@ class MercadoLibreClient:
                 if rate_limiter is not None:
                     await rate_limiter.acquire()
 
+                assert access_token is not None
                 headers = self._build_headers(
                     access_token=access_token,
                     has_json_body=json_body is not None,
@@ -151,13 +152,14 @@ class MercadoLibreClient:
                     metrics.ml_requests += 1
                     if attempt > 1:
                         metrics.ml_retries += 1
+                request_options: dict[str, Any] = {"timeout": timeout_seconds} if timeout_seconds is not None else {}
                 response = await self.client.request(
                     method=method,
                     url=url,
                     headers=headers,
                     json=json_body,
                     params=params,
-                    **({"timeout": timeout_seconds} if timeout_seconds is not None else {}),
+                    **request_options,
                 )
                 retryable_unknown_forbidden = (
                     method.upper() in {"GET", "HEAD"}
@@ -714,6 +716,26 @@ class MercadoLibreClient:
         )
 
         return data if isinstance(data, dict) else {"raw_response": data}
+
+    async def get_user_product_compatibilities(self, *, access_token, user_product_id, user_id=None,
+                                             rate_limiter=None, metrics=None) -> dict:
+        return await self.request(
+            "GET", f"/user-products/{user_product_id}/compatibilities", access_token=access_token,
+            params={"main_domain_id": settings.ml_domain_id, "extended": "true"},
+            user_id=user_id, rate_limiter=rate_limiter, metrics=metrics,
+        )
+
+    async def copy_user_product_compatibilities(self, *, access_token, user_product_id,
+                                              source_user_product_id, category_id, user_id=None,
+                                              rate_limiter=None, metrics=None) -> dict:
+        return await self.request(
+            "POST", f"/user-products/{user_product_id}/compatibilities/copy-paste",
+            access_token=access_token, json_body={
+                "domain_id": settings.ml_domain_id, "category_id": category_id,
+                "user_product_id": source_user_product_id, "item_id": None, "extended_information": True,
+            }, user_id=user_id, rate_limiter=rate_limiter, metrics=metrics,
+            timeout_seconds=settings.ml_compatibility_http_timeout_seconds,
+        )
 
     async def update_user_product_compatibility_families_batch(
         self,

@@ -61,6 +61,12 @@ def _write_response(method, _path, **kwargs):
     return {"update": {}}
 
 
+class _NoPersistentCache(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.enterContext(patch.object(settings, "compatibility_family_cache_ttl_seconds", 0))
+        self.enterContext(patch.object(settings, "compatibility_enable_copy", False))
+
+
 class ShockAbsorberPositionTests(unittest.TestCase):
     def test_blank_primary_and_normalized_sides_use_only_supplied_values(self):
         cases = [
@@ -97,7 +103,7 @@ class ShockAbsorberPositionTests(unittest.TestCase):
         self.assertEqual(rows, before)
 
 
-class ShockAbsorberBatchTests(unittest.IsolatedAsyncioTestCase):
+class ShockAbsorberBatchTests(_NoPersistentCache):
     async def test_invalid_or_entirely_missing_positions_report_errors_without_writes(self):
         cases = [(None, None), (" ", " "), ("DELANTERO", "Izquierda"),
                  ("Delantera", "AMBAS"), (None, "IZQUIERDA/")]
@@ -118,7 +124,7 @@ class ShockAbsorberBatchTests(unittest.IsolatedAsyncioTestCase):
                 rows=[_resolved_row(side="AMBAS"), _resolved_row(side="Derecha")],
             )
         self.assertEqual([row["ok"] for row in outcome["results"]], [False, True])
-        self.assertEqual(request.await_count, 2)
+        self.assertEqual(request.await_count, 1)
         for call in request.await_args_list:
             body = call.kwargs["json_body"]
             families = body["products_families"] if call.args[0] == "POST" else body["update"]["products_families"]
@@ -141,8 +147,8 @@ class ShockAbsorberBatchTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(row["ok"] for row in outcome["results"]))
         self.assertTrue(repeated["results"][0]["was_reused"])
         self.assertEqual(request.await_count, write_count)
-        self.assertEqual(write_count, 6)
-        for call in request.await_args_list[2:]:
+        self.assertEqual(write_count, 3)
+        for call in request.await_args_list[1:]:
             body = call.kwargs["json_body"]
             families = body["products_families"] if call.args[0] == "POST" else body["update"]["products_families"]
             expected = {frozenset({"13701104", "2262160"})}
@@ -151,7 +157,7 @@ class ShockAbsorberBatchTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(_combinations(families[0]["restrictions"]), expected)
 
 
-class ShockAbsorberExcelFlowTests(unittest.IsolatedAsyncioTestCase):
+class ShockAbsorberExcelFlowTests(_NoPersistentCache):
     async def test_all_nineteen_position_patterns_reach_creation_and_update_from_excel_headers(self):
         side_cases = {
             "": [None], "IZQUIERDA": ["2262158"], "DERECHA": ["2262160"],
@@ -214,11 +220,11 @@ class ShockAbsorberExcelFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(outcome["results"]), 19)
         self.assertTrue(all(row["ok"] for row in outcome["results"]))
         self.assertEqual(outcome["summary"]["total_created_compatibilities"], 19)
-        writes = [call for call in request.await_args_list if call.args[1].startswith("/user-products/")]
-        self.assertEqual(len(writes), 38)
+        writes = [call for call in request.await_args_list if call.args[0] in {"POST", "PUT"} and call.args[1].startswith("/user-products/")]
+        self.assertEqual(len(writes), 19)
         for target, expected in expected_by_target.items():
             matching = [call for call in writes if call.args[1] == target]
-            self.assertEqual({call.args[0] for call in matching}, {"POST", "PUT"})
+            self.assertEqual({call.args[0] for call in matching}, {"POST"})
             for call in matching:
                 body = call.kwargs["json_body"]
                 families = body["products_families"] if call.args[0] == "POST" else body["update"]["products_families"]

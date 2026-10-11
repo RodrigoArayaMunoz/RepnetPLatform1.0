@@ -1,0 +1,376 @@
+{
+  "started_at": "2026-10-11T12:07:23.633736+00:00",
+  "experiments": [
+    {
+      "item_id": "MLC4557290850",
+      "purpose": "DELANTERA",
+      "before": {
+        "products": []
+      },
+      "post_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC22579",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Kia"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Cerato"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2013"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "EX"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "status": "read_back",
+      "post_status": 200,
+      "post_response": {
+        "created_compatibilities_count": 1
+      },
+      "get_status": 200,
+      "after": {
+        "products": [
+          {
+            "catalog_product_id": "MLC42873535",
+            "catalog_product_name": "Kia Cerato 2013 EX Chile Asistida Cremallera FWD Sedan 1.6L L4 Gasolina Manual Transeje 6 4 Sin-ABS Asistido Disco Disco G4FC 16 Aspirado Sin distribuidor Helicoidal Helicoidal Inyección 124 DOHC",
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "id": "27217214481",
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "note_status": "APPROVED",
+            "reputation": {
+              "level": "NEWBIE"
+            },
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      },
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      },
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "source": "SELLER",
+            "user_product_id": "MLCU5413373149"
+          }
+        ]
+      }
+    },
+    {
+      "item_id": "MLC2312790181",
+      "purpose": "TRASERA",
+      "before": {
+        "products": []
+      },
+      "post_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC22579",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Changan"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "CX70"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2018"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Comfort"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "status": "read_back",
+      "post_status": 200,
+      "post_response": {
+        "created_compatibilities_count": 1
+      },
+      "get_status": 200,
+      "after": {
+        "products": [
+          {
+            "catalog_product_id": "MLC24189272",
+            "catalog_product_name": "Changan CX70 2018 Comfort Chile Asistida Cremallera RWD SUV 1.6L L4 Gasolina Manual Transmisión 5 4 ABS 4 ruedas Asistido Disco Disco 278 cm JL478QEE 16 Aspirado Sin distribuidor Helicoidal Helicoidal",
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "id": "27217218695",
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "note_status": "APPROVED",
+            "reputation": {
+              "level": "NEWBIE"
+            },
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      },
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      },
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "source": "SELLER",
+            "user_product_id": "MLCU5413539079"
+          }
+        ]
+      }
+    },
+    {
+      "item_id": "MLC4557291764",
+      "purpose": "SIDE_ONLY",
+      "before": {
+        "products": []
+      },
+      "post_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC22579",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Suzuki"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Alto"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2007"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "GL 800"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "0.8L L3 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "status": "read_back",
+      "post_status": 200,
+      "post_response": {
+        "created_compatibilities_count": 1
+      },
+      "get_status": 200,
+      "after": {
+        "products": [
+          {
+            "catalog_product_id": "MLC60858735",
+            "catalog_product_name": "Ha23 Asistida 12 Cremallera Gl 800 F8d 2007 Inyección Disco 46 Sin Distribuidor Sohc Transeje 4 Manual Aspirado Helicoidal 5 Suzuki Chile Disco Hatchback Sin-abs 0.8l L3 Gasolina Asistido Fwd",
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "id": "27217219972",
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "note_status": "APPROVED",
+            "reputation": {
+              "level": "NEWBIE"
+            },
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "source": "SELLER",
+            "user_product_id": "MLCU5456853756"
+          }
+        ]
+      }
+    }
+  ]
+}

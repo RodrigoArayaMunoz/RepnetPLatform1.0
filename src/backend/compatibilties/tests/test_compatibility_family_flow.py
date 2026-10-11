@@ -186,6 +186,7 @@ class MercadoLibreCompatibilityClientTests(unittest.IsolatedAsyncioTestCase):
 
 class CompatibilityFamilyResolutionTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        self.enterContext(patch.object(settings, "compatibility_use_value_names", False))
         self.catalog_cache = SimpleNamespace(
             resolve_brand_id=lambda value: "100",
             resolve_model_id=lambda value: "200",
@@ -400,6 +401,10 @@ class ContextualCatalogResolutionTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CompatibilityEndToEndOrderTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.enterContext(patch.object(settings, "compatibility_use_value_names", False))
+        self.enterContext(patch.object(settings, "compatibility_family_cache_ttl_seconds", 0))
+
     async def test_flow_gets_item_before_counting_and_posting_family(self):
         events = []
         attributes = [
@@ -517,7 +522,6 @@ class CompatibilityEndToEndOrderTests(unittest.IsolatedAsyncioTestCase):
                 "resolve_attributes",
                 "count_family",
                 "post_family",
-                "update_family",
             ],
         )
         self.assertEqual(
@@ -675,13 +679,9 @@ class CompatibilityFamilyBatchTests(unittest.IsolatedAsyncioTestCase):
                 on_progress=on_progress,
             )
 
-        self.assertEqual(call_ml.await_count, 2)
+        self.assertEqual(call_ml.await_count, 1)
         self.assertEqual(
             len(call_ml.await_args_list[0].kwargs["product_families"]),
-            2,
-        )
-        self.assertEqual(
-            len(call_ml.await_args_list[1].kwargs["product_families"]),
             2,
         )
         self.assertTrue(all(row["ok"] for row in outcome["results"]))
@@ -757,6 +757,7 @@ class CompatibilityChunkPolicyTests(unittest.IsolatedAsyncioTestCase):
             }
 
         with (
+            patch.object(settings, "compatibility_use_value_names", False),
             patch.object(settings, "compatibility_chunk_size", 100),
             patch.object(settings, "compatibility_chunk_pause_seconds", 0),
             patch(

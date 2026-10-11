@@ -1,0 +1,16 @@
+{
+  "mode": "complete_workbook_simulation",
+  "source_file": "RESULTADO MLC-AMORTIGUADORES.xlsx",
+  "catalog_count_assumption": "one simulated product per family",
+  "live_write_count": 0,
+  "verified_rows": 42870,
+  "success_count": 42870,
+  "item_count": 1480,
+  "count_family_queries": 4300,
+  "family_post_count": 971,
+  "copy_post_count": 1165,
+  "put_count": 0,
+  "total_compatibility_write_count": 2136,
+  "max_families_in_request": 10,
+  "elapsed_seconds": 12.86
+}

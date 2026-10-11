@@ -277,7 +277,7 @@ class CompatibilityCacheTests(unittest.IsolatedAsyncioTestCase):
                                                        rows=[family_row()], state=state)
             second = await process_compatibility_batches(access_token="token", user_id="99",
                                                         rows=[{**family_row(), "original_row_index": 301}], state=state)
-        self.assertEqual(write.await_count, 2)  # POST and required note PUT
+        self.assertEqual(write.await_count, 1)  # New families carry their note in the POST.
         self.assertTrue(second["results"][0]["ok"])
         self.assertEqual(second["results"][0]["original_row_index"], 301)
         self.assertEqual(first["summary"]["total_created_compatibilities"], 2)
@@ -295,7 +295,7 @@ class CompatibilityCacheTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_note_failure_preserves_confirmed_created_count(self):
         row = family_row()
-        entry = {"compatibility_key": "family:a", "matched_products_count": 1,
+        entry = {"compatibility_key": "family:a", "matched_products_count": 4,
                  "payload": {**row["product_family"], "note": "Nota"}}
         with patch("services.compatibility_batch_service.call_ml", new=AsyncMock(side_effect=[
             {"created_compatibilities_count": 3}, HTTPException(status_code=503, detail="Unavailable"),

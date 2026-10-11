@@ -20,11 +20,14 @@ from services.excel_service import (
 )
 from services.job_store import JobStore
 from services.ml_client import ml_client
+from services.compatibility_family_cache import family_cache_key, get_family_resolution, save_family_resolution
 from services.redis_rate_limiter import CombinedRateLimiter, RedisWindowRateLimiter
 
 
 @dataclass
 class JobCaches:
+    vehicle_families: dict[str, dict] = field(default_factory=dict)
+    vehicle_family_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
     item_detail: dict[str, dict] = field(default_factory=dict)
     item_detail_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
     family_product_count: dict[
@@ -170,7 +173,7 @@ async def call_ml(
     fn: Callable[..., Awaitable[Any]],
     *args,
     metrics: JobMetrics,
-    limiter=None,
+    limiter: Any = None,
     client_managed_retry: bool = False,
     **kwargs,
 ) -> Any:
@@ -206,7 +209,7 @@ async def call_ml(
                     float(getattr(settings, "ml_retry_429_cooldown_seconds", 20.0)),
                     retry_after_seconds or 0.0,
                 )
-                if limiter is not None and hasattr(limiter, "penalize"):
+                if hasattr(limiter, "penalize"):
                     try:
                         await limiter.penalize(limiter_cooldown)
                     except Exception:
@@ -447,6 +450,57 @@ async def resolve_vehicle_attribute_ids(
             transmission_name
         ),
     }
+
+
+async def resolve_id_vehicle_family(*, access_token, user_id, catalog_cache, caches, metrics, **vehicle) -> dict:
+    ids = await resolve_vehicle_attribute_ids(
+        access_token=access_token, user_id=user_id, catalog_cache=catalog_cache, **vehicle,
+    )
+    labels = {"brand_id": "MARCA", "model_id": "MODELO", "year_id": "AÑO",
+              "version_id": "VERSION", "engine_id": "CILINDRADA", "transmission_id": "TRANSMISION"}
+    missing = [labels[key] for key in labels if not ids.get(key)]
+    if missing:
+        return {"count": 0, "attributes": [], "missing_fields": missing}
+    count, attributes = await count_vehicle_family_products(
+        access_token=access_token, user_id=user_id, caches=caches, metrics=metrics, **ids,
+    )
+    return {"count": count, "attributes": attributes}
+
+
+async def resolve_named_vehicle_family(*, access_token, user_id, catalog_cache, caches, metrics, **vehicle) -> dict:
+    names = [("BRAND", vehicle["brand_name"]), ("CAR_AND_VAN_MODEL", vehicle["model_name"]),
+             ("YEAR", str(vehicle["year"])), ("CAR_AND_VAN_SUBMODEL", vehicle["version_name"]),
+             ("CAR_AND_VAN_ENGINE", vehicle["engine_name"]), ("TRANSMISSION_CONTROL_TYPE", vehicle["transmission_name"])]
+    attributes = [{"id": attribute, "value_name": name} for attribute, name in names]
+    key = family_cache_key(attributes)
+    async with caches.vehicle_family_locks.setdefault(key, asyncio.Lock()):
+        cached = caches.vehicle_families.get(key)
+        if cached is None:
+            cached = await get_family_resolution(key)
+        if cached and 1 <= cached.get("count", 0) <= 200:
+            metrics.cache_hits += 1
+            caches.vehicle_families[key] = cached
+            return cached
+        try:
+            count = await call_ml(
+                ml_client.count_vehicle_family_products, access_token=access_token,
+                user_id=user_id, attributes=attributes, domain_id=settings.ml_domain_id,
+                metrics=metrics, limiter=READ_RATE_LIMITER, client_managed_retry=True,
+            )
+        except HTTPException as exc:
+            if exc.status_code != 400:
+                raise
+            count = 0
+        result = {"count": int(count), "attributes": attributes}
+        if not count:
+            result = await resolve_id_vehicle_family(
+                access_token=access_token, user_id=user_id, catalog_cache=catalog_cache,
+                caches=caches, metrics=metrics, **vehicle,
+            )
+        if 1 <= result["count"] <= 200:
+            caches.vehicle_families[key] = result
+            await save_family_resolution(key, result)
+        return result
 
 
 def build_vehicle_resolution_plan(rows: list[dict]) -> tuple[list[dict], list[list[int]]]:
@@ -690,62 +744,32 @@ async def resolve_vehicle_product_row(
                 error_code="MISSING_REQUIRED_VEHICLE_DATA",
             )
 
-        attribute_ids = await resolve_vehicle_attribute_ids(
-            access_token=access_token,
-            user_id=user_id,
-            catalog_cache=catalog_cache,
-            brand_name=brand_name,
-            model_name=model_name,
-            year=year,
-            version_name=version_name,
-            engine_name=engine_name,
-            transmission_name=transmission_name,
-        )
-        attribute_labels = {
-            "brand_id": "MARCA",
-            "model_id": "MODELO",
-            "year_id": "AÑO",
-            "version_id": "VERSION",
-            "engine_id": "CILINDRADA",
-            "transmission_id": "TRANSMISION",
-        }
-        missing_attribute_ids = [
-            attribute_labels[key]
-            for key, value in attribute_ids.items()
-            if not value
-        ]
-        if missing_attribute_ids:
-            return _build_error_result(
-                item_id,
-                "No se pudieron resolver en contexto: "
-                + ", ".join(missing_attribute_ids),
-                brand_name=brand_name,
-                model_name=model_name,
-                version_name=version_name,
-                engine_name=engine_name,
+        if settings.compatibility_use_value_names:
+            resolution = await resolve_named_vehicle_family(
+                access_token=access_token, user_id=user_id, catalog_cache=catalog_cache,
+                caches=caches, metrics=metrics, brand_name=brand_name, model_name=model_name,
+                year=year, version_name=version_name, engine_name=engine_name,
                 transmission_name=transmission_name,
-                year=year,
+            )
+            family_product_count = resolution["count"]
+            family_attributes = resolution["attributes"]
+        else:
+            resolution = await resolve_id_vehicle_family(
+                access_token=access_token, user_id=user_id, catalog_cache=catalog_cache,
+                caches=caches, metrics=metrics, brand_name=brand_name, model_name=model_name,
+                year=year, version_name=version_name, engine_name=engine_name,
+                transmission_name=transmission_name,
+            )
+            family_product_count = resolution["count"]
+            family_attributes = resolution["attributes"]
+
+        if resolution.get("missing_fields"):
+            return _build_error_result(
+                item_id, "No se pudieron resolver en contexto: " + ", ".join(resolution["missing_fields"]),
+                brand_name=brand_name, model_name=model_name, version_name=version_name,
+                engine_name=engine_name, transmission_name=transmission_name, year=year,
                 error_code="CONTEXTUAL_ATTRIBUTE_NOT_FOUND",
             )
-
-        brand_id = attribute_ids["brand_id"]
-        model_id = attribute_ids["model_id"]
-        year_id = attribute_ids["year_id"]
-        version_id = attribute_ids["version_id"]
-        engine_id = attribute_ids["engine_id"]
-        transmission_id = attribute_ids["transmission_id"]
-        family_product_count, family_attributes = await count_vehicle_family_products(
-            access_token=access_token,
-            user_id=user_id,
-            brand_id=brand_id,
-            model_id=model_id,
-            year_id=year_id,
-            version_id=version_id,
-            transmission_id=transmission_id,
-            engine_id=engine_id,
-            caches=caches,
-            metrics=metrics,
-        )
 
         if family_product_count == 0:
             return _build_error_result(

@@ -73,6 +73,12 @@ def _write_response(method, _path, **kwargs):
     return {"update": {}}
 
 
+class _NoPersistentCache(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.enterContext(patch.object(settings, "compatibility_family_cache_ttl_seconds", 0))
+        self.enterContext(patch.object(settings, "compatibility_enable_copy", False))
+
+
 class WheelHubPositionTests(unittest.TestCase):
     def test_all_four_positions_use_verified_ids_and_optional_sides(self):
         side_cases = [
@@ -142,7 +148,7 @@ class WheelHubPositionTests(unittest.TestCase):
         self.assertEqual(rows, before)
 
 
-class WheelHubBatchTests(unittest.IsolatedAsyncioTestCase):
+class WheelHubBatchTests(_NoPersistentCache):
     async def test_invalid_position_reports_row_error_without_ml_write(self):
         for position, side in (("", ""), ("DELANTERO", ""), ("Delantera", "AMBAS"), ("Delantera", "IZQUIERDA/")):
             with self.subTest(position=position, side=side):
@@ -161,7 +167,7 @@ class WheelHubBatchTests(unittest.IsolatedAsyncioTestCase):
                 access_token="token", user_id="123",
                 rows=[_resolved_row(side="AMBAS"), _resolved_row(side="Izquierda")],
             )
-        self.assertEqual(request.await_count, 2)
+        self.assertEqual(request.await_count, 1)
         self.assertEqual([row["ok"] for row in outcome["results"]], [False, True])
         self.assertEqual(_combinations(request.await_args_list[0].kwargs["json_body"]["products_families"][0]["restrictions"]), {
             frozenset({"13701104", "2262158"}),
@@ -185,8 +191,8 @@ class WheelHubBatchTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(first["results"][0]["ok"])
         self.assertTrue(second["results"][0]["ok"])
         self.assertTrue(repeated["results"][0]["was_reused"])
-        self.assertEqual(request.await_count, 4)
-        for call in request.await_args_list[2:]:
+        self.assertEqual(request.await_count, 2)
+        for call in request.await_args_list[1:]:
             body = call.kwargs["json_body"]
             families = body["products_families"] if call.args[0] == "POST" else body["update"]["products_families"]
             self.assertEqual(_combinations(families[0]["restrictions"]), {
@@ -200,7 +206,7 @@ class WheelHubBatchTests(unittest.IsolatedAsyncioTestCase):
         def fail_update(method, path, **kwargs):
             if method == "PUT":
                 raise HTTPException(status_code=400, detail="Invalid position")
-            return _write_response(method, path, **kwargs)
+            return {"created_compatibilities_count": 0}
 
         with patch.object(ml_client, "request", new=AsyncMock(side_effect=fail_update)):
             outcome = await process_compatibility_batches(
@@ -212,7 +218,7 @@ class WheelHubBatchTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.successful_rows, {})
 
 
-class WheelHubExcelFlowTests(unittest.IsolatedAsyncioTestCase):
+class WheelHubExcelFlowTests(_NoPersistentCache):
     async def test_supplied_excel_rows_reach_creation_and_update_with_correct_positions(self):
         fixture_path = Path(__file__).parent / "fixtures" / "wheel_hubs_excel_rows.json"
         fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
@@ -267,8 +273,8 @@ class WheelHubExcelFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(outcome["results"]), 6)
         self.assertTrue(all(row["ok"] for row in outcome["results"]))
         self.assertEqual(outcome["summary"]["total_created_compatibilities"], 6)
-        writes = [call for call in request.await_args_list if call.args[1].startswith("/user-products/")]
-        self.assertEqual(len(writes), 4)
+        writes = [call for call in request.await_args_list if call.args[0] in {"POST", "PUT"} and call.args[1].startswith("/user-products/")]
+        self.assertEqual(len(writes), 2)
         for call in writes:
             method, target = call.args
             body = call.kwargs["json_body"]

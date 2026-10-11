@@ -85,22 +85,26 @@ y [mercadolibre-items-verification.json](../artifacts/shock-absorber-compatibili
 
 Se revisaron las posiciones de las 42.870 filas y se ejecutó el recorrido local
 completo con una fila real de cada uno de los tres patrones del Excel. Las
-respuestas de catálogo y escritura se simularon, y se inspeccionaron los seis
-cuerpos HTTP generados: tres POST de creación y tres PUT de actualización.
+respuestas de catálogo y escritura se simularon, y se inspeccionaron los tres
+cuerpos HTTP generados: un POST de creación por muestra con nota y posiciones.
 
-Los seis envíos incluyen las posiciones esperadas, también en la muestra con
+Los tres envíos incluyen las posiciones esperadas, también en la muestra con
 posición principal vacía. Los IDs esperados se comparan de forma independiente
 con los cuerpos HTTP, sin reutilizar `build_restrictions` como resultado esperado.
 
 La prueba de integración adicional recorre los 19 patrones válidos: cuatro
 posiciones principales con cuatro variantes de lado, más tres variantes de
-lado sin posición principal. Se verifican los 38 cuerpos POST y PUT, los IDs,
+lado sin posición principal. Se verifican los 19 cuerpos POST, los IDs,
 los nombres y la lectura de los encabezados originales del Excel. También se
 prueban errores de fila, posiciones repetidas y conservación entre bloques.
-La suite completa del backend pasó: **229 pruebas**.
+La suite completa del backend pasó: **253 pruebas**.
 
-La evidencia anterior de Mercado Libre proviene de consultas GET. Las
-escrituras se comprobaron mediante simulación: **cero escrituras reales**.
+La auditoría reproducible de posiciones utiliza respuestas GET guardadas y
+escrituras simuladas: **cero escrituras reales en esa auditoría**. La
+[optimización posterior](compatibility-optimization.md) también fue comprobada
+con creaciones, copia y lectura posterior reales: 9 compatibilidades en 6
+publicaciones. Se conservaron las notas y posiciones esperadas con un POST
+para creación nueva; los existentes usan PUT cuando requieren actualización.
 La corrección debe estar instalada en el backend que procese el archivo.
 El script reproducible es
 [verify_positions.py](../artifacts/shock-absorber-compatibilities/verify_positions.py):

@@ -1,0 +1,156 @@
+{
+  "checked_at": 1791720341.4106126,
+  "candidates": [
+    {
+      "item_id": "MLC4557290850",
+      "status": "active",
+      "domain_id": "MLC-VEHICLE_SHOCK_ABSORBERS",
+      "category_id": "MLC22579",
+      "user_product_id": "MLCU5413373149",
+      "purpose": "DELANTERA",
+      "samples": [
+        {
+          "excel_row": 2,
+          "row": {
+            "ASOCIACION ML": "MLC4557290850",
+            "MARCA": "Kia",
+            "MODELO": "Cerato",
+            "AÑO": 2013,
+            "VERSION": "EX",
+            "CILINDRADA": "1.6L L4 Gasolina",
+            "TRANSMISION": "Manual",
+            "FAMILIA": "MLC-VEHICLE_SHOCK_ABSORBERS",
+            "POSICION_DT": "DELANTERA",
+            "POSICION_ID": "IZQUIERDA/DERECHA",
+            "ORIGEN_MATCH": null
+          }
+        }
+      ],
+      "compatibilities_status": 200,
+      "compatibilities": {
+        "products": []
+      }
+    },
+    {
+      "item_id": "MLC2312790181",
+      "status": "active",
+      "domain_id": "MLC-VEHICLE_SHOCK_ABSORBERS",
+      "category_id": "MLC22579",
+      "user_product_id": "MLCU5413539079",
+      "purpose": "TRASERA",
+      "samples": [
+        {
+          "excel_row": 22371,
+          "row": {
+            "ASOCIACION ML": "MLC2312790181",
+            "MARCA": "Changan",
+            "MODELO": "CX70",
+            "AÑO": 2018,
+            "VERSION": "Comfort",
+            "CILINDRADA": "1.6L L4 Gasolina",
+            "TRANSMISION": "Manual",
+            "FAMILIA": "MLC-VEHICLE_SHOCK_ABSORBERS",
+            "POSICION_DT": "TRASERA",
+            "POSICION_ID": "IZQUIERDA/DERECHA",
+            "ORIGEN_MATCH": null
+          }
+        }
+      ],
+      "compatibilities_status": 200,
+      "compatibilities": {
+        "products": []
+      }
+    },
+    {
+      "item_id": "MLC4557291764",
+      "status": "active",
+      "domain_id": "MLC-VEHICLE_SHOCK_ABSORBERS",
+      "category_id": "MLC22579",
+      "user_product_id": "MLCU5456853756",
+      "purpose": "SIDE_ONLY",
+      "samples": [
+        {
+          "excel_row": 22210,
+          "row": {
+            "ASOCIACION ML": "MLC4557291764",
+            "MARCA": "Suzuki",
+            "MODELO": "Alto",
+            "AÑO": 2007,
+            "VERSION": "GL 800",
+            "CILINDRADA": "0.8L L3 Gasolina",
+            "TRANSMISION": "Manual",
+            "FAMILIA": "MLC-VEHICLE_SHOCK_ABSORBERS",
+            "POSICION_DT": null,
+            "POSICION_ID": "IZQUIERDA/DERECHA",
+            "ORIGEN_MATCH": null
+          }
+        }
+      ],
+      "compatibilities_status": 200,
+      "compatibilities": {
+        "products": []
+      }
+    },
+    {
+      "item_id": "MLC4557291816",
+      "status": "active",
+      "domain_id": "MLC-VEHICLE_SHOCK_ABSORBERS",
+      "category_id": "MLC22579",
+      "user_product_id": "MLCU5413468979",
+      "purpose": "COPY_IDENTICAL_FULL_SET",
+      "samples": [
+        {
+          "excel_row": 965,
+          "row": {
+            "ASOCIACION ML": "MLC4557291816",
+            "MARCA": "Hyundai",
+            "MODELO": "Galloper",
+            "AÑO": 1999,
+            "VERSION": "Exceed",
+            "CILINDRADA": "3.0L V6 Gasolina",
+            "TRANSMISION": "Manual",
+            "FAMILIA": "MLC-VEHICLE_SHOCK_ABSORBERS",
+            "POSICION_DT": "DELANTERA",
+            "POSICION_ID": "IZQUIERDA/DERECHA",
+            "ORIGEN_MATCH": null
+          }
+        }
+      ],
+      "compatibilities_status": 200,
+      "compatibilities": {
+        "products": []
+      }
+    },
+    {
+      "item_id": "MLC4557187840",
+      "status": "active",
+      "domain_id": "MLC-VEHICLE_SHOCK_ABSORBERS",
+      "category_id": "MLC22579",
+      "user_product_id": "MLCU5413478061",
+      "purpose": "COPY_IDENTICAL_FULL_SET",
+      "samples": [
+        {
+          "excel_row": 966,
+          "row": {
+            "ASOCIACION ML": "MLC4557187840",
+            "MARCA": "Hyundai",
+            "MODELO": "Galloper",
+            "AÑO": 1999,
+            "VERSION": "Exceed",
+            "CILINDRADA": "3.0L V6 Gasolina",
+            "TRANSMISION": "Manual",
+            "FAMILIA": "MLC-VEHICLE_SHOCK_ABSORBERS",
+            "POSICION_DT": "DELANTERA",
+            "POSICION_ID": "IZQUIERDA/DERECHA",
+            "ORIGEN_MATCH": null
+          }
+        }
+      ],
+      "compatibilities_status": 200,
+      "compatibilities": {
+        "products": []
+      }
+    }
+  ],
+  "live_writes": 0
+}

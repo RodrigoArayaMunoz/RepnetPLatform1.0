@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from collections import Counter, defaultdict
+import json
 
 from services.catalog_preload_service import CatalogPreloadService
 from services.compatibility_batch_service import (
@@ -14,17 +16,47 @@ from services.compatibility_service import (
     call_ml,
     get_write_rate_policy,
     process_rows_for_job,
+    vehicle_resolution_key,
 )
+from config import settings
+from services.compatibility_copy_service import process_complete_item_batches
+from services.excel_service import get_row_value
 from services.job_store import JobStore
 from services.process_chunking_service import (
     chunk_sequence,
-    count_chunks,
     format_pause_minutes,
     get_compatibility_chunk_pause_seconds,
     get_compatibility_chunk_size,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def plan_complete_item_chunks(rows, chunk_size):
+    """Keep all positions of a listing together while retaining Excel row indices."""
+    by_item = defaultdict(list)
+    for index, row in enumerate(rows):
+        item = str(get_row_value(row, "ASOCIACION ML") or f"invalid:{index}")
+        by_item[item].append((index, row))
+    signatures = {}
+    for item, indexed_rows in by_item.items():
+        signatures[item] = json.dumps(sorted({
+            json.dumps((vehicle_resolution_key(row)[1:], str(get_row_value(row, "FAMILIA")).strip().upper(),
+                        str(get_row_value(row, "POSICION_DT") or "").strip().upper(),
+                        str(get_row_value(row, "POSICION_ID") or "").strip().upper()))
+            for _, row in indexed_rows
+        }))
+    repetitions = Counter(signatures.values())
+    copy_candidates = {item for item, signature in signatures.items() if repetitions[signature] > 1}
+    chunks, current = [], []
+    for indexed_rows in by_item.values():
+        if current and len(current) + len(indexed_rows) > chunk_size:
+            chunks.append(current)
+            current = []
+        current.extend(indexed_rows)
+    if current:
+        chunks.append(current)
+    return chunks, copy_candidates
 
 
 def _empty_resolution_summary() -> dict:
@@ -52,7 +84,13 @@ async def process_excel_compatibilities_end_to_end(
     total_rows = len(rows)
     chunk_size = get_compatibility_chunk_size()
     pause_seconds = get_compatibility_chunk_pause_seconds()
-    total_chunks = count_chunks(total_rows, chunk_size)
+    if settings.compatibility_use_value_names:
+        indexed_chunks, copy_candidates = plan_complete_item_chunks(rows, chunk_size)
+    else:
+        indexed_chunks = [[(start + offset, row) for offset, row in enumerate(chunk)]
+                          for start, chunk in chunk_sequence(rows, chunk_size)]
+        copy_candidates = set()
+    total_chunks = len(indexed_chunks)
     unique_entries, _ = build_vehicle_resolution_plan(rows)
     total_unique_rows = len(unique_entries)
     duplicated_rows = total_rows - total_unique_rows
@@ -111,10 +149,9 @@ async def process_excel_compatibilities_end_to_end(
         progress=3,
         message="Preparando catálogo de Mercado Libre...",
     )
-    catalog_data = await catalog_cache.preload_all(
-        access_token,
-        user_id=user_id,
-    )
+    catalog_data = None
+    if not settings.compatibility_use_value_names:
+        catalog_data = await catalog_cache.preload_all(access_token, user_id=user_id)
     JobStore.update(
         job_id,
         progress=8,
@@ -122,7 +159,7 @@ async def process_excel_compatibilities_end_to_end(
         metrics={
             **metrics.to_dict(),
             "catalog_preload": (
-                catalog_data.stats() if hasattr(catalog_data, "stats") else {}
+                catalog_data.stats() if catalog_data is not None and hasattr(catalog_data, "stats") else {}
             ),
         },
     )
@@ -133,12 +170,11 @@ async def process_excel_compatibilities_end_to_end(
     created_compatibilities = 0
     resolution_summary = _empty_resolution_summary()
 
-    for chunk_number, (start_index, chunk_rows) in enumerate(
-        chunk_sequence(rows, chunk_size),
-        start=1,
-    ):
-        chunk_start = start_index + 1
-        chunk_end = start_index + len(chunk_rows)
+    for chunk_number, indexed_rows in enumerate(indexed_chunks, start=1):
+        original_indices = [index for index, _ in indexed_rows]
+        chunk_rows = [row for _, row in indexed_rows]
+        chunk_start = min(original_indices) + 1
+        chunk_end = max(original_indices) + 1
 
         JobStore.update(
             job_id,
@@ -162,7 +198,7 @@ async def process_excel_compatibilities_end_to_end(
         resolved_rows = chunk_resolution.get("results", [])
         for resolved_row in resolved_rows:
             if "original_row_index" in resolved_row:
-                resolved_row["original_row_index"] += start_index
+                resolved_row["original_row_index"] = original_indices[resolved_row["original_row_index"]]
         chunk_resolution_summary = chunk_resolution.get("summary", {})
 
         resolution_summary["processed_rows"] += int(
@@ -211,18 +247,21 @@ async def process_excel_compatibilities_end_to_end(
                 compatibilities_created=current_created,
                 message=(
                     f"Procesando bloque {chunk_number}/{total_chunks}: "
-                    f"{completed_batches}/{total_batches} lotes aplicados · "
+                    f"{completed_batches}/{total_batches} grupos aplicados · "
                     f"{current_created} compatibilidades agregadas"
                 ),
             )
 
-        batch_result = await process_compatibility_batches(
+        process_batches = process_complete_item_batches if settings.compatibility_use_value_names else process_compatibility_batches
+        copy_options = {"copy_candidates": copy_candidates} if settings.compatibility_use_value_names else {}
+        batch_result = await process_batches(
             access_token=access_token,
             user_id=user_id,
             rows=resolved_rows,
             metrics=metrics,
             on_progress=on_batch_progress,
             state=batch_state,
+            **copy_options,
         )
 
         all_final_rows.extend(batch_result.get("results", []))
@@ -266,6 +305,7 @@ async def process_excel_compatibilities_end_to_end(
     resolution_summary["duplicated_rows"] = duplicated_rows
     resolution_summary["metrics"] = metrics.to_dict()
 
+    all_final_rows.sort(key=lambda row: row.get("original_row_index", 0))
     compat_summary = build_compat_summary(all_final_rows, all_batch_results, metrics)
     final_summary = {
         **compat_summary,

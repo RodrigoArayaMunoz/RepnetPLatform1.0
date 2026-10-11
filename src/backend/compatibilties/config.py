@@ -195,6 +195,9 @@ class Settings(BaseSettings):
     compat_batch_concurrency: int = Field(default=4, ge=1, le=20)
     compatibility_chunk_size: int = Field(default=300, ge=1, le=5000)
     compatibility_max_concurrency: int = Field(default=4, ge=1, le=20)
+    compatibility_use_value_names: bool = True
+    compatibility_enable_copy: bool = True
+    compatibility_family_cache_ttl_seconds: int = Field(default=3600, ge=0)
     item_pictures_chunk_size: int = Field(default=300, ge=1, le=5000)
     item_pictures_max_concurrency: int = Field(default=4, ge=1, le=20)
     process_file_chunk_size: int = 100

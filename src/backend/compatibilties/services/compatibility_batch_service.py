@@ -29,6 +29,7 @@ class CompatibilityBatchState:
     successful_rows: dict[tuple, dict] = field(default_factory=dict)
     item_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
     position_restrictions: dict[tuple[str, str], list] = field(default_factory=dict)
+    copy_sources: dict[str, dict] = field(default_factory=dict)
 
 
 def _applied_row_key(row: dict) -> tuple:
@@ -109,7 +110,7 @@ FAMILIAS_POSITION_DT_ONLY = {
 }
 
 
-def _position_columns_error(familia: str, posicion_dt: str, posicion_id: str) -> str | None:
+def _position_columns_error(familia: str, posicion_dt: str | None, posicion_id: str | None) -> str | None:
     position = _norm(posicion_dt)
     side = _norm(posicion_id)
     if position and position not in POSICION_DT_VALUE_IDS:
@@ -409,7 +410,7 @@ def validate_resolved_family_rows(rows: list[dict]) -> list[dict]:
             for attribute in attributes
             if isinstance(attribute, dict)
             and _safe_text(attribute.get("id"))
-            and _safe_text(attribute.get("value_id"))
+            and (_safe_text(attribute.get("value_id")) or _safe_text(attribute.get("value_name")))
         ]
         present_attribute_ids = set(present_attribute_id_list)
         missing_attribute_ids = sorted(
@@ -454,7 +455,7 @@ def validate_resolved_family_rows(rows: list[dict]) -> list[dict]:
             )
         if not validation_details:
             validation_details.append(
-                "hay atributos duplicados, inválidos o sin value_id"
+                "hay atributos duplicados, inválidos o sin value_id/value_name"
             )
 
         invalid_row = dict(row)
@@ -736,6 +737,7 @@ async def post_compatibility_families_batch(
     metrics: JobMetrics,
     item_compact: dict | None = None,
     caches: JobCaches | None = None,
+    known_existing: bool = False,
 ) -> dict:
     batch_size = min(
         MAX_PRODUCT_FAMILIES_PER_ML_REQUEST,
@@ -785,17 +787,16 @@ async def post_compatibility_families_batch(
                 "response": None,
             }
 
-        response = await call_ml(
-            ml_client.add_user_product_compatibility_families_batch,
-            access_token=access_token,
-            user_product_id=str(user_product_id),
-            category_id=str(category_id),
-            product_families=product_families,
-            user_id=user_id,
-            metrics=metrics,
-            limiter=COMPATIBILITY_WRITE_RATE_LIMITER,
-            client_managed_retry=True,
-        )
+        if known_existing:
+            response = {"created_compatibilities_count": 0}
+        else:
+            response = await call_ml(
+                ml_client.add_user_product_compatibility_families_batch,
+                access_token=access_token, user_product_id=str(user_product_id),
+                category_id=str(category_id), product_families=product_families,
+                user_id=user_id, metrics=metrics, limiter=COMPATIBILITY_WRITE_RATE_LIMITER,
+                client_managed_retry=True,
+            )
 
         extended_information_families = [
             product_family
@@ -803,7 +804,9 @@ async def post_compatibility_families_batch(
             if product_family.get("note") or product_family.get("restrictions")
         ]
         update_response = None
-        if extended_information_families:
+        created_count = int((response or {}).get("created_compatibilities_count", 0) or 0)
+        # Creation carries note and positions. Existing matches need an update.
+        if extended_information_families and created_count < matched_products_count:
             update_response = await call_ml(
                 ml_client.update_user_product_compatibility_families_batch,
                 access_token=access_token,
@@ -1214,6 +1217,7 @@ async def process_compatibility_batches(
                         family_entries=entries,
                         metrics=metrics,
                         caches=state.caches,
+                        known_existing=all((item_id, entry["compatibility_key"]) in state.position_restrictions for entry in entries),
                         item_compact=(
                             entries[0].get("item_compact")
                             if entries

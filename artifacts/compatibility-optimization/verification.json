@@ -1,0 +1,304 @@
+{
+  "checked_at": "2026-10-11T11:54:37.665850+00:00",
+  "source_file": "RESULTADO MLC-AMORTIGUADORES.xlsx",
+  "rows": 42870,
+  "unique_item_vehicle_pairs": 42870,
+  "unique_vehicle_specs_without_item": 4300,
+  "unique_items": 1480,
+  "distinct_vehicle_and_position_sets": 315,
+  "items_reusable_from_identical_set": 1165,
+  "request_estimates": {
+    "assumption": "At most 10 families per batch, and their combined matched products fit the 200-product limit; these are lower bounds, not measured API writes.",
+    "current_post_put": 10112,
+    "post_only_same_order": 5056,
+    "post_only_group_whole_item": 4995,
+    "unique_named_catalog_prefixes": {
+      "MODEL": 23,
+      "YEAR": 134,
+      "SUBMODEL": 1148,
+      "ENGINE": 2920,
+      "TRANSMISSION": 3161
+    },
+    "post_only_one_base_per_identical_set_then_copy": 2136,
+    "base_creation_post_floor": 971,
+    "copy_posts": 1165
+  },
+  "live_searches": [
+    {
+      "attributes_by_name": [
+        {
+          "id": "BRAND",
+          "value_name": "Kia"
+        },
+        {
+          "id": "CAR_AND_VAN_MODEL",
+          "value_name": "Cerato"
+        },
+        {
+          "id": "YEAR",
+          "value_name": "2013"
+        },
+        {
+          "id": "CAR_AND_VAN_SUBMODEL",
+          "value_name": "EX"
+        },
+        {
+          "id": "CAR_AND_VAN_ENGINE",
+          "value_name": "1.6L L4 Gasolina"
+        },
+        {
+          "id": "TRANSMISSION_CONTROL_TYPE",
+          "value_name": "Manual"
+        }
+      ],
+      "names_status": 200,
+      "names_count": 1,
+      "attributes_by_id": [
+        {
+          "id": "BRAND",
+          "value_id": "374002"
+        },
+        {
+          "id": "CAR_AND_VAN_MODEL",
+          "value_id": "20417824"
+        },
+        {
+          "id": "YEAR",
+          "value_id": "61414"
+        },
+        {
+          "id": "CAR_AND_VAN_SUBMODEL",
+          "value_id": "8238732"
+        },
+        {
+          "id": "CAR_AND_VAN_ENGINE",
+          "value_id": "8753471"
+        },
+        {
+          "id": "TRANSMISSION_CONTROL_TYPE",
+          "value_id": "8183159"
+        }
+      ],
+      "ids_count": 1,
+      "same_count": true
+    },
+    {
+      "attributes_by_name": [
+        {
+          "id": "BRAND",
+          "value_name": "Toyota"
+        },
+        {
+          "id": "CAR_AND_VAN_MODEL",
+          "value_name": "Hilux"
+        },
+        {
+          "id": "YEAR",
+          "value_name": "2016"
+        },
+        {
+          "id": "CAR_AND_VAN_SUBMODEL",
+          "value_name": "Base"
+        },
+        {
+          "id": "CAR_AND_VAN_ENGINE",
+          "value_name": "2.7L L4 Gasolina"
+        },
+        {
+          "id": "TRANSMISSION_CONTROL_TYPE",
+          "value_name": "Manual"
+        }
+      ],
+      "names_status": 200,
+      "names_count": 4,
+      "attributes_by_id": [
+        {
+          "id": "BRAND",
+          "value_id": "60297"
+        },
+        {
+          "id": "CAR_AND_VAN_MODEL",
+          "value_id": "8240126"
+        },
+        {
+          "id": "YEAR",
+          "value_id": "108403"
+        },
+        {
+          "id": "CAR_AND_VAN_SUBMODEL",
+          "value_id": "8239177"
+        },
+        {
+          "id": "CAR_AND_VAN_ENGINE",
+          "value_id": "8753519"
+        },
+        {
+          "id": "TRANSMISSION_CONTROL_TYPE",
+          "value_id": "8183159"
+        }
+      ],
+      "ids_count": 4,
+      "same_count": true
+    },
+    {
+      "attributes_by_name": [
+        {
+          "id": "BRAND",
+          "value_name": "Chevrolet"
+        },
+        {
+          "id": "CAR_AND_VAN_MODEL",
+          "value_name": "Spark"
+        },
+        {
+          "id": "YEAR",
+          "value_name": "2004"
+        },
+        {
+          "id": "CAR_AND_VAN_SUBMODEL",
+          "value_name": "LS"
+        },
+        {
+          "id": "CAR_AND_VAN_ENGINE",
+          "value_name": "0.8L L3 Gasolina"
+        },
+        {
+          "id": "TRANSMISSION_CONTROL_TYPE",
+          "value_name": "Manual"
+        }
+      ],
+      "names_status": 200,
+      "names_count": 1,
+      "attributes_by_id": [
+        {
+          "id": "BRAND",
+          "value_id": "58955"
+        },
+        {
+          "id": "CAR_AND_VAN_MODEL",
+          "value_id": "8240098"
+        },
+        {
+          "id": "YEAR",
+          "value_id": "60896"
+        },
+        {
+          "id": "CAR_AND_VAN_SUBMODEL",
+          "value_id": "8239019"
+        },
+        {
+          "id": "CAR_AND_VAN_ENGINE",
+          "value_id": "20417745"
+        },
+        {
+          "id": "TRANSMISSION_CONTROL_TYPE",
+          "value_id": "8183159"
+        }
+      ],
+      "ids_count": 1,
+      "same_count": true
+    },
+    {
+      "attributes_by_name": [
+        {
+          "id": "BRAND",
+          "value_name": "Hyundai"
+        },
+        {
+          "id": "CAR_AND_VAN_MODEL",
+          "value_name": "Porter"
+        },
+        {
+          "id": "YEAR",
+          "value_name": "2008"
+        },
+        {
+          "id": "CAR_AND_VAN_SUBMODEL",
+          "value_name": "HR"
+        },
+        {
+          "id": "CAR_AND_VAN_ENGINE",
+          "value_name": "2.5L L4 Diesel"
+        },
+        {
+          "id": "TRANSMISSION_CONTROL_TYPE",
+          "value_name": "Manual"
+        }
+      ],
+      "names_status": 200,
+      "names_count": 1
+    },
+    {
+      "attributes_by_name": [
+        {
+          "id": "BRAND",
+          "value_name": "SsangYong"
+        },
+        {
+          "id": "CAR_AND_VAN_MODEL",
+          "value_name": "Actyon Sports"
+        },
+        {
+          "id": "YEAR",
+          "value_name": "2007"
+        },
+        {
+          "id": "CAR_AND_VAN_SUBMODEL",
+          "value_name": "Base"
+        },
+        {
+          "id": "CAR_AND_VAN_ENGINE",
+          "value_name": "2.0L L4 Diesel"
+        },
+        {
+          "id": "TRANSMISSION_CONTROL_TYPE",
+          "value_name": "Automática"
+        }
+      ],
+      "names_status": 200,
+      "names_count": 2
+    },
+    {
+      "attributes_by_name": [
+        {
+          "id": "BRAND",
+          "value_name": "Suzuki"
+        },
+        {
+          "id": "CAR_AND_VAN_MODEL",
+          "value_name": "Grand Vitara"
+        },
+        {
+          "id": "YEAR",
+          "value_name": "1998"
+        },
+        {
+          "id": "CAR_AND_VAN_SUBMODEL",
+          "value_name": "JLX"
+        },
+        {
+          "id": "CAR_AND_VAN_ENGINE",
+          "value_name": "1.6L L4 Gasolina"
+        },
+        {
+          "id": "TRANSMISSION_CONTROL_TYPE",
+          "value_name": "Automática"
+        }
+      ],
+      "names_status": 200,
+      "names_count": 1
+    }
+  ],
+  "live_compatibility_writes": 0,
+  "positions_by_name_only": "Not verified; documented restrictions use closed value_id sets, current mapping is local.",
+  "post_only_creation": "Supported by official request schema; not tested against live compatibility writes.",
+  "post_only_simulation": {
+    "requests": 1,
+    "includes_all_six_vehicle_names": true,
+    "includes_note_and_position_ids": true,
+    "example": "proposed-post.json"
+  },
+  "current_validator_rejects_value_name_only": true,
+  "current_validator_error_code": "INVALID_PRODUCT_FAMILY_ATTRIBUTES",
+  "unique_user_product_ids_in_saved_item_metadata": 1480
+}

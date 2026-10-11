@@ -1,0 +1,72 @@
+{
+  "method": "POST",
+  "path": "/user-products/MLCU5413373149/compatibilities",
+  "body": {
+    "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+    "category_id": "MLC22579",
+    "products_families": [
+      {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "creation_source": "DEFAULT",
+        "attributes": [
+          {
+            "id": "BRAND",
+            "value_name": "Kia"
+          },
+          {
+            "id": "CAR_AND_VAN_MODEL",
+            "value_name": "Cerato"
+          },
+          {
+            "id": "YEAR",
+            "value_name": "2013"
+          },
+          {
+            "id": "CAR_AND_VAN_SUBMODEL",
+            "value_name": "EX"
+          },
+          {
+            "id": "CAR_AND_VAN_ENGINE",
+            "value_name": "1.6L L4 Gasolina"
+          },
+          {
+            "id": "TRANSMISSION_CONTROL_TYPE",
+            "value_name": "Manual"
+          }
+        ],
+        "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+        "restrictions": [
+          {
+            "attribute_id": "POSITION",
+            "attribute_values": [
+              {
+                "values": [
+                  {
+                    "value_id": "13701104",
+                    "value_name": "Delantera"
+                  },
+                  {
+                    "value_id": "2262158",
+                    "value_name": "Izquierda"
+                  }
+                ]
+              },
+              {
+                "values": [
+                  {
+                    "value_id": "13701104",
+                    "value_name": "Delantera"
+                  },
+                  {
+                    "value_id": "2262160",
+                    "value_name": "Derecha"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

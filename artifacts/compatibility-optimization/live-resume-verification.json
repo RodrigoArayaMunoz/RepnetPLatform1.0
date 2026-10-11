@@ -1,0 +1,1166 @@
+{
+  "started_at": "2026-10-11T12:27:51.985363+00:00",
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/items/MLC4557290850",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/items/MLC2312790181",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/items/MLC4557291764",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5413539079/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5456853756/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5413373149/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5413373149/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5413539079/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5456853756/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/items/MLC4557291816",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/items/MLC4557187840",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5413468979/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5413478061/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5413468979/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5413478061/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/items/MLC4557239678",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5456866504/compatibilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user-products/MLCU5456866504/compatibilities",
+      "status": 200
+    }
+  ],
+  "scenarios": [
+    {
+      "label": "existing_positions_and_note_resumed",
+      "elapsed_seconds": 7.312,
+      "results": [
+        {
+          "ok": true,
+          "item_id": "MLC4557290850",
+          "category_id": "MLC22579",
+          "user_product_id": "MLCU5413373149",
+          "brand_name": "Kia",
+          "model_name": "Cerato",
+          "version_name": "EX",
+          "engine_name": "1.6L L4 Gasolina",
+          "transmission_name": "Manual",
+          "year_requested": 2013,
+          "year_processed": 2013,
+          "year": 2013,
+          "compatibility_mode": "product_family",
+          "product_family": {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Kia"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Cerato"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2013"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "EX"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ]
+          },
+          "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Kia\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Cerato\"},{\"id\":\"YEAR\",\"value_name\":\"2013\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"EX\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"1.6L L4 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+          "family_product_count": 1,
+          "familia": "MLC-VEHICLE_SHOCK_ABSORBERS",
+          "posicion_dt": "DELANTERA",
+          "posicion_id": "IZQUIERDA/DERECHA",
+          "success_count": 1,
+          "error_count": 0,
+          "results": [
+            {
+              "ok": true,
+              "year": 2013,
+              "compatibility_mode": "product_family",
+              "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Kia\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Cerato\"},{\"id\":\"YEAR\",\"value_name\":\"2013\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"EX\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"1.6L L4 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+              "matched_products_count": 1
+            }
+          ],
+          "original_row_index": 0,
+          "was_duplicated_vehicle": false
+        },
+        {
+          "ok": true,
+          "item_id": "MLC2312790181",
+          "category_id": "MLC22579",
+          "user_product_id": "MLCU5413539079",
+          "brand_name": "Changan",
+          "model_name": "CX70",
+          "version_name": "Comfort",
+          "engine_name": "1.6L L4 Gasolina",
+          "transmission_name": "Manual",
+          "year_requested": 2018,
+          "year_processed": 2018,
+          "year": 2018,
+          "compatibility_mode": "product_family",
+          "product_family": {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Changan"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "CX70"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2018"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Comfort"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ]
+          },
+          "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Changan\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"CX70\"},{\"id\":\"YEAR\",\"value_name\":\"2018\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Comfort\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"1.6L L4 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+          "family_product_count": 1,
+          "familia": "MLC-VEHICLE_SHOCK_ABSORBERS",
+          "posicion_dt": "TRASERA",
+          "posicion_id": "IZQUIERDA/DERECHA",
+          "success_count": 1,
+          "error_count": 0,
+          "results": [
+            {
+              "ok": true,
+              "year": 2018,
+              "compatibility_mode": "product_family",
+              "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Changan\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"CX70\"},{\"id\":\"YEAR\",\"value_name\":\"2018\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Comfort\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"1.6L L4 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+              "matched_products_count": 1
+            }
+          ],
+          "original_row_index": 1,
+          "was_duplicated_vehicle": false
+        },
+        {
+          "ok": true,
+          "item_id": "MLC4557291764",
+          "category_id": "MLC22579",
+          "user_product_id": "MLCU5456853756",
+          "brand_name": "Suzuki",
+          "model_name": "Alto",
+          "version_name": "GL 800",
+          "engine_name": "0.8L L3 Gasolina",
+          "transmission_name": "Manual",
+          "year_requested": 2007,
+          "year_processed": 2007,
+          "year": 2007,
+          "compatibility_mode": "product_family",
+          "product_family": {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Suzuki"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Alto"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2007"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "GL 800"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "0.8L L3 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ]
+          },
+          "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Suzuki\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Alto\"},{\"id\":\"YEAR\",\"value_name\":\"2007\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"GL 800\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"0.8L L3 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+          "family_product_count": 1,
+          "familia": "MLC-VEHICLE_SHOCK_ABSORBERS",
+          "posicion_dt": "",
+          "posicion_id": "IZQUIERDA/DERECHA",
+          "success_count": 1,
+          "error_count": 0,
+          "results": [
+            {
+              "ok": true,
+              "year": 2007,
+              "compatibility_mode": "product_family",
+              "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Suzuki\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Alto\"},{\"id\":\"YEAR\",\"value_name\":\"2007\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"GL 800\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"0.8L L3 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+              "matched_products_count": 1
+            }
+          ],
+          "original_row_index": 2,
+          "was_duplicated_vehicle": false
+        }
+      ],
+      "batch_results": [
+        {
+          "ok": true,
+          "item_id": "MLC4557290850",
+          "compatibility_mode": "product_family",
+          "compatibility_keys": [
+            "family:{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Kia\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Cerato\"},{\"id\":\"YEAR\",\"value_name\":\"2013\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"EX\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"1.6L L4 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}"
+          ],
+          "created_compatibilities_count": 0,
+          "families_sent_count": 1,
+          "matched_products_count": 1,
+          "write_strategy": "already_applied",
+          "response": {}
+        },
+        {
+          "ok": true,
+          "item_id": "MLC2312790181",
+          "compatibility_mode": "product_family",
+          "compatibility_keys": [
+            "family:{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Changan\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"CX70\"},{\"id\":\"YEAR\",\"value_name\":\"2018\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Comfort\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"1.6L L4 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}"
+          ],
+          "created_compatibilities_count": 0,
+          "families_sent_count": 1,
+          "matched_products_count": 1,
+          "write_strategy": "already_applied",
+          "response": {}
+        },
+        {
+          "ok": true,
+          "item_id": "MLC4557291764",
+          "compatibility_mode": "product_family",
+          "compatibility_keys": [
+            "family:{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Suzuki\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Alto\"},{\"id\":\"YEAR\",\"value_name\":\"2007\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"GL 800\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"0.8L L3 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}"
+          ],
+          "created_compatibilities_count": 0,
+          "families_sent_count": 1,
+          "matched_products_count": 1,
+          "write_strategy": "already_applied",
+          "response": {}
+        }
+      ],
+      "summary": {
+        "processed_rows": 3,
+        "total_rows": 3,
+        "excel_rows_processed": 3,
+        "success_count": 3,
+        "error_count": 0,
+        "unique_compatibilities": 3,
+        "unique_compatibilities_ok": 3,
+        "unique_compatibilities_error": 0,
+        "compatibilities_total": 3,
+        "compatibilities_ok": 3,
+        "compatibilities_error": 0,
+        "functional_errors": 0,
+        "technical_errors": 0,
+        "brands": 3,
+        "models": 3,
+        "items_count": 3,
+        "failed_item_ids": [],
+        "batches_count": 3,
+        "total_created_compatibilities": 0,
+        "metrics": {
+          "duration_seconds": 7.31,
+          "ml_requests": 6,
+          "ml_retries": 0,
+          "ml_rate_limited": 0,
+          "ml_http_errors": 0,
+          "ml_technical_errors": 0,
+          "cache_hits": 3,
+          "cache_misses": 3
+        },
+        "resolution_summary": {
+          "processed_rows": 3,
+          "unique_rows": 3,
+          "duplicated_rows": 0,
+          "success_count": 3,
+          "error_count": 0,
+          "functional_errors": 0,
+          "technical_errors": 0,
+          "compatibilities_total": 3,
+          "compatibilities_ok": 3,
+          "compatibilities_error": 0,
+          "metrics": {
+            "duration_seconds": 7.31,
+            "ml_requests": 6,
+            "ml_retries": 0,
+            "ml_rate_limited": 0,
+            "ml_http_errors": 0,
+            "ml_technical_errors": 0,
+            "cache_hits": 3,
+            "cache_misses": 3
+          }
+        }
+      },
+      "writes": [],
+      "read_back": [
+        {
+          "item_id": "MLC4557290850",
+          "products": [
+            {
+              "catalog_product_id": "MLC42873535",
+              "catalog_product_name": "Kia Cerato 2013 EX Chile Asistida Cremallera FWD Sedan 1.6L L4 Gasolina Manual Transeje 6 4 Sin-ABS Asistido Disco Disco G4FC 16 Aspirado Sin distribuidor Helicoidal Helicoidal Inyección 124 DOHC",
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "id": "27217214481",
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "note_status": "APPROVED",
+              "reputation": {
+                "level": "NEWBIE"
+              },
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "source": "SELLER",
+              "user_product_id": "MLCU5413373149"
+            }
+          ]
+        },
+        {
+          "item_id": "MLC2312790181",
+          "products": [
+            {
+              "catalog_product_id": "MLC24189272",
+              "catalog_product_name": "Changan CX70 2018 Comfort Chile Asistida Cremallera RWD SUV 1.6L L4 Gasolina Manual Transmisión 5 4 ABS 4 ruedas Asistido Disco Disco 278 cm JL478QEE 16 Aspirado Sin distribuidor Helicoidal Helicoidal",
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "id": "27217218695",
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "note_status": "APPROVED",
+              "reputation": {
+                "level": "NEWBIE"
+              },
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        },
+                        {
+                          "value_id": "13701105",
+                          "value_name": "Trasera"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        },
+                        {
+                          "value_id": "13701105",
+                          "value_name": "Trasera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "source": "SELLER",
+              "user_product_id": "MLCU5413539079"
+            }
+          ]
+        },
+        {
+          "item_id": "MLC4557291764",
+          "products": [
+            {
+              "catalog_product_id": "MLC60858735",
+              "catalog_product_name": "Ha23 Asistida 12 Cremallera Gl 800 F8d 2007 Inyección Disco 46 Sin Distribuidor Sohc Transeje 4 Manual Aspirado Helicoidal 5 Suzuki Chile Disco Hatchback Sin-abs 0.8l L3 Gasolina Asistido Fwd",
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "id": "27217219972",
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "note_status": "APPROVED",
+              "reputation": {
+                "level": "NEWBIE"
+              },
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "source": "SELLER",
+              "user_product_id": "MLCU5456853756"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "creation_and_copy_resumed",
+      "elapsed_seconds": 5.734,
+      "results": [
+        {
+          "ok": true,
+          "item_id": "MLC4557291816",
+          "category_id": "MLC22579",
+          "user_product_id": "MLCU5413468979",
+          "brand_name": "Hyundai",
+          "model_name": "Galloper",
+          "version_name": "Exceed",
+          "engine_name": "3.0L V6 Gasolina",
+          "transmission_name": "Manual",
+          "year_requested": 1999,
+          "year_processed": 1999,
+          "year": 1999,
+          "compatibility_mode": "product_family",
+          "product_family": {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Hyundai"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Galloper"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "1999"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Exceed"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "3.0L V6 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ]
+          },
+          "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Hyundai\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Galloper\"},{\"id\":\"YEAR\",\"value_name\":\"1999\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Exceed\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"3.0L V6 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+          "family_product_count": 1,
+          "familia": "MLC-VEHICLE_SHOCK_ABSORBERS",
+          "posicion_dt": "DELANTERA",
+          "posicion_id": "IZQUIERDA/DERECHA",
+          "success_count": 1,
+          "error_count": 0,
+          "results": [
+            {
+              "ok": true,
+              "year": 1999,
+              "compatibility_mode": "product_family",
+              "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Hyundai\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Galloper\"},{\"id\":\"YEAR\",\"value_name\":\"1999\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Exceed\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"3.0L V6 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+              "matched_products_count": 1
+            }
+          ],
+          "original_row_index": 0,
+          "was_duplicated_vehicle": false
+        },
+        {
+          "ok": true,
+          "item_id": "MLC4557187840",
+          "category_id": "MLC22579",
+          "user_product_id": "MLCU5413478061",
+          "brand_name": "Hyundai",
+          "model_name": "Galloper",
+          "version_name": "Exceed",
+          "engine_name": "3.0L V6 Gasolina",
+          "transmission_name": "Manual",
+          "year_requested": 1999,
+          "year_processed": 1999,
+          "year": 1999,
+          "compatibility_mode": "product_family",
+          "product_family": {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Hyundai"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Galloper"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "1999"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Exceed"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "3.0L V6 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ]
+          },
+          "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Hyundai\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Galloper\"},{\"id\":\"YEAR\",\"value_name\":\"1999\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Exceed\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"3.0L V6 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+          "family_product_count": 1,
+          "familia": "MLC-VEHICLE_SHOCK_ABSORBERS",
+          "posicion_dt": "DELANTERA",
+          "posicion_id": "IZQUIERDA/DERECHA",
+          "success_count": 1,
+          "error_count": 0,
+          "results": [
+            {
+              "ok": true,
+              "year": 1999,
+              "compatibility_mode": "product_family",
+              "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Hyundai\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Galloper\"},{\"id\":\"YEAR\",\"value_name\":\"1999\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Exceed\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"3.0L V6 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+              "matched_products_count": 1
+            }
+          ],
+          "original_row_index": 1,
+          "was_duplicated_vehicle": false
+        }
+      ],
+      "batch_results": [
+        {
+          "ok": true,
+          "item_id": "MLC4557291816",
+          "compatibility_mode": "product_family",
+          "compatibility_keys": [
+            "family:{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Hyundai\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Galloper\"},{\"id\":\"YEAR\",\"value_name\":\"1999\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Exceed\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"3.0L V6 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}"
+          ],
+          "created_compatibilities_count": 0,
+          "families_sent_count": 1,
+          "matched_products_count": 1,
+          "write_strategy": "already_applied",
+          "response": {}
+        },
+        {
+          "ok": true,
+          "item_id": "MLC4557187840",
+          "compatibility_mode": "product_family",
+          "compatibility_keys": [
+            "family:{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Hyundai\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Galloper\"},{\"id\":\"YEAR\",\"value_name\":\"1999\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Exceed\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"3.0L V6 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}"
+          ],
+          "created_compatibilities_count": 0,
+          "families_sent_count": 1,
+          "matched_products_count": 1,
+          "write_strategy": "already_applied",
+          "response": {}
+        }
+      ],
+      "summary": {
+        "processed_rows": 2,
+        "total_rows": 2,
+        "excel_rows_processed": 2,
+        "success_count": 2,
+        "error_count": 0,
+        "unique_compatibilities": 2,
+        "unique_compatibilities_ok": 2,
+        "unique_compatibilities_error": 0,
+        "compatibilities_total": 2,
+        "compatibilities_ok": 2,
+        "compatibilities_error": 0,
+        "functional_errors": 0,
+        "technical_errors": 0,
+        "brands": 1,
+        "models": 1,
+        "items_count": 2,
+        "failed_item_ids": [],
+        "batches_count": 2,
+        "total_created_compatibilities": 0,
+        "metrics": {
+          "duration_seconds": 5.73,
+          "ml_requests": 4,
+          "ml_retries": 0,
+          "ml_rate_limited": 0,
+          "ml_http_errors": 0,
+          "ml_technical_errors": 0,
+          "cache_hits": 2,
+          "cache_misses": 2
+        },
+        "resolution_summary": {
+          "processed_rows": 2,
+          "unique_rows": 2,
+          "duplicated_rows": 0,
+          "success_count": 2,
+          "error_count": 0,
+          "functional_errors": 0,
+          "technical_errors": 0,
+          "compatibilities_total": 2,
+          "compatibilities_ok": 2,
+          "compatibilities_error": 0,
+          "metrics": {
+            "duration_seconds": 5.73,
+            "ml_requests": 4,
+            "ml_retries": 0,
+            "ml_rate_limited": 0,
+            "ml_http_errors": 0,
+            "ml_technical_errors": 0,
+            "cache_hits": 2,
+            "cache_misses": 2
+          }
+        }
+      },
+      "writes": [],
+      "read_back": [
+        {
+          "item_id": "MLC4557291816",
+          "products": [
+            {
+              "catalog_product_id": "MLC65400719",
+              "catalog_product_name": "Exceed Suv 3.0l V6 Gasolina 1999 4wd 4 Manual Galloper Aspirado 5 Hyundai Chile",
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "id": "27217761377",
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "note_status": "APPROVED",
+              "reputation": {
+                "level": "NEWBIE"
+              },
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "source": "SELLER",
+              "user_product_id": "MLCU5413468979"
+            }
+          ]
+        },
+        {
+          "item_id": "MLC4557187840",
+          "products": [
+            {
+              "catalog_product_id": "MLC65400719",
+              "catalog_product_name": "Exceed Suv 3.0l V6 Gasolina 1999 4wd 4 Manual Galloper Aspirado 5 Hyundai Chile",
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "id": "27217765434",
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "note_status": "APPROVED",
+              "reputation": {
+                "level": "NEWBIE"
+              },
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "source": "SELLER",
+              "user_product_id": "MLCU5413478061"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "multiple_products_resumed",
+      "elapsed_seconds": 2.859,
+      "results": [
+        {
+          "ok": true,
+          "item_id": "MLC4557239678",
+          "category_id": "MLC22579",
+          "user_product_id": "MLCU5456866504",
+          "brand_name": "Toyota",
+          "model_name": "Hilux",
+          "version_name": "Base",
+          "engine_name": "2.7L L4 Gasolina",
+          "transmission_name": "Manual",
+          "year_requested": 2016,
+          "year_processed": 2016,
+          "year": 2016,
+          "compatibility_mode": "product_family",
+          "product_family": {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Toyota"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Hilux"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2016"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Base"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "2.7L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ]
+          },
+          "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Toyota\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Hilux\"},{\"id\":\"YEAR\",\"value_name\":\"2016\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Base\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"2.7L L4 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+          "family_product_count": 4,
+          "familia": "MLC-VEHICLE_SHOCK_ABSORBERS",
+          "posicion_dt": "DELANTERA",
+          "posicion_id": "IZQUIERDA/DERECHA",
+          "success_count": 1,
+          "error_count": 0,
+          "results": [
+            {
+              "ok": true,
+              "year": 2016,
+              "compatibility_mode": "product_family",
+              "product_family_key": "{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Toyota\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Hilux\"},{\"id\":\"YEAR\",\"value_name\":\"2016\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Base\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"2.7L L4 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}",
+              "matched_products_count": 4
+            }
+          ],
+          "original_row_index": 0,
+          "was_duplicated_vehicle": false
+        }
+      ],
+      "batch_results": [
+        {
+          "ok": true,
+          "item_id": "MLC4557239678",
+          "compatibility_mode": "product_family",
+          "compatibility_keys": [
+            "family:{\"attributes\":[{\"id\":\"BRAND\",\"value_name\":\"Toyota\"},{\"id\":\"CAR_AND_VAN_MODEL\",\"value_name\":\"Hilux\"},{\"id\":\"YEAR\",\"value_name\":\"2016\"},{\"id\":\"CAR_AND_VAN_SUBMODEL\",\"value_name\":\"Base\"},{\"id\":\"CAR_AND_VAN_ENGINE\",\"value_name\":\"2.7L L4 Gasolina\"},{\"id\":\"TRANSMISSION_CONTROL_TYPE\",\"value_name\":\"Manual\"}],\"creation_source\":\"DEFAULT\",\"domain_id\":\"MLC-CARS_AND_VANS_FOR_COMPATIBILITIES\"}"
+          ],
+          "created_compatibilities_count": 0,
+          "families_sent_count": 1,
+          "matched_products_count": 4,
+          "write_strategy": "already_applied",
+          "response": {}
+        }
+      ],
+      "summary": {
+        "processed_rows": 1,
+        "total_rows": 1,
+        "excel_rows_processed": 1,
+        "success_count": 1,
+        "error_count": 0,
+        "unique_compatibilities": 1,
+        "unique_compatibilities_ok": 1,
+        "unique_compatibilities_error": 0,
+        "compatibilities_total": 1,
+        "compatibilities_ok": 1,
+        "compatibilities_error": 0,
+        "functional_errors": 0,
+        "technical_errors": 0,
+        "brands": 1,
+        "models": 1,
+        "items_count": 1,
+        "failed_item_ids": [],
+        "batches_count": 1,
+        "total_created_compatibilities": 0,
+        "metrics": {
+          "duration_seconds": 2.86,
+          "ml_requests": 2,
+          "ml_retries": 0,
+          "ml_rate_limited": 0,
+          "ml_http_errors": 0,
+          "ml_technical_errors": 0,
+          "cache_hits": 1,
+          "cache_misses": 1
+        },
+        "resolution_summary": {
+          "processed_rows": 1,
+          "unique_rows": 1,
+          "duplicated_rows": 0,
+          "success_count": 1,
+          "error_count": 0,
+          "functional_errors": 0,
+          "technical_errors": 0,
+          "compatibilities_total": 1,
+          "compatibilities_ok": 1,
+          "compatibilities_error": 0,
+          "metrics": {
+            "duration_seconds": 2.86,
+            "ml_requests": 2,
+            "ml_retries": 0,
+            "ml_rate_limited": 0,
+            "ml_http_errors": 0,
+            "ml_technical_errors": 0,
+            "cache_hits": 1,
+            "cache_misses": 1
+          }
+        }
+      },
+      "writes": [],
+      "read_back": [
+        {
+          "item_id": "MLC4557239678",
+          "products": [
+            {
+              "catalog_product_id": "MLC24186934",
+              "catalog_product_name": "Toyota Hilux 2016 Base Chile Asistida Cremallera 4WD Pickup con cabina doble 2.7L L4 Gasolina Manual Transmisión 6 4 ABS 4 ruedas Asistido Disco Disco Fleetside 2TR-FE 16 Aspirado Sin distribuidor Hel",
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "id": "27217801734",
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "note_status": "APPROVED",
+              "reputation": {
+                "level": "NEWBIE"
+              },
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "source": "SELLER",
+              "user_product_id": "MLCU5456866504"
+            },
+            {
+              "catalog_product_id": "MLC24187535",
+              "catalog_product_name": "Toyota Hilux 2016 Base Chile Asistida Cremallera RWD Pickup con cabina estándar 2.7L L4 Gasolina Manual Transmisión 6 2 ABS 4 ruedas Asistido Disco Disco Fleetside 2TR-FE 16 Aspirado Sin distribuidor ",
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "id": "27217801731",
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "note_status": "APPROVED",
+              "reputation": {
+                "level": "NEWBIE"
+              },
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "source": "SELLER",
+              "user_product_id": "MLCU5456866504"
+            },
+            {
+              "catalog_product_id": "MLC24187632",
+              "catalog_product_name": "Toyota Hilux 2016 Base Chile Asistida Cremallera RWD Pickup con cabina doble 2.7L L4 Gasolina Manual Transmisión 6 4 ABS 4 ruedas Asistido Disco Disco Fleetside 2TR-FE 16 Aspirado Sin distribuidor Hel",
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "id": "27217801733",
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "note_status": "APPROVED",
+              "reputation": {
+                "level": "NEWBIE"
+              },
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "source": "SELLER",
+              "user_product_id": "MLCU5456866504"
+            },
+            {
+              "catalog_product_id": "MLC24188222",
+              "catalog_product_name": "Toyota Hilux 2016 Base Chile Asistida Cremallera 4WD Pickup con cabina estándar 2.7L L4 Gasolina Manual Transmisión 6 2 ABS 4 ruedas Asistido Disco Disco Fleetside 2TR-FE 16 Aspirado Sin distribuidor ",
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "id": "27217801732",
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "note_status": "APPROVED",
+              "reputation": {
+                "level": "NEWBIE"
+              },
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        },
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "source": "SELLER",
+              "user_product_id": "MLCU5456866504"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "finished_at": "2026-10-11T12:28:17.979710+00:00",
+  "compatibility_write_count": 0,
+  "all_scenarios_passed": true
+}

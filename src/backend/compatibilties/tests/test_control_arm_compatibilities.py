@@ -63,6 +63,12 @@ def _write_response(method, _path, **kwargs):
     return {"update": {}}
 
 
+class _NoPersistentCache(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.enterContext(patch.object(settings, "compatibility_family_cache_ttl_seconds", 0))
+        self.enterContext(patch.object(settings, "compatibility_enable_copy", False))
+
+
 class ControlArmPositionTests(unittest.TestCase):
     def test_primary_positions_and_side_combinations_use_verified_ids(self):
         positions = {
@@ -112,7 +118,7 @@ class ControlArmPositionTests(unittest.TestCase):
         self.assertEqual(rows, before)
 
 
-class ControlArmBatchTests(unittest.IsolatedAsyncioTestCase):
+class ControlArmBatchTests(_NoPersistentCache):
     async def test_invalid_or_entirely_missing_positions_never_reach_ml(self):
         for position, side in ((None, None), ("DELANTERO", "Izquierda"), ("Delantera", "AMBAS"), (None, "IZQUIERDA/")):
             with self.subTest(position=position, side=side):
@@ -136,10 +142,12 @@ class ControlArmBatchTests(unittest.IsolatedAsyncioTestCase):
                 rows=[_control_arm_row(side="Derecha"), _control_arm_row(side="Derecha", item_id="MLC456")],
             )
         self.assertTrue(all(row["ok"] for row in outcome["results"]))
-        posts = [call for call in request.await_args_list[2:] if call.args[0] == "POST"]
+        posts = [call for call in request.await_args_list[1:] if call.args[0] in {"POST", "PUT"}]
         self.assertEqual(len(posts), 2)
         for call in posts:
-            restrictions = call.kwargs["json_body"]["products_families"][0]["restrictions"]
+            body = call.kwargs["json_body"]
+            families = body["products_families"] if call.args[0] == "POST" else body["update"]["products_families"]
+            restrictions = families[0]["restrictions"]
             expected = {frozenset({"13701104", "2262160"})}
             if call.args[1] == "/user-products/MLCU123/compatibilities":
                 expected.add(frozenset({"13701104", "2262158"}))
@@ -152,7 +160,7 @@ class ControlArmBatchTests(unittest.IsolatedAsyncioTestCase):
                 rows=[_control_arm_row(None, "IZQUIERDA/DERECHA")],
             )
         self.assertTrue(outcome["results"][0]["ok"])
-        self.assertEqual([call.args[0] for call in request.await_args_list], ["POST", "PUT"])
+        self.assertEqual([call.args[0] for call in request.await_args_list], ["POST"])
         for call in request.await_args_list:
             body = call.kwargs["json_body"]
             families = body["products_families"] if call.args[0] == "POST" else body["update"]["products_families"]
@@ -161,7 +169,7 @@ class ControlArmBatchTests(unittest.IsolatedAsyncioTestCase):
             })
 
 
-class ControlArmExcelFlowTests(unittest.IsolatedAsyncioTestCase):
+class ControlArmExcelFlowTests(_NoPersistentCache):
     async def test_all_seven_position_patterns_from_the_supplied_excel_reach_post_and_put(self):
         fixture = json.loads((Path(__file__).parent / "fixtures" / "control_arms_excel_rows.json").read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as folder:
@@ -224,8 +232,8 @@ class ControlArmExcelFlowTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(all(row["ok"] for row in outcome["results"]))
         self.assertEqual(outcome["summary"]["total_created_compatibilities"], 7)
-        writes = [call for call in request.await_args_list if call.args[1].startswith("/user-products/")]
-        self.assertEqual(len(writes), 14)
+        writes = [call for call in request.await_args_list if call.args[0] in {"POST", "PUT"} and call.args[1].startswith("/user-products/")]
+        self.assertEqual(len(writes), 7)
         for call in writes:
             body = call.kwargs["json_body"]
             families = body["products_families"] if call.args[0] == "POST" else body["update"]["products_families"]
