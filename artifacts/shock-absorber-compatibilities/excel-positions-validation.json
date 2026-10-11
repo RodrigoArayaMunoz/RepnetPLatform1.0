@@ -1,0 +1,453 @@
+{
+  "source_file": "RESULTADO MLC-AMORTIGUADORES.xlsx",
+  "mode": "verify_corrected_behavior",
+  "total_rows": 42870,
+  "position_rows_matching_excel": 42870,
+  "position_rows_not_matching_excel": 0,
+  "affected_item_ids": [],
+  "patterns": [
+    {
+      "position": "DELANTERA",
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 22208
+    },
+    {
+      "position": null,
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 161
+    },
+    {
+      "position": "TRASERA",
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 20501
+    }
+  ],
+  "ids_verified_against_live_ml": true,
+  "position_metadata_checked_at": "2026-10-11T04:29:54.444840+00:00",
+  "position_metadata_source": "https://api.mercadolibre.com/catalog_compatibilities/restrictions/values?main_domain_id=MLC-CARS_AND_VANS_FOR_COMPATIBILITIES&secondary_domain_id=MLC-VEHICLE_SHOCK_ABSORBERS",
+  "position_metadata_read_from": "mercadolibre-position-values.json",
+  "simulated_http_write_count": 6,
+  "live_write_count": 0,
+  "simulated_http_writes": [
+    {
+      "method": "POST",
+      "path": "/user-products/MLCU5413373149/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC22579",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_id": "brand:Kia"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_id": "model:Cerato"
+              },
+              {
+                "id": "YEAR",
+                "value_id": "2013"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_id": "version:EX"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_id": "engine:1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_id": "transmission:Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/MLCU5413373149/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC22579",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_id": "brand:Kia"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_id": "model:Cerato"
+                },
+                {
+                  "id": "YEAR",
+                  "value_id": "2013"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_id": "version:EX"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_id": "engine:1.6L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_id": "transmission:Manual"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/MLCU5456853756/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC22579",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_id": "brand:Suzuki"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_id": "model:Alto"
+              },
+              {
+                "id": "YEAR",
+                "value_id": "2007"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_id": "version:GL 800"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_id": "engine:0.8L L3 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_id": "transmission:Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/MLCU5456853756/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC22579",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_id": "brand:Suzuki"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_id": "model:Alto"
+                },
+                {
+                  "id": "YEAR",
+                  "value_id": "2007"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_id": "version:GL 800"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_id": "engine:0.8L L3 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_id": "transmission:Manual"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/MLCU5413539079/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC22579",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_id": "brand:Changan"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_id": "model:CX70"
+              },
+              {
+                "id": "YEAR",
+                "value_id": "2018"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_id": "version:Comfort"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_id": "engine:1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_id": "transmission:Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/MLCU5413539079/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC22579",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_id": "brand:Changan"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_id": "model:CX70"
+                },
+                {
+                  "id": "YEAR",
+                  "value_id": "2018"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_id": "version:Comfort"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_id": "engine:1.6L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_id": "transmission:Manual"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701105",
+                          "value_name": "Trasera"
+                        },
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701105",
+                          "value_name": "Trasera"
+                        },
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "issues": []
+}

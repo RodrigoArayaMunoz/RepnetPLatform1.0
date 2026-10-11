@@ -1,5 +1,8 @@
 {
   "python.defaultInterpreterPath": "${workspaceFolder}\\src\\backend\\compatibilties\\.venv\\Scripts\\python.exe",
   "python.terminal.activateEnvironment": true,
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/src/backend/compatibilties"
+  ],
   "task.allowAutomaticTasks": "on"
 }

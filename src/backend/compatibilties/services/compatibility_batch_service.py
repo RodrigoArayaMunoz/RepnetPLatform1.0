@@ -91,13 +91,15 @@ POSICION_ID_VALUE_NAMES = {
     "derecha": "Derecha",
 }
 
-FAMILIAS_BRAKE_SHOCK = {"MLC-VEHICLE_BRAKE_PADS", "MLC-VEHICLE_SHOCK_ABSORBERS"}
+FAMILIAS_BRAKE_PADS = {"MLC-VEHICLE_BRAKE_PADS"}
 FAMILIAS_LIGHTS = {"MLC-VEHICLE_TAIL_LIGHTS", "MLC-VEHICLE_HEADLIGHTS"}
 FAMILIA_WHEEL_HUBS = "MLC-VEHICLE_WHEEL_HUBS"
 FAMILIA_CONTROL_ARMS = "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS"
+FAMILIA_SHOCK_ABSORBERS = "MLC-VEHICLE_SHOCK_ABSORBERS"
 POSITION_COLUMN_ERROR_CODES = {
     FAMILIA_WHEEL_HUBS: "INVALID_WHEEL_HUB_POSITION",
     FAMILIA_CONTROL_ARMS: "INVALID_CONTROL_ARM_POSITION",
+    FAMILIA_SHOCK_ABSORBERS: "INVALID_SHOCK_ABSORBER_POSITION",
 }
 FAMILIAS_POSITION_DT_ONLY = {
     "MLC-VEHICLE_BRAKE_DISCS",
@@ -162,7 +164,7 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
         return [{"attribute_id": "POSITION", "attribute_values": attribute_values}]
 
     if familia_upper in (
-        FAMILIAS_BRAKE_SHOCK | FAMILIAS_LIGHTS | FAMILIAS_POSITION_DT_ONLY
+        FAMILIAS_BRAKE_PADS | FAMILIAS_LIGHTS | FAMILIAS_POSITION_DT_ONLY
     ):
         if not dt_value_id:
             logger.warning(
@@ -173,7 +175,7 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
             )
             return []
 
-    if familia_upper in FAMILIAS_BRAKE_SHOCK:
+    if familia_upper in FAMILIAS_BRAKE_PADS:
         restriction = [
             {
                 "attribute_id": "POSITION",
