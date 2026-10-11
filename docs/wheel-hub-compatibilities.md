@@ -95,5 +95,5 @@ Desde `src/backend/compatibilties`:
 C:\RepnetPlatform1.0\.venv\Scripts\python.exe -m unittest discover -s tests -p '*compatibilit*.py' -q
 ```
 
-Resultado: 50 pruebas aprobadas. La verificación remota utilizó solo consultas
+Resultado de la validación conjunta con bandejas: 57 pruebas aprobadas. La verificación remota utilizó solo consultas
 GET; los envíos de compatibilidades se comprobaron mediante simulación.

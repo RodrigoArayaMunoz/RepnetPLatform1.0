@@ -1,0 +1,230 @@
+{
+  "source_file": "RESULTADO MLC-BANDEJAS.xlsx",
+  "mode": "read_only_position_validation",
+  "total_rows": 40669,
+  "valid_position_rows": 40669,
+  "position_error_rows": 0,
+  "total_row_position_combinations": 41951,
+  "rows_with_blank_main_position": 1156,
+  "blank_main_position_policy": "Use only the supplied side; do not infer a main position",
+  "unique_vehicle_rows": 40669,
+  "max_combinations_per_grouped_vehicle": 2,
+  "ids_verified_against_live_ml": true,
+  "position_combinations": [
+    {
+      "position": "DELANTERA",
+      "side": "DERECHA",
+      "rows": 18650,
+      "sample": {
+        "excel_row": 2,
+        "item_id": "MLC4557183252",
+        "position": "DELANTERA",
+        "side": "DERECHA",
+        "restrictions": [
+          {
+            "attribute_id": "POSITION",
+            "attribute_values": [
+              {
+                "values": [
+                  {
+                    "value_id": "13701104",
+                    "value_name": "Delantera"
+                  },
+                  {
+                    "value_id": "2262160",
+                    "value_name": "Derecha"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "position": "DELANTERA",
+      "side": null,
+      "rows": 194,
+      "sample": {
+        "excel_row": 13879,
+        "item_id": "MLC4557222382",
+        "position": "DELANTERA",
+        "side": null,
+        "restrictions": [
+          {
+            "attribute_id": "POSITION",
+            "attribute_values": [
+              {
+                "values": [
+                  {
+                    "value_id": "13701104",
+                    "value_name": "Delantera"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "position": "DELANTERA",
+      "side": "IZQUIERDA",
+      "rows": 19457,
+      "sample": {
+        "excel_row": 13901,
+        "item_id": "MLC4557183642",
+        "position": "DELANTERA",
+        "side": "IZQUIERDA",
+        "restrictions": [
+          {
+            "attribute_id": "POSITION",
+            "attribute_values": [
+              {
+                "values": [
+                  {
+                    "value_id": "13701104",
+                    "value_name": "Delantera"
+                  },
+                  {
+                    "value_id": "2262158",
+                    "value_name": "Izquierda"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "position": "DELANTERA",
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 1212,
+      "sample": {
+        "excel_row": 13910,
+        "item_id": "MLC4557235550",
+        "position": "DELANTERA",
+        "side": "IZQUIERDA/DERECHA",
+        "restrictions": [
+          {
+            "attribute_id": "POSITION",
+            "attribute_values": [
+              {
+                "values": [
+                  {
+                    "value_id": "13701104",
+                    "value_name": "Delantera"
+                  },
+                  {
+                    "value_id": "2262158",
+                    "value_name": "Izquierda"
+                  }
+                ]
+              },
+              {
+                "values": [
+                  {
+                    "value_id": "13701104",
+                    "value_name": "Delantera"
+                  },
+                  {
+                    "value_id": "2262160",
+                    "value_name": "Derecha"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "position": null,
+      "side": "DERECHA",
+      "rows": 570,
+      "sample": {
+        "excel_row": 29490,
+        "item_id": "MLC4557223180",
+        "position": null,
+        "side": "DERECHA",
+        "restrictions": [
+          {
+            "attribute_id": "POSITION",
+            "attribute_values": [
+              {
+                "values": [
+                  {
+                    "value_id": "2262160",
+                    "value_name": "Derecha"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "position": null,
+      "side": "IZQUIERDA",
+      "rows": 516,
+      "sample": {
+        "excel_row": 29952,
+        "item_id": "MLC4557236394",
+        "position": null,
+        "side": "IZQUIERDA",
+        "restrictions": [
+          {
+            "attribute_id": "POSITION",
+            "attribute_values": [
+              {
+                "values": [
+                  {
+                    "value_id": "2262158",
+                    "value_name": "Izquierda"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "position": null,
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 70,
+      "sample": {
+        "excel_row": 30246,
+        "item_id": "MLC4557223342",
+        "position": null,
+        "side": "IZQUIERDA/DERECHA",
+        "restrictions": [
+          {
+            "attribute_id": "POSITION",
+            "attribute_values": [
+              {
+                "values": [
+                  {
+                    "value_id": "2262158",
+                    "value_name": "Izquierda"
+                  }
+                ]
+              },
+              {
+                "values": [
+                  {
+                    "value_id": "2262160",
+                    "value_name": "Derecha"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "errors": []
+}

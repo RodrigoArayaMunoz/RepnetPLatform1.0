@@ -208,7 +208,7 @@ class WheelHubBatchTests(unittest.IsolatedAsyncioTestCase):
                 rows=[_resolved_row(side="Izquierda")],
             )
         self.assertFalse(outcome["results"][0]["ok"])
-        self.assertEqual(state.wheel_hub_restrictions, {})
+        self.assertEqual(state.position_restrictions, {})
         self.assertEqual(state.successful_rows, {})
 
 

@@ -28,7 +28,7 @@ class CompatibilityBatchState:
     caches: JobCaches = field(default_factory=JobCaches)
     successful_rows: dict[tuple, dict] = field(default_factory=dict)
     item_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
-    wheel_hub_restrictions: dict[tuple[str, str], list] = field(default_factory=dict)
+    position_restrictions: dict[tuple[str, str], list] = field(default_factory=dict)
 
 
 def _applied_row_key(row: dict) -> tuple:
@@ -94,12 +94,34 @@ POSICION_ID_VALUE_NAMES = {
 FAMILIAS_BRAKE_SHOCK = {"MLC-VEHICLE_BRAKE_PADS", "MLC-VEHICLE_SHOCK_ABSORBERS"}
 FAMILIAS_LIGHTS = {"MLC-VEHICLE_TAIL_LIGHTS", "MLC-VEHICLE_HEADLIGHTS"}
 FAMILIA_WHEEL_HUBS = "MLC-VEHICLE_WHEEL_HUBS"
+FAMILIA_CONTROL_ARMS = "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS"
+POSITION_COLUMN_ERROR_CODES = {
+    FAMILIA_WHEEL_HUBS: "INVALID_WHEEL_HUB_POSITION",
+    FAMILIA_CONTROL_ARMS: "INVALID_CONTROL_ARM_POSITION",
+}
 FAMILIAS_POSITION_DT_ONLY = {
     "MLC-VEHICLE_BRAKE_DISCS",
     "MLC-VEHICLE_DRUM_BRAKE_SHOES",
     "MLC-VEHICLE_BRAKE_DRUMS",
     "MLC-VEHICLE_WHEELS_BEARINGS",
 }
+
+
+def _position_columns_error(familia: str, posicion_dt: str, posicion_id: str) -> str | None:
+    position = _norm(posicion_dt)
+    side = _norm(posicion_id)
+    if position and position not in POSICION_DT_VALUE_IDS:
+        return (
+            "DELANTERA/TRASERA/CONDUCTOR/ACOMPAÑANTE debe contener "
+            "Delantera, Trasera, Conductor o Acompañante"
+        )
+    if familia == FAMILIA_WHEEL_HUBS and not position:
+        return "DELANTERA/TRASERA/CONDUCTOR/ACOMPAÑANTE no puede quedar vacía para mazas"
+    if side and any(_norm(value) not in POSICION_ID_VALUE_IDS for value in side.split("/")):
+        return "IZQUIERDA/DERECHA debe quedar vacía o contener Izquierda, Derecha o IZQUIERDA/DERECHA"
+    if not position and not side:
+        return "Debe informar al menos una posición en las columnas de posición"
+    return None
 
 
 def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list:
@@ -116,11 +138,11 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
     dt_name = POSICION_DT_VALUE_NAMES.get(dt_lower, _safe_text(posicion_dt))
     id_name = POSICION_ID_VALUE_NAMES.get(id_lower, _safe_text(posicion_id))
 
-    if familia_upper == FAMILIA_WHEEL_HUBS:
+    if familia_upper in POSITION_COLUMN_ERROR_CODES:
         sides = [_norm(side) for side in _safe_text(posicion_id).split("/")]
-        if not dt_value_id or any(side and side not in POSICION_ID_VALUE_IDS for side in sides):
+        if _position_columns_error(familia_upper, posicion_dt, posicion_id):
             logger.warning(
-                "[BATCH][RESTRICTION_SKIP] familia=%s posicion_dt=%s posicion_id=%s reason=invalid_wheel_hub_position",
+                "[BATCH][RESTRICTION_SKIP] familia=%s posicion_dt=%s posicion_id=%s reason=invalid_position_columns",
                 familia_upper, posicion_dt, posicion_id,
             )
             return []
@@ -128,7 +150,9 @@ def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list
         # Each entry is one allowed combination; opposite sides are alternatives.
         attribute_values = []
         for side in dict.fromkeys(sides):
-            values = [{"value_id": dt_value_id, "value_name": dt_name}]
+            values = []
+            if dt_value_id:
+                values.append({"value_id": dt_value_id, "value_name": dt_name})
             if side:
                 values.append({
                     "value_id": POSICION_ID_VALUE_IDS[side],
@@ -357,23 +381,16 @@ def validate_resolved_family_rows(rows: list[dict]) -> list[dict]:
     validated_rows: list[dict] = []
 
     for row in rows:
-        if row.get("ok") and _safe_text(row.get("familia")).upper() == FAMILIA_WHEEL_HUBS:
-            position = _norm(row.get("posicion_dt"))
-            side = _norm(row.get("posicion_id"))
-            sides = side.split("/")
-            if position not in POSICION_DT_VALUE_IDS or (
-                side and any(_norm(value) not in POSICION_ID_VALUE_IDS for value in sides)
-            ):
-                reason = (
-                    "Posición inválida para MLC-VEHICLE_WHEEL_HUBS: "
-                    "DELANTERA/TRASERA/CONDUCTOR/ACOMPAÑANTE debe contener "
-                    "Delantera, Trasera, Conductor o Acompañante; "
-                    "IZQUIERDA/DERECHA puede quedar vacía o contener "
-                    "Izquierda, Derecha o IZQUIERDA/DERECHA"
-                )
+        familia = _safe_text(row.get("familia")).upper()
+        if row.get("ok") and familia in POSITION_COLUMN_ERROR_CODES:
+            position_error = _position_columns_error(
+                familia, row.get("posicion_dt"), row.get("posicion_id"),
+            )
+            if position_error:
+                reason = f"Posición inválida para {familia}: {position_error}"
                 validated_rows.append({
                     **row, "ok": False, "error_type": "functional",
-                    "error_code": "INVALID_WHEEL_HUB_POSITION",
+                    "error_code": POSITION_COLUMN_ERROR_CODES[familia],
                     "reason": reason, "error_message": reason,
                 })
                 continue
@@ -463,7 +480,7 @@ def validate_resolved_family_rows(rows: list[dict]) -> list[dict]:
 def build_grouped_product_families(
     rows: list[dict],
     *,
-    wheel_hub_restrictions: dict[tuple[str, str], list] | None = None,
+    position_restrictions: dict[tuple[str, str], list] | None = None,
 ) -> dict[str, list[dict]]:
     grouped: dict[str, dict[str, dict]] = defaultdict(dict)
 
@@ -480,7 +497,7 @@ def build_grouped_product_families(
         if not compatibility_key:
             continue
 
-        is_wheel_hub = _safe_text(row.get("familia")).upper() == FAMILIA_WHEEL_HUBS
+        uses_position_columns = _safe_text(row.get("familia")).upper() in POSITION_COLUMN_ERROR_CODES
         restrictions = build_restrictions(
             _safe_text(row.get("familia")),
             _safe_text(row.get("posicion_dt")),
@@ -488,14 +505,14 @@ def build_grouped_product_families(
         )
         existing_entry = grouped[item_id].get(compatibility_key)
         if existing_entry is not None:
-            if is_wheel_hub:
+            if uses_position_columns:
                 existing_entry["payload"]["restrictions"] = _merge_position_restrictions(
                     existing_entry["payload"].get("restrictions", []), restrictions,
                 )
             continue
-        if is_wheel_hub and wheel_hub_restrictions:
+        if uses_position_columns and position_restrictions:
             restrictions = _merge_position_restrictions(
-                wheel_hub_restrictions.get((item_id, compatibility_key), []), restrictions,
+                position_restrictions.get((item_id, compatibility_key), []), restrictions,
             )
 
         attributes = [
@@ -535,8 +552,8 @@ def build_grouped_product_families(
                 int(row.get("family_product_count", 1) or 1),
             ),
         }
-        if is_wheel_hub:
-            grouped[item_id][compatibility_key]["is_wheel_hub"] = True
+        if uses_position_columns:
+            grouped[item_id][compatibility_key]["uses_position_columns"] = True
 
     return {
         item_id: list(entries.values())
@@ -1113,7 +1130,7 @@ async def process_compatibility_batches(
             rows.append(row)
     grouped_products, restriction_data = build_grouped_product_ids(rows)
     grouped_families = build_grouped_product_families(
-        rows, wheel_hub_restrictions=state.wheel_hub_restrictions,
+        rows, position_restrictions=state.position_restrictions,
     )
     batch_size = min(
         100,
@@ -1294,8 +1311,8 @@ async def process_compatibility_batches(
     for batch_spec, result in zip(all_batches, final_batch_results):
         if result.get("ok"):
             for entry in batch_spec.get("entries", []):
-                if entry.get("is_wheel_hub"):
-                    state.wheel_hub_restrictions[(
+                if entry.get("uses_position_columns"):
+                    state.position_restrictions[(
                         str(batch_spec["item_id"]), entry["compatibility_key"],
                     )] = entry["payload"].get("restrictions", [])
 

@@ -1,0 +1,144 @@
+{
+  "checked_at": "2026-10-11T04:08:06.445743+00:00",
+  "source": "https://api.mercadolibre.com/catalog_compatibilities/restrictions/values?main_domain_id=MLC-CARS_AND_VANS_FOR_COMPATIBILITIES&secondary_domain_id=MLC-VEHICLE_SUSPENSION_CONTROL_ARMS",
+  "status": 200,
+  "response": {
+    "attributes_values": [
+      {
+        "attribute_id": "POSITION",
+        "values": [
+          {
+            "value_id": "13373175",
+            "value_name": "Conductor",
+            "opposite_values": [
+              "13373176"
+            ]
+          },
+          {
+            "value_id": "13373176",
+            "value_name": "Acompañante",
+            "opposite_values": [
+              "13373175"
+            ]
+          },
+          {
+            "value_id": "2262158",
+            "value_name": "Izquierda",
+            "opposite_values": [
+              "2262160"
+            ]
+          },
+          {
+            "value_id": "2262160",
+            "value_name": "Derecha",
+            "opposite_values": [
+              "2262158"
+            ]
+          },
+          {
+            "value_id": "13701104",
+            "value_name": "Delantera",
+            "opposite_values": [
+              "13701105"
+            ]
+          },
+          {
+            "value_id": "13701105",
+            "value_name": "Trasera",
+            "opposite_values": [
+              "13701104"
+            ]
+          },
+          {
+            "value_id": "13373177",
+            "value_name": "Interno",
+            "opposite_values": [
+              "13373178"
+            ]
+          },
+          {
+            "value_id": "13373178",
+            "value_name": "Externo",
+            "opposite_values": [
+              "13373177"
+            ]
+          },
+          {
+            "value_id": "4774238",
+            "value_name": "Superior",
+            "opposite_values": [
+              "4774239"
+            ]
+          },
+          {
+            "value_id": "4774239",
+            "value_name": "Inferior",
+            "opposite_values": [
+              "4774238"
+            ]
+          },
+          {
+            "value_id": "13373179",
+            "value_name": "Intermedio",
+            "opposite_values": []
+          },
+          {
+            "value_id": "13373180",
+            "value_name": "Centro",
+            "opposite_values": []
+          }
+        ],
+        "combined_values": [
+          {
+            "values": [
+              {
+                "value_id": "13701104",
+                "value_name": "Delantera"
+              },
+              {
+                "value_id": "2262158",
+                "value_name": "Izquierda"
+              }
+            ]
+          },
+          {
+            "values": [
+              {
+                "value_id": "13701104",
+                "value_name": "Delantera"
+              },
+              {
+                "value_id": "2262160",
+                "value_name": "Derecha"
+              }
+            ]
+          },
+          {
+            "values": [
+              {
+                "value_id": "13701105",
+                "value_name": "Trasera"
+              },
+              {
+                "value_id": "2262158",
+                "value_name": "Izquierda"
+              }
+            ]
+          },
+          {
+            "values": [
+              {
+                "value_id": "13701105",
+                "value_name": "Trasera"
+              },
+              {
+                "value_id": "2262160",
+                "value_name": "Derecha"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "source_file": "RESULTADO MLC-BANDEJAS.xlsx",
+  "headers": [
+    "ASOCIACION ML",
+    "MARCA",
+    "MODELO",
+    "AÑO",
+    "VERSION",
+    "CILINDRADA",
+    "TRANSMISION",
+    "FAMILIA",
+    "DELANTERA/TRASERA/CONDUCTOR/ACOMPAÑANTE",
+    "IZQUIERDA/DERECHA",
+    "ORIGEN_MATCH"
+  ],
+  "sample_excel_rows": [
+    2,
+    13879,
+    13901,
+    13910,
+    29490,
+    29952,
+    30246
+  ],
+  "rows": [
+    [
+      "MLC4557183252",
+      "Toyota",
+      "Urban Cruiser",
+      2010,
+      "Base",
+      "1.3L L4 Gasolina",
+      "Manual",
+      "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS",
+      "DELANTERA",
+      "DERECHA",
+      null
+    ],
+    [
+      "MLC4557222382",
+      "Chevrolet",
+      "Spark",
+      2004,
+      "LS",
+      "0.8L L3 Gasolina",
+      "Manual",
+      "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS",
+      "DELANTERA",
+      null,
+      null
+    ],
+    [
+      "MLC4557183642",
+      "Hyundai",
+      "Accent",
+      2000,
+      "Prime GL",
+      "1.5L L4 Gasolina",
+      "Manual",
+      "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS",
+      "DELANTERA",
+      "IZQUIERDA",
+      null
+    ],
+    [
+      "MLC4557235550",
+      "Volkswagen",
+      "Polo",
+      1996,
+      "Base",
+      "1.4L L4 Gasolina",
+      "Manual",
+      "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS",
+      "DELANTERA",
+      "IZQUIERDA/DERECHA",
+      null
+    ],
+    [
+      "MLC4557223180",
+      "Chevrolet",
+      "Montana",
+      2024,
+      "LT",
+      "1.2L L3 Gasolina",
+      "Manual",
+      "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS",
+      null,
+      "DERECHA",
+      null
+    ],
+    [
+      "MLC4557236394",
+      "Chevrolet",
+      "Montana",
+      2024,
+      "LT",
+      "1.2L L3 Gasolina",
+      "Manual",
+      "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS",
+      null,
+      "IZQUIERDA",
+      null
+    ],
+    [
+      "MLC4557223342",
+      "SsangYong",
+      "Musso Grand",
+      2019,
+      "Base",
+      "2.2L L4 Diesel",
+      "Manual",
+      "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS",
+      null,
+      "IZQUIERDA/DERECHA",
+      null
+    ]
+  ]
+}
