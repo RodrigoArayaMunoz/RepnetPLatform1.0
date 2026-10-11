@@ -1,0 +1,95 @@
+{
+  "headers": [
+    "ASOCIACION ML",
+    "MARCA",
+    "MODELO",
+    "AÑO",
+    "VERSION",
+    "CILINDRADA",
+    "TRANSMISION",
+    "FAMILIA",
+    "DELANTERA/TRASERA/CONDUCTOR/ACOMPAÑANTE",
+    "IZQUIERDA/DERECHA",
+    "ORIGEN_MATCH"
+  ],
+  "rows": [
+    [
+      "MLC4557186208",
+      "Hyundai",
+      "Tucson",
+      2005,
+      "GL",
+      "2.0L L4 Gasolina",
+      "Automática",
+      "MLC-VEHICLE_WHEEL_HUBS",
+      "DELANTERA",
+      null,
+      null
+    ],
+    [
+      "MLC4557186208",
+      "Hyundai",
+      "Tucson",
+      2005,
+      "GL",
+      "2.0L L4 Gasolina",
+      "Manual",
+      "MLC-VEHICLE_WHEEL_HUBS",
+      "DELANTERA",
+      null,
+      null
+    ],
+    [
+      "MLC4557186208",
+      "Hyundai",
+      "Tucson",
+      2006,
+      "GL",
+      "2.0L L4 Gasolina",
+      "Automática",
+      "MLC-VEHICLE_WHEEL_HUBS",
+      "DELANTERA",
+      null,
+      null
+    ],
+    [
+      "MLC4557224882",
+      "Suzuki",
+      "S-Presso",
+      2020,
+      "Base",
+      "1.0L L3 Gasolina",
+      "Manual",
+      "MLC-VEHICLE_WHEEL_HUBS",
+      "DELANTERA",
+      "IZQUIERDA/DERECHA",
+      null
+    ],
+    [
+      "MLC4557224882",
+      "Suzuki",
+      "S-Presso",
+      2020,
+      "GLX",
+      "1.0L L3 Gasolina",
+      "Manual",
+      "MLC-VEHICLE_WHEEL_HUBS",
+      "DELANTERA",
+      "IZQUIERDA/DERECHA",
+      null
+    ],
+    [
+      "MLC4557224882",
+      "Suzuki",
+      "S-Presso",
+      2021,
+      "Base",
+      "1.0L L3 Gasolina",
+      "Manual",
+      "MLC-VEHICLE_WHEEL_HUBS",
+      "DELANTERA",
+      "IZQUIERDA/DERECHA",
+      null
+    ]
+  ]
+}
