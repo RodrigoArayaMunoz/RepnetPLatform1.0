@@ -1,0 +1,417 @@
+{
+  "source_file": "Refax_Contenido_COMPATIBILITIES_7343dc9b.xlsx",
+  "mode": "verify_corrected_behavior",
+  "total_rows": 16474,
+  "position_rows_matching_excel": 16474,
+  "position_rows_not_matching_excel": 0,
+  "affected_item_ids": [],
+  "patterns": [
+    {
+      "position": "DELANTERA",
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 4400
+    },
+    {
+      "position": "DELANTERA",
+      "side": "DERECHA",
+      "rows": 5851
+    },
+    {
+      "position": "DELANTERA",
+      "side": "IZQUIERDA",
+      "rows": 6159
+    },
+    {
+      "position": null,
+      "side": "IZQUIERDA",
+      "rows": 35
+    },
+    {
+      "position": null,
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 23
+    },
+    {
+      "position": null,
+      "side": "DERECHA",
+      "rows": 6
+    }
+  ],
+  "ids_verified_against_live_ml": true,
+  "position_metadata_checked_at": "2026-10-14T02:15:17.917354+00:00",
+  "position_metadata_source": "https://api.mercadolibre.com/catalog_compatibilities/restrictions/values?main_domain_id=MLC-CARS_AND_VANS_FOR_COMPATIBILITIES&secondary_domain_id=MLC-VEHICLE_HEADLIGHTS",
+  "position_metadata_read_from": "mercadolibre-position-values.json",
+  "simulated_http_write_count": 6,
+  "live_write_count": 0,
+  "simulated_http_writes": [
+    {
+      "method": "POST",
+      "path": "/user-products/MLCU5511104666/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC161712",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Hyundai"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "H1"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2005"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Minibus Escolar"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "2.5L L4 Diesel"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/MLCU5511129076/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC161712",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Fiat"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Fiorino"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2002"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Diesel"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.7L L4 Diesel"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/MLCU5466720599/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC161712",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Nissan"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Qashqai"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2011"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Base"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática CVT"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/MLCU5466833157/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC161712",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Kia"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Morning C"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2018"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "EX Full"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.2L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/MLCU5466724487/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC161712",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Chevrolet"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Sail"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2011"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "LS"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.4L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/MLCU5511166642/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "MLC161712",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Chevrolet"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Corsa"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2010"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Base"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "issues": []
+}

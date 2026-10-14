@@ -1,0 +1,137 @@
+{
+  "source_file": "Refax_Contenido_COMPATIBILITIES_7343dc9b.xlsx",
+  "total_rows": 16474,
+  "headlight_rows": 16474,
+  "families": {
+    "MLC-VEHICLE_HEADLIGHTS": 16474
+  },
+  "headlight_items": 745,
+  "patterns": [
+    {
+      "primary": "DELANTERA",
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 4400,
+      "sample": {
+        "excel_row": 2,
+        "row": {
+          "ASOCIACION ML": "MLC4574264576",
+          "MARCA": "Hyundai",
+          "MODELO": "H1",
+          "AÑO": 2005,
+          "VERSION": "Minibus Escolar",
+          "CILINDRADA": "2.5L L4 Diesel",
+          "TRANSMISION": "Manual",
+          "FAMILIA": "MLC-VEHICLE_HEADLIGHTS",
+          "POSICION_DT": "DELANTERA",
+          "POSICION_ID": "IZQUIERDA/DERECHA",
+          "ORIGEN_MATCH": ""
+        }
+      }
+    },
+    {
+      "primary": "DELANTERA",
+      "side": "DERECHA",
+      "rows": 5851,
+      "sample": {
+        "excel_row": 1004,
+        "row": {
+          "ASOCIACION ML": "MLC4574264706",
+          "MARCA": "Fiat",
+          "MODELO": "Fiorino",
+          "AÑO": 2002,
+          "VERSION": "Diesel",
+          "CILINDRADA": "1.7L L4 Diesel",
+          "TRANSMISION": "Manual",
+          "FAMILIA": "MLC-VEHICLE_HEADLIGHTS",
+          "POSICION_DT": "DELANTERA",
+          "POSICION_ID": "DERECHA",
+          "ORIGEN_MATCH": ""
+        }
+      }
+    },
+    {
+      "primary": "DELANTERA",
+      "side": "IZQUIERDA",
+      "rows": 6159,
+      "sample": {
+        "excel_row": 1312,
+        "row": {
+          "ASOCIACION ML": "MLC4574264708",
+          "MARCA": "Nissan",
+          "MODELO": "Qashqai",
+          "AÑO": 2011,
+          "VERSION": "Base",
+          "CILINDRADA": "1.6L L4 Gasolina",
+          "TRANSMISION": "Automática CVT",
+          "FAMILIA": "MLC-VEHICLE_HEADLIGHTS",
+          "POSICION_DT": "DELANTERA",
+          "POSICION_ID": "IZQUIERDA",
+          "ORIGEN_MATCH": ""
+        }
+      }
+    },
+    {
+      "primary": null,
+      "side": "IZQUIERDA",
+      "rows": 35,
+      "sample": {
+        "excel_row": 8233,
+        "row": {
+          "ASOCIACION ML": "MLC4574278322",
+          "MARCA": "Kia",
+          "MODELO": "Morning C",
+          "AÑO": 2018,
+          "VERSION": "EX Full",
+          "CILINDRADA": "1.2L L4 Gasolina",
+          "TRANSMISION": "Automática",
+          "FAMILIA": "MLC-VEHICLE_HEADLIGHTS",
+          "POSICION_DT": "",
+          "POSICION_ID": "IZQUIERDA",
+          "ORIGEN_MATCH": ""
+        }
+      }
+    },
+    {
+      "primary": null,
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 23,
+      "sample": {
+        "excel_row": 8238,
+        "row": {
+          "ASOCIACION ML": "MLC4574290796",
+          "MARCA": "Chevrolet",
+          "MODELO": "Sail",
+          "AÑO": 2011,
+          "VERSION": "LS",
+          "CILINDRADA": "1.4L L4 Gasolina",
+          "TRANSMISION": "Manual",
+          "FAMILIA": "MLC-VEHICLE_HEADLIGHTS",
+          "POSICION_DT": "",
+          "POSICION_ID": "IZQUIERDA/DERECHA",
+          "ORIGEN_MATCH": ""
+        }
+      }
+    },
+    {
+      "primary": null,
+      "side": "DERECHA",
+      "rows": 6,
+      "sample": {
+        "excel_row": 9937,
+        "row": {
+          "ASOCIACION ML": "MLC4574290902",
+          "MARCA": "Chevrolet",
+          "MODELO": "Corsa",
+          "AÑO": 2010,
+          "VERSION": "Base",
+          "CILINDRADA": "1.6L L4 Gasolina",
+          "TRANSMISION": "Manual",
+          "FAMILIA": "MLC-VEHICLE_HEADLIGHTS",
+          "POSICION_DT": "",
+          "POSICION_ID": "DERECHA",
+          "ORIGEN_MATCH": ""
+        }
+      }
+    }
+  ]
+}

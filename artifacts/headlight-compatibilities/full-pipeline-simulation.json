@@ -1,0 +1,16 @@
+{
+  "mode": "complete_workbook_simulation",
+  "source_file": "Refax_Contenido_COMPATIBILITIES_7343dc9b.xlsx",
+  "catalog_count_assumption": "one simulated product per family",
+  "live_write_count": 0,
+  "verified_rows": 16474,
+  "success_count": 16474,
+  "item_count": 745,
+  "count_family_queries": 2190,
+  "family_post_count": 810,
+  "copy_post_count": 410,
+  "put_count": 0,
+  "total_compatibility_write_count": 1220,
+  "max_families_in_request": 10,
+  "elapsed_seconds": 7.766
+}
