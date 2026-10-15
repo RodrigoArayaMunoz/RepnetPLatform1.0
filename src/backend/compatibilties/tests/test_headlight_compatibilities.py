@@ -120,8 +120,8 @@ class HeadlightBatchTests(_NoPersistentCache):
             self.assertTrue(families[0]["note"])
             self.assertEqual(_combinations(families[0]["restrictions"]), {frozenset({"2262158"}), frozenset({"2262160"})})
 
-    async def test_invalid_or_entirely_missing_positions_report_errors_without_writes(self):
-        cases = [(None, None), (" ", " "), ("DELANTERO", "Izquierda"),
+    async def test_invalid_positions_report_errors_without_writes(self):
+        cases = [("DELANTERO", "Izquierda"),
                  ("Delantera", "AMBAS"), (None, "IZQUIERDA/")]
         for position, side in cases:
             with self.subTest(position=position, side=side):

@@ -92,8 +92,6 @@ POSICION_ID_VALUE_NAMES = {
     "derecha": "Derecha",
 }
 
-FAMILIAS_BRAKE_PADS = {"MLC-VEHICLE_BRAKE_PADS"}
-FAMILIAS_LIGHTS = {"MLC-VEHICLE_TAIL_LIGHTS", "MLC-VEHICLE_HEADLIGHTS"}
 FAMILIA_WHEEL_HUBS = "MLC-VEHICLE_WHEEL_HUBS"
 FAMILIA_CONTROL_ARMS = "MLC-VEHICLE_SUSPENSION_CONTROL_ARMS"
 FAMILIA_SHOCK_ABSORBERS = "MLC-VEHICLE_SHOCK_ABSORBERS"
@@ -104,15 +102,9 @@ POSITION_COLUMN_ERROR_CODES = {
     FAMILIA_SHOCK_ABSORBERS: "INVALID_SHOCK_ABSORBER_POSITION",
     FAMILIA_HEADLIGHTS: "INVALID_HEADLIGHT_POSITION",
 }
-FAMILIAS_POSITION_DT_ONLY = {
-    "MLC-VEHICLE_BRAKE_DISCS",
-    "MLC-VEHICLE_DRUM_BRAKE_SHOES",
-    "MLC-VEHICLE_BRAKE_DRUMS",
-    "MLC-VEHICLE_WHEELS_BEARINGS",
-}
 
 
-def _position_columns_error(familia: str, posicion_dt: str | None, posicion_id: str | None) -> str | None:
+def _position_columns_error(posicion_dt: str | None, posicion_id: str | None) -> str | None:
     position = _norm(posicion_dt)
     side = _norm(posicion_id)
     if position and position not in POSICION_DT_VALUE_IDS:
@@ -120,148 +112,42 @@ def _position_columns_error(familia: str, posicion_dt: str | None, posicion_id: 
             "DELANTERA/TRASERA/CONDUCTOR/ACOMPAÑANTE debe contener "
             "Delantera, Trasera, Conductor o Acompañante"
         )
-    if familia == FAMILIA_WHEEL_HUBS and not position:
-        return "DELANTERA/TRASERA/CONDUCTOR/ACOMPAÑANTE no puede quedar vacía para mazas"
     if side and any(_norm(value) not in POSICION_ID_VALUE_IDS for value in side.split("/")):
         return "IZQUIERDA/DERECHA debe quedar vacía o contener Izquierda, Derecha o IZQUIERDA/DERECHA"
-    if not position and not side:
-        return "Debe informar al menos una posición en las columnas de posición"
     return None
 
 
-def build_restrictions(familia: str, posicion_dt: str, posicion_id: str) -> list:
-    """Construye la lista `restrictions` para el body del endpoint."""
-    familia_upper = _safe_text(familia).upper()
-    if not familia_upper:
+def build_restrictions(
+    familia: str | None, posicion_dt: str | None, posicion_id: str | None,
+) -> list:
+    """Use only the supplied position columns, regardless of FAMILIA."""
+    position = _norm(posicion_dt)
+    side = _norm(posicion_id)
+    if not position and not side:
+        return []
+    if _position_columns_error(posicion_dt, posicion_id):
+        logger.warning(
+            "[BATCH][RESTRICTION_SKIP] familia=%s posicion_dt=%s posicion_id=%s reason=invalid_position_columns",
+            familia, posicion_dt, posicion_id,
+        )
         return []
 
-    dt_lower = _safe_text(posicion_dt).lower()
-    id_lower = _safe_text(posicion_id).lower()
-
-    dt_value_id = POSICION_DT_VALUE_IDS.get(dt_lower, "")
-    id_value_id = POSICION_ID_VALUE_IDS.get(id_lower, "")
-    dt_name = POSICION_DT_VALUE_NAMES.get(dt_lower, _safe_text(posicion_dt))
-    id_name = POSICION_ID_VALUE_NAMES.get(id_lower, _safe_text(posicion_id))
-
-    if familia_upper in POSITION_COLUMN_ERROR_CODES:
-        sides = [_norm(side) for side in _safe_text(posicion_id).split("/")]
-        if _position_columns_error(familia_upper, posicion_dt, posicion_id):
-            logger.warning(
-                "[BATCH][RESTRICTION_SKIP] familia=%s posicion_dt=%s posicion_id=%s reason=invalid_position_columns",
-                familia_upper, posicion_dt, posicion_id,
-            )
-            return []
-
-        # Each entry is one allowed combination; opposite sides are alternatives.
-        attribute_values = []
-        for side in dict.fromkeys(sides):
-            values = []
-            if dt_value_id:
-                values.append({"value_id": dt_value_id, "value_name": dt_name})
-            if side:
-                values.append({
-                    "value_id": POSICION_ID_VALUE_IDS[side],
-                    "value_name": POSICION_ID_VALUE_NAMES[side],
-                })
-            attribute_values.append({"values": values})
-        return [{"attribute_id": "POSITION", "attribute_values": attribute_values}]
-
-    if familia_upper in (
-        FAMILIAS_BRAKE_PADS | FAMILIAS_LIGHTS | FAMILIAS_POSITION_DT_ONLY
-    ):
-        if not dt_value_id:
-            logger.warning(
-                "[BATCH][RESTRICTION_SKIP] familia=%s posicion_dt=%s posicion_id=%s reason=missing_dt_value_id",
-                familia_upper,
-                posicion_dt,
-                posicion_id,
-            )
-            return []
-
-    if familia_upper in FAMILIAS_BRAKE_PADS:
-        restriction = [
-            {
-                "attribute_id": "POSITION",
-                "attribute_values": [
-                    {
-                        "values": [
-                            {"value_id": POSICION_ID_VALUE_IDS.get("izquierda", ""), "value_name": "Izquierda"},
-                            {"value_id": dt_value_id, "value_name": dt_name},
-                        ]
-                    },
-                    {
-                        "values": [
-                            {"value_id": POSICION_ID_VALUE_IDS.get("derecha", ""), "value_name": "Derecha"},
-                            {"value_id": dt_value_id, "value_name": dt_name},
-                        ]
-                    },
-                ],
-            }
-        ]
-        logger.info(
-            "[BATCH][RESTRICTION] familia=%s posicion_dt=%s posicion_id=%s restriction=%s",
-            familia_upper,
-            dt_name,
-            id_name,
-            json.dumps(restriction, ensure_ascii=False),
-        )
-        return restriction
-
-    if familia_upper in FAMILIAS_LIGHTS:
-        if not id_value_id:
-            logger.warning(
-                "[BATCH][RESTRICTION_SKIP] familia=%s posicion_dt=%s posicion_id=%s reason=missing_id_value_id",
-                familia_upper,
-                posicion_dt,
-                posicion_id,
-            )
-            return []
-
-        restriction = [
-            {
-                "attribute_id": "POSITION",
-                "attribute_values": [
-                    {
-                        "values": [
-                            {"value_id": dt_value_id, "value_name": dt_name},
-                            {"value_id": id_value_id, "value_name": id_name},
-                        ]
-                    }
-                ],
-            }
-        ]
-        logger.info(
-            "[BATCH][RESTRICTION] familia=%s posicion_dt=%s posicion_id=%s restriction=%s",
-            familia_upper,
-            dt_name,
-            id_name,
-            json.dumps(restriction, ensure_ascii=False),
-        )
-        return restriction
-    
-    if familia_upper in FAMILIAS_POSITION_DT_ONLY:
-        restriction = [
-            {
-                "attribute_id": "POSITION",
-                "attribute_values": [
-                    {
-                        "values": [
-                            {"value_id": dt_value_id, "value_name": dt_name},
-                        ]
-                    }
-                ],
-            }
-        ]
-        logger.info(
-            "[BATCH][RESTRICTION] familia=%s posicion_dt=%s posicion_id=%s restriction=%s",
-            familia_upper,
-            dt_name,
-            id_name,
-            json.dumps(restriction, ensure_ascii=False),
-        )
-        return restriction
-
-    return []
+    # Each entry is one allowed combination; opposite sides are alternatives.
+    attribute_values = []
+    for side_value in dict.fromkeys(_norm(value) for value in side.split("/")):
+        values = []
+        if position:
+            values.append({
+                "value_id": POSICION_DT_VALUE_IDS[position],
+                "value_name": POSICION_DT_VALUE_NAMES[position],
+            })
+        if side_value:
+            values.append({
+                "value_id": POSICION_ID_VALUE_IDS[side_value],
+                "value_name": POSICION_ID_VALUE_NAMES[side_value],
+            })
+        attribute_values.append({"values": values})
+    return [{"attribute_id": "POSITION", "attribute_values": attribute_values}]
 
 
 def _merge_position_restrictions(*restrictions: list) -> list:
@@ -336,10 +222,14 @@ async def get_item_compact_cached(
     return compact
 
 
-def build_grouped_product_ids(rows: list[dict]) -> tuple[dict[str, list[str]], dict[str, dict]]:
-    """Agrupa product_ids por item_id y captura datos de restricción del primer row."""
+def build_grouped_product_ids(
+    rows: list[dict],
+    *,
+    position_restrictions: dict[tuple[str, str], list] | None = None,
+) -> tuple[dict[str, list[str]], dict[str, dict[str, list]]]:
+    """Group legacy IDs while retaining positions for each listing and vehicle."""
     grouped: dict[str, set[str]] = defaultdict(set)
-    restriction_data: dict[str, dict] = {}
+    restriction_data: dict[str, dict[str, list]] = defaultdict(dict)
 
     for row in rows:
         item_id = row.get("item_id")
@@ -350,14 +240,15 @@ def build_grouped_product_ids(rows: list[dict]) -> tuple[dict[str, list[str]], d
             continue
 
         item_key = str(item_id)
-        grouped[item_key].add(str(product_id))
-
-        if item_key not in restriction_data:
-            restriction_data[item_key] = {
-                "familia": _safe_text(row.get("familia", "")),
-                "posicion_dt": _safe_text(row.get("posicion_dt", "")),
-                "posicion_id": _safe_text(row.get("posicion_id", "")),
-            }
+        product_key = str(product_id)
+        grouped[item_key].add(product_key)
+        restrictions = build_restrictions(
+            row.get("familia"), row.get("posicion_dt"), row.get("posicion_id"),
+        )
+        restriction_data[item_key][product_key] = _merge_position_restrictions(
+            (position_restrictions or {}).get((item_key, f"product:{product_key}"), []),
+            restriction_data[item_key].get(product_key, []), restrictions,
+        )
 
     sorted_grouped = {
         item_id: sorted(list(product_ids))
@@ -387,15 +278,15 @@ def validate_resolved_family_rows(rows: list[dict]) -> list[dict]:
 
     for row in rows:
         familia = _safe_text(row.get("familia")).upper()
-        if row.get("ok") and familia in POSITION_COLUMN_ERROR_CODES:
+        if row.get("ok"):
             position_error = _position_columns_error(
-                familia, row.get("posicion_dt"), row.get("posicion_id"),
+                row.get("posicion_dt"), row.get("posicion_id"),
             )
             if position_error:
-                reason = f"Posición inválida para {familia}: {position_error}"
+                reason = f"Posición inválida: {position_error}"
                 validated_rows.append({
                     **row, "ok": False, "error_type": "functional",
-                    "error_code": POSITION_COLUMN_ERROR_CODES[familia],
+                    "error_code": POSITION_COLUMN_ERROR_CODES.get(familia, "INVALID_POSITION"),
                     "reason": reason, "error_message": reason,
                 })
                 continue
@@ -502,7 +393,6 @@ def build_grouped_product_families(
         if not compatibility_key:
             continue
 
-        uses_position_columns = _safe_text(row.get("familia")).upper() in POSITION_COLUMN_ERROR_CODES
         restrictions = build_restrictions(
             _safe_text(row.get("familia")),
             _safe_text(row.get("posicion_dt")),
@@ -510,12 +400,13 @@ def build_grouped_product_families(
         )
         existing_entry = grouped[item_id].get(compatibility_key)
         if existing_entry is not None:
-            if uses_position_columns:
-                existing_entry["payload"]["restrictions"] = _merge_position_restrictions(
-                    existing_entry["payload"].get("restrictions", []), restrictions,
-                )
+            merged = _merge_position_restrictions(
+                existing_entry["payload"].get("restrictions", []), restrictions,
+            )
+            if merged:
+                existing_entry["payload"]["restrictions"] = merged
             continue
-        if uses_position_columns and position_restrictions:
+        if position_restrictions:
             restrictions = _merge_position_restrictions(
                 position_restrictions.get((item_id, compatibility_key), []), restrictions,
             )
@@ -557,8 +448,6 @@ def build_grouped_product_families(
                 int(row.get("family_product_count", 1) or 1),
             ),
         }
-        if uses_position_columns:
-            grouped[item_id][compatibility_key]["uses_position_columns"] = True
 
     return {
         item_id: list(entries.values())
@@ -1135,7 +1024,9 @@ async def process_compatibility_batches(
         else:
             pending_indices.append(index)
             rows.append(row)
-    grouped_products, restriction_data = build_grouped_product_ids(rows)
+    grouped_products, restriction_data = build_grouped_product_ids(
+        rows, position_restrictions=state.position_restrictions,
+    )
     grouped_families = build_grouped_product_families(
         rows, position_restrictions=state.position_restrictions,
     )
@@ -1165,21 +1056,20 @@ async def process_compatibility_batches(
 
     for item_id, product_ids in grouped_products.items():
         total_products += len(product_ids)
-        rd = restriction_data.get(item_id, {})
-        restrictions = build_restrictions(
-            rd.get("familia", ""),
-            rd.get("posicion_dt", ""),
-            rd.get("posicion_id", ""),
-        )
-        for batch in chunked(product_ids, batch_size):
-            all_batches.append(
-                {
-                    "mode": "product",
-                    "item_id": item_id,
-                    "product_ids": batch,
-                    "restrictions": restrictions,
-                }
-            )
+        by_restrictions: dict[str, list[str]] = defaultdict(list)
+        for product_id in product_ids:
+            signature = json.dumps(restriction_data[item_id][product_id], sort_keys=True)
+            by_restrictions[signature].append(product_id)
+        for signature, matching_ids in by_restrictions.items():
+            for batch in chunked(matching_ids, batch_size):
+                all_batches.append(
+                    {
+                        "mode": "product",
+                        "item_id": item_id,
+                        "product_ids": batch,
+                        "restrictions": json.loads(signature),
+                    }
+                )
 
     logger.info(
         "[BATCH][START] items_grouped=%s total_families=%s "
@@ -1318,11 +1208,14 @@ async def process_compatibility_batches(
 
     for batch_spec, result in zip(all_batches, final_batch_results):
         if result.get("ok"):
+            for product_id in batch_spec.get("product_ids", []):
+                state.position_restrictions[(
+                    str(batch_spec["item_id"]), f"product:{product_id}",
+                )] = batch_spec.get("restrictions", [])
             for entry in batch_spec.get("entries", []):
-                if entry.get("uses_position_columns"):
-                    state.position_restrictions[(
-                        str(batch_spec["item_id"]), entry["compatibility_key"],
-                    )] = entry["payload"].get("restrictions", [])
+                state.position_restrictions[(
+                    str(batch_spec["item_id"]), entry["compatibility_key"],
+                )] = entry["payload"].get("restrictions", [])
 
     pending_results = build_final_row_results(rows, final_batch_results)
     mapped_results = dict(reused_rows)

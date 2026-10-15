@@ -1,5 +1,9 @@
 # Compatibilidades de bandejas: MLC-VEHICLE_SUSPENSION_CONTROL_ARMS
 
+> La [regla vigente de posiciones](position-compatibilities.md) se aplica a todas
+> las familias. Si ambas columnas están vacías, se omiten las posiciones y la
+> compatibilidad continúa; esto sustituye el error histórico descrito aquí.
+
 El proceso de agregar compatibilidades reconoce esta familia y obtiene las
 posiciones de cada fila mediante los encabezados
 `DELANTERA/TRASERA/CONDUCTOR/ACOMPAÑANTE` e `IZQUIERDA/DERECHA`.

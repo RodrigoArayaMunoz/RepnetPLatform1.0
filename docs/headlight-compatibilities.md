@@ -1,5 +1,9 @@
 # Compatibilidades y posiciones de faros
 
+> La [regla vigente de posiciones](position-compatibilities.md) se aplica a todas
+> las familias. Si ambas columnas están vacías, se omiten las posiciones y la
+> compatibilidad continúa; esto sustituye el error histórico descrito aquí.
+
 Verificación del 13 de octubre de 2026, hora de Chile, para
 `Refax_Contenido_COMPATIBILITIES_7343dc9b.xlsx`.
 

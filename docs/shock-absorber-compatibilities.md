@@ -1,5 +1,9 @@
 # Verificación de amortiguadores: MLC-VEHICLE_SHOCK_ABSORBERS
 
+> La [regla vigente de posiciones](position-compatibilities.md) se aplica a todas
+> las familias. Si ambas columnas están vacías, se omiten las posiciones y la
+> compatibilidad continúa; esto sustituye el error histórico descrito aquí.
+
 Se analizó `RESULTADO MLC-AMORTIGUADORES.xlsx`, hoja `Hoja1`, el 11 de octubre de
 2026. El archivo contiene 42.870 filas y 1.480 publicaciones. Todas las filas
 pertenecen a esta familia y tienen los valores vehiculares requeridos.

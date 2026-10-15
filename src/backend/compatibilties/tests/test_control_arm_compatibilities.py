@@ -31,7 +31,7 @@ def _combinations(restrictions):
     }
 
 
-def _control_arm_row(position="Delantera", side="Izquierda", item_id="MLC123"):
+def _control_arm_row(position: str | None = "Delantera", side: str | None = "Izquierda", item_id="MLC123"):
     return {
         "ok": True,
         "item_id": item_id,
@@ -119,8 +119,8 @@ class ControlArmPositionTests(unittest.TestCase):
 
 
 class ControlArmBatchTests(_NoPersistentCache):
-    async def test_invalid_or_entirely_missing_positions_never_reach_ml(self):
-        for position, side in ((None, None), ("DELANTERO", "Izquierda"), ("Delantera", "AMBAS"), (None, "IZQUIERDA/")):
+    async def test_invalid_positions_never_reach_ml(self):
+        for position, side in (("DELANTERO", "Izquierda"), ("Delantera", "AMBAS"), (None, "IZQUIERDA/")):
             with self.subTest(position=position, side=side):
                 with patch.object(ml_client, "request", new=AsyncMock()) as request:
                     outcome = await process_compatibility_batches(
@@ -176,6 +176,7 @@ class ControlArmExcelFlowTests(_NoPersistentCache):
             path = Path(folder) / "control-arms.xlsx"
             workbook = Workbook()
             worksheet = workbook.active
+            assert worksheet is not None
             worksheet.title = "Hoja1"
             worksheet.append(fixture["headers"])
             for cells in fixture["rows"]:

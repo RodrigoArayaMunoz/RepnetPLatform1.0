@@ -98,8 +98,7 @@ async def process_complete_item_batches(*, access_token, user_id, rows, metrics,
         for row in final_rows:
             state.successful_rows[_applied_row_key(row)] = row
         for entry in entries:
-            if entry.get("uses_position_columns"):
-                state.position_restrictions[(str(batch["item_id"]), entry["compatibility_key"])] = entry["payload"].get("restrictions", [])
+            state.position_restrictions[(str(batch["item_id"]), entry["compatibility_key"])] = entry["payload"].get("restrictions", [])
         return {"results": final_rows, "batch_results": [batch], "summary": build_compat_summary(final_rows, [batch], metrics)}
 
     async def item_worker(item_id):

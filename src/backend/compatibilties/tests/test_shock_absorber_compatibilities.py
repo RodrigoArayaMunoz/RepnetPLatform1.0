@@ -35,7 +35,7 @@ def _combinations(restrictions):
     }
 
 
-def _resolved_row(position="Delantera", side="Izquierda", item_id="MLC123"):
+def _resolved_row(position: str | None = "Delantera", side: str | None = "Izquierda", item_id="MLC123"):
     return {
         "ok": True, "item_id": item_id,
         "category_id": "MLC22579", "user_product_id": "MLCU" + item_id[3:],
@@ -104,8 +104,8 @@ class ShockAbsorberPositionTests(unittest.TestCase):
 
 
 class ShockAbsorberBatchTests(_NoPersistentCache):
-    async def test_invalid_or_entirely_missing_positions_report_errors_without_writes(self):
-        cases = [(None, None), (" ", " "), ("DELANTERO", "Izquierda"),
+    async def test_invalid_positions_report_errors_without_writes(self):
+        cases = [("DELANTERO", "Izquierda"),
                  ("Delantera", "AMBAS"), (None, "IZQUIERDA/")]
         for position, side in cases:
             with self.subTest(position=position, side=side):
@@ -168,6 +168,7 @@ class ShockAbsorberExcelFlowTests(_NoPersistentCache):
             path = Path(folder) / "shock-absorbers.xlsx"
             workbook = Workbook()
             worksheet = workbook.active
+            assert worksheet is not None
             worksheet.title = "Hoja1"
             worksheet.append([
                 "ASOCIACION ML", "MARCA", "MODELO", "AÑO", "VERSION", "CILINDRADA",

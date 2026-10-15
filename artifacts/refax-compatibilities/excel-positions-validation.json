@@ -1,0 +1,2686 @@
+{
+  "source_file": "C:\\Users\\Rodrigo Araya\\Downloads\\Refax_Contenido_COMPATIBILITIES-DOMINGO.xlsx",
+  "total_rows": 127433,
+  "total_items": 3743,
+  "families": {
+    "": 126326,
+    "BANDEJA SUSPENSION": 536,
+    "BIELETA BARRA ESTABILIZADORA": 222,
+    "DISCO FRENO": 102,
+    "JUEGO PASTILLAS FRENO": 192,
+    "NEBLINERO": 37,
+    "JUNTA HOMOCINETICA": 18
+  },
+  "rows_with_positions": 127295,
+  "rows_without_positions": 138,
+  "rows_matching_excel": 127433,
+  "patterns": [
+    {
+      "position": "DELANTERA",
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 54319
+    },
+    {
+      "position": "TRASERA",
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 16648
+    },
+    {
+      "position": null,
+      "side": "IZQUIERDA/DERECHA",
+      "rows": 1352
+    },
+    {
+      "position": "DELANTERA",
+      "side": "IZQUIERDA",
+      "rows": 4052
+    },
+    {
+      "position": "DELANTERA",
+      "side": null,
+      "rows": 21517
+    },
+    {
+      "position": "DELANTERA",
+      "side": "DERECHA",
+      "rows": 4203
+    },
+    {
+      "position": null,
+      "side": null,
+      "rows": 138
+    },
+    {
+      "position": "TRASERA",
+      "side": "IZQUIERDA",
+      "rows": 624
+    },
+    {
+      "position": "TRASERA",
+      "side": "DERECHA",
+      "rows": 525
+    },
+    {
+      "position": "TRASERA",
+      "side": null,
+      "rows": 23940
+    },
+    {
+      "position": null,
+      "side": "DERECHA",
+      "rows": 115
+    }
+  ],
+  "samples": [
+    {
+      "excel_row": 2,
+      "row": {
+        "ASOCIACION ML": "MLC4567512336",
+        "MARCA": "Nissan",
+        "MODELO": "Primera",
+        "AÑO": 2003,
+        "VERSION": "Base",
+        "CILINDRADA": "2.0L L4 Gasolina",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "",
+        "POSICION_DT": "DELANTERA",
+        "POSICION_ID": "IZQUIERDA/DERECHA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 1001,
+      "row": {
+        "ASOCIACION ML": "MLC4567512300",
+        "MARCA": "SsangYong",
+        "MODELO": "Actyon Sports",
+        "AÑO": 2007,
+        "VERSION": "Base",
+        "CILINDRADA": "2.0L L4 Diesel",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "",
+        "POSICION_DT": "TRASERA",
+        "POSICION_ID": "IZQUIERDA/DERECHA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 9803,
+      "row": {
+        "ASOCIACION ML": "MLC4567512888",
+        "MARCA": "Suzuki",
+        "MODELO": "Aerio",
+        "AÑO": 2003,
+        "VERSION": "GLX",
+        "CILINDRADA": "1.6L L4 Gasolina",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "BANDEJA SUSPENSION",
+        "POSICION_DT": "DELANTERA",
+        "POSICION_ID": "IZQUIERDA/DERECHA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 12400,
+      "row": {
+        "ASOCIACION ML": "MLC4567513802",
+        "MARCA": "Chevrolet",
+        "MODELO": "Montana",
+        "AÑO": 2024,
+        "VERSION": "LT",
+        "CILINDRADA": "1.2L L3 Gasolina",
+        "TRANSMISION": "Manual",
+        "FAMILIA": "",
+        "POSICION_DT": "",
+        "POSICION_ID": "IZQUIERDA/DERECHA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 12769,
+      "row": {
+        "ASOCIACION ML": "MLC4567513990",
+        "MARCA": "Hyundai",
+        "MODELO": "Elantra",
+        "AÑO": 1994,
+        "VERSION": "GL",
+        "CILINDRADA": "1.5L L4 Gasolina",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "",
+        "POSICION_DT": "DELANTERA",
+        "POSICION_ID": "IZQUIERDA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 12945,
+      "row": {
+        "ASOCIACION ML": "MLC4567513970",
+        "MARCA": "Nissan",
+        "MODELO": "Tiida",
+        "AÑO": 2010,
+        "VERSION": "S",
+        "CILINDRADA": "1.6L L4 Gasolina",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "",
+        "POSICION_DT": "DELANTERA",
+        "POSICION_ID": "",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 15077,
+      "row": {
+        "ASOCIACION ML": "MLC4567514410",
+        "MARCA": "Chevrolet",
+        "MODELO": "Optra",
+        "AÑO": 2004,
+        "VERSION": "LS",
+        "CILINDRADA": "1.6L L4 Gasolina",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "BIELETA BARRA ESTABILIZADORA",
+        "POSICION_DT": "DELANTERA",
+        "POSICION_ID": "IZQUIERDA/DERECHA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 15262,
+      "row": {
+        "ASOCIACION ML": "MLC4567514760",
+        "MARCA": "Nissan",
+        "MODELO": "X-Trail",
+        "AÑO": 2002,
+        "VERSION": "Confortline",
+        "CILINDRADA": "2.5L L4 Gasolina",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "",
+        "POSICION_DT": "DELANTERA",
+        "POSICION_ID": "DERECHA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 16909,
+      "row": {
+        "ASOCIACION ML": "MLC4567514586",
+        "MARCA": "Renault",
+        "MODELO": "Dokker",
+        "AÑO": 2017,
+        "VERSION": "Diesel",
+        "CILINDRADA": "1.5L L4 Diesel",
+        "TRANSMISION": "Manual",
+        "FAMILIA": "",
+        "POSICION_DT": "",
+        "POSICION_ID": "",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 19137,
+      "row": {
+        "ASOCIACION ML": "MLC4567515592",
+        "MARCA": "Kia",
+        "MODELO": "Sorento",
+        "AÑO": 2004,
+        "VERSION": "EX Full",
+        "CILINDRADA": "2.5L L4 Diesel",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "",
+        "POSICION_DT": "TRASERA",
+        "POSICION_ID": "IZQUIERDA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 19239,
+      "row": {
+        "ASOCIACION ML": "MLC4567515654",
+        "MARCA": "Hyundai",
+        "MODELO": "Tucson",
+        "AÑO": 2010,
+        "VERSION": "GL",
+        "CILINDRADA": "2.0L L4 Diesel",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "",
+        "POSICION_DT": "TRASERA",
+        "POSICION_ID": "DERECHA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 19916,
+      "row": {
+        "ASOCIACION ML": "MLC4567515900",
+        "MARCA": "Chevrolet",
+        "MODELO": "Astra",
+        "AÑO": 1999,
+        "VERSION": "GLS",
+        "CILINDRADA": "2.0L L4 Gasolina",
+        "TRANSMISION": "Manual",
+        "FAMILIA": "",
+        "POSICION_DT": "TRASERA",
+        "POSICION_ID": "",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 36857,
+      "row": {
+        "ASOCIACION ML": "MLC4567517398",
+        "MARCA": "Hyundai",
+        "MODELO": "Porter",
+        "AÑO": 2004,
+        "VERSION": "Base",
+        "CILINDRADA": "2.5L L4 Diesel",
+        "TRANSMISION": "Manual",
+        "FAMILIA": "",
+        "POSICION_DT": "",
+        "POSICION_ID": "DERECHA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 41533,
+      "row": {
+        "ASOCIACION ML": "MLC4567525756",
+        "MARCA": "Nissan",
+        "MODELO": "Qashqai",
+        "AÑO": 2009,
+        "VERSION": "Base",
+        "CILINDRADA": "1.6L L4 Gasolina",
+        "TRANSMISION": "Automática CVT",
+        "FAMILIA": "DISCO FRENO",
+        "POSICION_DT": "DELANTERA",
+        "POSICION_ID": "",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 46855,
+      "row": {
+        "ASOCIACION ML": "MLC4567527682",
+        "MARCA": "Chevrolet",
+        "MODELO": "Optra",
+        "AÑO": 2004,
+        "VERSION": "LS",
+        "CILINDRADA": "1.6L L4 Gasolina",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "BIELETA BARRA ESTABILIZADORA",
+        "POSICION_DT": "DELANTERA",
+        "POSICION_ID": "DERECHA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 49197,
+      "row": {
+        "ASOCIACION ML": "MLC4567528814",
+        "MARCA": "Hyundai",
+        "MODELO": "Staria",
+        "AÑO": 2022,
+        "VERSION": "Base",
+        "CILINDRADA": "2.2L L4 Diesel",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "JUEGO PASTILLAS FRENO",
+        "POSICION_DT": "TRASERA",
+        "POSICION_ID": "",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 83834,
+      "row": {
+        "ASOCIACION ML": "MLC4567541618",
+        "MARCA": "Ford",
+        "MODELO": "Fiesta",
+        "AÑO": 2011,
+        "VERSION": "SE",
+        "CILINDRADA": "1.6L L4 Gasolina",
+        "TRANSMISION": "Manual",
+        "FAMILIA": "JUEGO PASTILLAS FRENO",
+        "POSICION_DT": "DELANTERA",
+        "POSICION_ID": "",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 92715,
+      "row": {
+        "ASOCIACION ML": "MLC4567543304",
+        "MARCA": "Chevrolet",
+        "MODELO": "Optra",
+        "AÑO": 2004,
+        "VERSION": "LS",
+        "CILINDRADA": "1.6L L4 Gasolina",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "NEBLINERO",
+        "POSICION_DT": "",
+        "POSICION_ID": "DERECHA",
+        "ORIGEN_MATCH": ""
+      }
+    },
+    {
+      "excel_row": 107323,
+      "row": {
+        "ASOCIACION ML": "MLC4567552802",
+        "MARCA": "Toyota",
+        "MODELO": "Corolla",
+        "AÑO": 2011,
+        "VERSION": "GLI",
+        "CILINDRADA": "1.6L L4 Gasolina",
+        "TRANSMISION": "Automática",
+        "FAMILIA": "JUNTA HOMOCINETICA",
+        "POSICION_DT": "DELANTERA",
+        "POSICION_ID": "",
+        "ORIGEN_MATCH": ""
+      }
+    }
+  ],
+  "simulated_sample_rows": 19,
+  "simulated_http_writes": [
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567512336/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Nissan"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Primera"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2003"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Base"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "2.0L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567512336/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Nissan"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Primera"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2003"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "Base"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "2.0L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567512300/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "SsangYong"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Actyon Sports"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2007"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Base"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "2.0L L4 Diesel"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567512300/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "SsangYong"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Actyon Sports"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2007"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "Base"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "2.0L L4 Diesel"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701105",
+                          "value_name": "Trasera"
+                        },
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701105",
+                          "value_name": "Trasera"
+                        },
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567512888/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Suzuki"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Aerio"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2003"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "GLX"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567512888/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Suzuki"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Aerio"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2003"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "GLX"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.6L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567513802/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Chevrolet"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Montana"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2024"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "LT"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.2L L3 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567513802/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Chevrolet"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Montana"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2024"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "LT"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.2L L3 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Manual"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567513990/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Hyundai"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Elantra"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "1994"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "GL"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.5L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567513990/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Hyundai"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Elantra"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "1994"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "GL"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.5L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567513970/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Nissan"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Tiida"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2010"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "S"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567513970/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Nissan"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Tiida"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2010"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "S"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.6L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567514410/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Chevrolet"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Optra"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2004"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "LS"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  },
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567514410/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Chevrolet"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Optra"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2004"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "LS"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.6L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567514760/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Nissan"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "X-Trail"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2002"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Confortline"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "2.5L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567514760/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Nissan"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "X-Trail"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2002"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "Confortline"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "2.5L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567514586/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Renault"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Dokker"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2017"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Diesel"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.5L L4 Diesel"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION"
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567514586/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Renault"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Dokker"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2017"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "Diesel"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.5L L4 Diesel"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Manual"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567515592/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Kia"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Sorento"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2004"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "EX Full"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "2.5L L4 Diesel"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      },
+                      {
+                        "value_id": "2262158",
+                        "value_name": "Izquierda"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567515592/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Kia"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Sorento"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2004"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "EX Full"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "2.5L L4 Diesel"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701105",
+                          "value_name": "Trasera"
+                        },
+                        {
+                          "value_id": "2262158",
+                          "value_name": "Izquierda"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567515654/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Hyundai"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Tucson"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2010"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "GL"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "2.0L L4 Diesel"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567515654/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Hyundai"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Tucson"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2010"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "GL"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "2.0L L4 Diesel"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701105",
+                          "value_name": "Trasera"
+                        },
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567515900/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Chevrolet"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Astra"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "1999"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "GLS"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "2.0L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567515900/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Chevrolet"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Astra"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "1999"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "GLS"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "2.0L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Manual"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701105",
+                          "value_name": "Trasera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567517398/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Hyundai"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Porter"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2004"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Base"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "2.5L L4 Diesel"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567517398/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Hyundai"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Porter"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2004"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "Base"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "2.5L L4 Diesel"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Manual"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567525756/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Nissan"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Qashqai"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2009"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Base"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática CVT"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567525756/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Nissan"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Qashqai"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2009"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "Base"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.6L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática CVT"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567527682/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Chevrolet"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Optra"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2004"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "LS"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      },
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567527682/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Chevrolet"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Optra"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2004"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "LS"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.6L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        },
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567528814/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Hyundai"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Staria"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2022"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "Base"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "2.2L L4 Diesel"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701105",
+                        "value_name": "Trasera"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567528814/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Hyundai"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Staria"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2022"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "Base"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "2.2L L4 Diesel"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701105",
+                          "value_name": "Trasera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567541618/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Ford"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Fiesta"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2011"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "SE"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Manual"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567541618/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Ford"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Fiesta"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2011"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "SE"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.6L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Manual"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567543304/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Chevrolet"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Optra"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2004"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "LS"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "2262160",
+                        "value_name": "Derecha"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567543304/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Chevrolet"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Optra"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2004"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "LS"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.6L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "2262160",
+                          "value_name": "Derecha"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/user-products/mock-MLC4567552802/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "products_families": [
+          {
+            "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+            "creation_source": "DEFAULT",
+            "attributes": [
+              {
+                "id": "BRAND",
+                "value_name": "Toyota"
+              },
+              {
+                "id": "CAR_AND_VAN_MODEL",
+                "value_name": "Corolla"
+              },
+              {
+                "id": "YEAR",
+                "value_name": "2011"
+              },
+              {
+                "id": "CAR_AND_VAN_SUBMODEL",
+                "value_name": "GLI"
+              },
+              {
+                "id": "CAR_AND_VAN_ENGINE",
+                "value_name": "1.6L L4 Gasolina"
+              },
+              {
+                "id": "TRANSMISSION_CONTROL_TYPE",
+                "value_name": "Automática"
+              }
+            ],
+            "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+            "restrictions": [
+              {
+                "attribute_id": "POSITION",
+                "attribute_values": [
+                  {
+                    "values": [
+                      {
+                        "value_id": "13701104",
+                        "value_name": "Delantera"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/user-products/mock-MLC4567552802/compatibilities",
+      "json_body": {
+        "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+        "category_id": "mock-category",
+        "update": {
+          "products_families": [
+            {
+              "domain_id": "MLC-CARS_AND_VANS_FOR_COMPATIBILITIES",
+              "attributes": [
+                {
+                  "id": "BRAND",
+                  "value_name": "Toyota"
+                },
+                {
+                  "id": "CAR_AND_VAN_MODEL",
+                  "value_name": "Corolla"
+                },
+                {
+                  "id": "YEAR",
+                  "value_name": "2011"
+                },
+                {
+                  "id": "CAR_AND_VAN_SUBMODEL",
+                  "value_name": "GLI"
+                },
+                {
+                  "id": "CAR_AND_VAN_ENGINE",
+                  "value_name": "1.6L L4 Gasolina"
+                },
+                {
+                  "id": "TRANSMISSION_CONTROL_TYPE",
+                  "value_name": "Automática"
+                }
+              ],
+              "note": "DEBES CONSULTAR OBLIGATORIAMENTE CON CHASIS Y CARACTERISTICAS DEL VEHICULO PARA CORROBORAR APLICACION",
+              "restrictions": [
+                {
+                  "attribute_id": "POSITION",
+                  "attribute_values": [
+                    {
+                      "values": [
+                        {
+                          "value_id": "13701104",
+                          "value_name": "Delantera"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "live_write_count": 0,
+  "issues": []
+}

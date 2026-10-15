@@ -40,7 +40,7 @@ def _combinations(restrictions):
     }
 
 
-def _resolved_row(position="Delantera", side="", item_id="MLC123"):
+def _resolved_row(position: str | None = "Delantera", side: str | None = "", item_id="MLC123"):
     return {
         "ok": True,
         "item_id": item_id,
@@ -114,15 +114,14 @@ class WheelHubPositionTests(unittest.TestCase):
         })
         self.assertEqual(len(restrictions[0]["attribute_values"]), 2)
 
-    def test_existing_family_rules_remain_unchanged(self):
+    def test_all_families_use_only_the_supplied_position_columns(self):
         cases = [
-            ("MLC-VEHICLE_BRAKE_PADS", "", {
-                frozenset({"13701104", "2262158"}),
-                frozenset({"13701104", "2262160"}),
-            }),
+            ("MLC-VEHICLE_BRAKE_PADS", "", {frozenset({"13701104"})}),
             ("MLC-VEHICLE_HEADLIGHTS", "IZQUIERDA", {frozenset({"13701104", "2262158"})}),
-            ("MLC-VEHICLE_WHEELS_BEARINGS", "IZQUIERDA/DERECHA", {frozenset({"13701104"})}),
-            ("UNKNOWN", "IZQUIERDA", set()),
+            ("MLC-VEHICLE_WHEELS_BEARINGS", "IZQUIERDA/DERECHA", {
+                frozenset({"13701104", "2262158"}), frozenset({"13701104", "2262160"}),
+            }),
+            ("UNKNOWN", "IZQUIERDA", {frozenset({"13701104", "2262158"})}),
         ]
         for family, side, expected in cases:
             with self.subTest(family=family):
@@ -150,7 +149,7 @@ class WheelHubPositionTests(unittest.TestCase):
 
 class WheelHubBatchTests(_NoPersistentCache):
     async def test_invalid_position_reports_row_error_without_ml_write(self):
-        for position, side in (("", ""), ("DELANTERO", ""), ("Delantera", "AMBAS"), ("Delantera", "IZQUIERDA/")):
+        for position, side in (("DELANTERO", ""), ("Delantera", "AMBAS"), ("Delantera", "IZQUIERDA/")):
             with self.subTest(position=position, side=side):
                 with patch.object(ml_client, "request", new=AsyncMock()) as request:
                     outcome = await process_compatibility_batches(
@@ -226,6 +225,7 @@ class WheelHubExcelFlowTests(_NoPersistentCache):
             path = Path(folder) / "wheel-hubs.xlsx"
             workbook = Workbook()
             worksheet = workbook.active
+            assert worksheet is not None
             worksheet.title = "Hoja1"
             worksheet.append(fixture["headers"])
             for cells in fixture["rows"]:

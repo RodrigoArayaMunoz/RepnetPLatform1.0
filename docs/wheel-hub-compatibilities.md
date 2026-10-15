@@ -1,5 +1,9 @@
 # Compatibilidades de mazas: MLC-VEHICLE_WHEEL_HUBS
 
+> La [regla vigente de posiciones](position-compatibilities.md) se aplica a todas
+> las familias y permite ambas columnas vacías. La exigencia histórica de una
+> posición principal descrita en esta verificación fue sustituida.
+
 El proceso de agregar compatibilidades reconoce esta familia desde la columna
 `FAMILIA`. El lector de Excel ya traduce los encabezados originales a las columnas
 lógicas `POSICION_DT` y `POSICION_ID`; la resolución conserva esos valores de cada
