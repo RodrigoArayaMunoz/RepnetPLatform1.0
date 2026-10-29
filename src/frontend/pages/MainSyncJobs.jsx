@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -14,7 +14,10 @@ import "../styles/MainSyncJobs.css";
 import { supabase } from "../../lib/supabase.js";
 import { authFetch } from "../../lib/apiClient.js";
 import { sanitizeStorageFileName } from "../utils/storageFileName.js";
-import { groupProcessRows, PROCESS_STATUS } from "../utils/processBoard.js";
+import { PROCESS_STATUS } from "../utils/processBoard.js";
+import { processQueueRevision } from "../utils/processPages.js";
+import { createVisiblePoller, pollingError } from "../utils/visiblePolling.js";
+import useProcessPages from "../hooks/useProcessPages.js";
 
 const SYNC_ROUTE = "/procesos/sincronizacion-procesos";
 const PROCESS_BUCKET = "excel-procesos";
@@ -24,14 +27,14 @@ export default function MainSyncJobs() {
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [now, setNow] = useState(new Date());
-  const [processRows, setProcessRows] = useState([]);
+  const [boardRevision, setBoardRevision] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingProcesses, setIsLoadingProcesses] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState("info");
   const [isQueueRunning, setIsQueueRunning] = useState(false);
   const [queueButtonText, setQueueButtonText] = useState("Ejecutar procesos");
   const [queueMessage, setQueueMessage] = useState("");
+  const [queueStatusError, setQueueStatusError] = useState("");
   const [queueCurrentProcessRowId, setQueueCurrentProcessRowId] = useState(null);
   const [queueCurrentProcessType, setQueueCurrentProcessType] = useState(null);
   const [jobMessage, setJobMessage] = useState("");
@@ -54,6 +57,35 @@ export default function MainSyncJobs() {
   const API_BASE =
     import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+  const checkMercadoLibreConnection = useCallback(async () => {
+    try {
+      setIsCheckingMl(true);
+      setIsMercadoLibreConnected(false);
+      setMlUserId(null);
+
+      const res = await authFetch(`${API_BASE}/ml/status`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data?.connected === true) {
+        setIsMercadoLibreConnected(true);
+        setMlUserId(data?.user_id ? String(data.user_id) : null);
+      } else {
+        setIsMercadoLibreConnected(false);
+        setMlUserId(null);
+      }
+    } catch (error) {
+      console.error("Error verificando conexión con MercadoLibre:", error);
+      setIsMercadoLibreConnected(false);
+      setMlUserId(null);
+    } finally {
+      setIsCheckingMl(false);
+    }
+  }, [API_BASE]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(new Date());
@@ -63,20 +95,8 @@ export default function MainSyncJobs() {
   }, []);
 
   useEffect(() => {
-    loadProcesses();
     checkMercadoLibreConnection();
-    loadQueueStatus();
-  }, []);
-
-  useEffect(() => {
-    const pollMs = isQueueRunning ? 5000 : 30000;
-    const interval = setInterval(async () => {
-      await loadQueueStatus();
-      await loadProcesses();
-    }, pollMs);
-
-    return () => clearInterval(interval);
-  }, [isQueueRunning]);
+  }, [checkMercadoLibreConnection]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -98,7 +118,7 @@ export default function MainSyncJobs() {
         { replace: true }
       );
     }
-  }, [location.search, navigate]);
+  }, [location.search, navigate, checkMercadoLibreConnection]);
 
   const formattedDate = useMemo(() => {
     return now.toLocaleDateString("es-CL", {
@@ -131,15 +151,24 @@ export default function MainSyncJobs() {
     return `${hours}:${minutes}:${seconds}`;
   }, [now]);
 
-  const processGroups = useMemo(
-    () => groupProcessRows(processRows, isQueueRunning, queueCurrentProcessRowId),
-    [processRows, isQueueRunning, queueCurrentProcessRowId]
-  );
-  const pendingProcessCount = processGroups.pending.length;
+  const { lanes, reload: loadProcesses } = useProcessPages({
+    revision: boardRevision,
+    currentId: isQueueRunning ? queueCurrentProcessRowId : null,
+    running: isQueueRunning,
+  });
+  const processGroups = {
+    processing: lanes.processing.rows,
+    pending: lanes.pending.rows,
+    completed: lanes.completed.rows,
+  };
+  const isLoadingProcesses = Object.values(lanes).some((lane) => lane.loading);
+  const historyError = Object.values(lanes).find((lane) => lane.error)?.error || "";
+  const pendingProcessCount = lanes.pending.total;
 
   const hasPendingProcesses = pendingProcessCount > 0;
 
   const visibleQueueMessage = useMemo(() => {
+    if (queueStatusError) return queueStatusError;
     if (isQueueRunning) {
       return jobMessage || queueMessage;
     }
@@ -157,6 +186,7 @@ export default function MainSyncJobs() {
     jobMessage,
     pendingProcessCount,
     queueMessage,
+    queueStatusError,
   ]);
 
   const handleFileChange = (event) => {
@@ -166,184 +196,38 @@ export default function MainSyncJobs() {
     setStatusType("info");
   };
 
-  const formatTableDateTime = (fechaProceso, horaProceso) => {
-    if (!fechaProceso) return "-";
-
-    const [year, month, day] = fechaProceso.split("-");
-    const safeTime = horaProceso ? horaProceso.slice(0, 8) : "00:00:00";
-
-    return `${day}-${month}-${year} ${safeTime}`;
-  };
-
-  const mapProcessRow = (row) => ({
-    id: row.id,
-    procesoId: row.proceso_id,
-    archivo: row.archivo,
-    fecha: formatTableDateTime(row.fecha_proceso, row.hora_proceso),
-    procesadoPor: row.generado,
-    estado: row.estado,
-    displayEstado: row.estado,
-    hasErrorDetails:
-      String(row.estado || "").toLowerCase() ===
-      PROCESS_STATUS.ERROR.toLowerCase(),
-    isPartialProcess: false,
-    hasExportResult: false,
-    exportKind: null,
-    exportLabel: "Descargar resultado",
-  });
-
-  const loadProcessErrorSummaries = async (rows) => {
-    const rowIds = rows
-      .map((row) => String(row?.id || "").trim())
-      .filter(Boolean);
-
-    if (rowIds.length === 0) {
-      return {};
-    }
-
-    const res = await authFetch(`${API_BASE}/process-queue/errors/summaries`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        row_ids: rowIds,
-      }),
+  const loadQueueStatus = useCallback(async (signal) => {
+    const res = await authFetch(`${API_BASE}/process-queue/status`, {
+      method: "GET", credentials: "include", signal,
     });
-
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(
-        data?.detail ||
-          data?.message ||
-          "No se pudieron obtener los resúmenes de error."
-      );
+      throw pollingError(res, data.detail || "No se pudo consultar la cola. Actualiza la página para reintentar.");
     }
+    if (signal?.aborted) return data;
+    setQueueStatusError("");
+    setIsQueueRunning(Boolean(data?.running));
+    setQueueButtonText(data?.button_text || "Ejecutar procesos");
+    setQueueMessage(data?.message || "");
+    setQueueCurrentProcessRowId(data?.current_process_row_id || null);
+    setQueueCurrentProcessType(data?.current_process_type || null);
+    setJobMessage(data?.job_message || "");
+    setJobProcessedRows(data?.job_processed_rows ?? 0);
+    setJobTotalRows(data?.job_total_rows ?? 0);
+    setJobCompatibilitiesCreated(data?.job_compatibilities_created ?? 0);
+    setBoardRevision(processQueueRevision(data));
+    return data;
+  }, [API_BASE]);
 
-    return data?.items && typeof data.items === "object" ? data.items : {};
-  };
-
-  const loadProcesses = async () => {
-    if (!supabase) {
-      setProcessRows([]);
-      setIsLoadingProcesses(false);
-      setStatusMessage("Supabase no está configurado.");
-      setStatusType("error");
-      return;
-    }
-
-    try {
-      setIsLoadingProcesses(true);
-
-      const { data, error } = await supabase
-        .from("procesos")
-        .select("id, proceso_id, archivo, fecha_proceso, hora_proceso, generado, estado")
-        .order("fecha_proceso", { ascending: false })
-        .order("hora_proceso", { ascending: false })
-        .order("id", { ascending: false });
-
-      if (error) {
-        console.error("Error al cargar procesos:", error);
-        setStatusMessage("No se pudieron cargar los procesos.");
-        setStatusType("error");
-        return;
-      }
-
-      const mappedRows = (data || []).map(mapProcessRow);
-
-      try {
-        const errorSummaries = await loadProcessErrorSummaries(mappedRows);
-        const enrichedRows = mappedRows.map((row) => {
-          const summary = errorSummaries[String(row.id)] || null;
-          if (!summary) {
-            return row;
-          }
-
-          return {
-            ...row,
-            displayEstado: summary.display_status || row.estado,
-            hasErrorDetails: Boolean(summary.has_error_details),
-            isPartialProcess: Boolean(summary.is_partial),
-            hasExportResult: Boolean(summary.has_export_result),
-            exportKind: summary.export_kind || null,
-            exportLabel: summary.export_label || row.exportLabel,
-          };
-        });
-
-        setProcessRows(enrichedRows);
-      } catch (summaryError) {
-        console.error("Error cargando resúmenes de error:", summaryError);
-        setProcessRows(mappedRows);
-      }
-    } catch (err) {
-      console.error("Error inesperado al cargar procesos:", err);
-      setStatusMessage("Ocurrió un error inesperado al cargar procesos.");
-      setStatusType("error");
-    } finally {
-      setIsLoadingProcesses(false);
-    }
-  };
-
-  const checkMercadoLibreConnection = async () => {
-    try {
-      setIsCheckingMl(true);
-      setIsMercadoLibreConnected(false);
-      setMlUserId(null);
-
-      const res = await authFetch(`${API_BASE}/ml/status`, {
-        method: "GET",
-        credentials: "include",
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok && data?.connected === true) {
-        setIsMercadoLibreConnected(true);
-        setMlUserId(data?.user_id ? String(data.user_id) : null);
-      } else {
-        setIsMercadoLibreConnected(false);
-        setMlUserId(null);
-      }
-    } catch (error) {
-      console.error("Error verificando conexión con MercadoLibre:", error);
-      setIsMercadoLibreConnected(false);
-      setMlUserId(null);
-    } finally {
-      setIsCheckingMl(false);
-    }
-  };
-
-  const loadQueueStatus = async () => {
-    try {
-      const res = await authFetch(`${API_BASE}/process-queue/status`, {
-        method: "GET",
-        credentials: "include",
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        return null;
-      }
-
-      setIsQueueRunning(Boolean(data?.running));
-      setQueueButtonText(data?.button_text || "Ejecutar procesos");
-      setQueueMessage(data?.message || "");
-      setQueueCurrentProcessRowId(data?.current_process_row_id || null);
-      setQueueCurrentProcessType(data?.current_process_type || null);
-      setJobMessage(data?.job_message || "");
-      setJobProcessedRows(data?.job_processed_rows ?? 0);
-      setJobTotalRows(data?.job_total_rows ?? 0);
-      setJobCompatibilitiesCreated(
-        data?.job_compatibilities_created ?? 0
-      );
-      return data;
-    } catch (error) {
-      console.error("Error consultando estado de cola:", error);
-      return null;
-    }
-  };
+  useEffect(() => createVisiblePoller({
+    run: async (signal) => {
+      const data = await loadQueueStatus(signal);
+      return data.running ? 5000 : 30000;
+    },
+    onError: (error) => {
+      setQueueStatusError(error.message + (error.pollingStopped ? " Actualiza la página para reintentar el seguimiento." : ""));
+    },
+  }), [loadQueueStatus]);
 
   const handleSaveProcess = async () => {
     if (!isMercadoLibreConnected) {
@@ -407,11 +291,9 @@ export default function MainSyncJobs() {
         storage_path: storagePath,
       };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("procesos")
-        .insert([payload])
-        .select("id, proceso_id, archivo, fecha_proceso, hora_proceso, generado, estado, storage_bucket, storage_path")
-        .single();
+        .insert([payload]);
 
       if (error) {
         await supabase.storage.from(bucketName).remove([storagePath]);
@@ -420,7 +302,8 @@ export default function MainSyncJobs() {
         return;
       }
 
-      setProcessRows((prev) => [mapProcessRow(data), ...prev]);
+      lanes.pending.setPage(1);
+      loadProcesses();
       setSelectedFile(null);
       setStatusMessage("Proceso guardado correctamente.");
       setStatusType("success");
@@ -771,8 +654,16 @@ export default function MainSyncJobs() {
         )}
       </div>
 
+      {historyError && (
+        <p className="main-sync-jobs__message main-sync-jobs__message--error" role="alert">
+          {historyError}
+          <button type="button" onClick={loadProcesses}>Actualizar historial</button>
+        </p>
+      )}
+
       <ProcessBoard
         groups={processGroups}
+        pagination={lanes}
         isLoading={isLoadingProcesses}
         isQueueRunning={isQueueRunning}
         currentProcessRowId={queueCurrentProcessRowId}

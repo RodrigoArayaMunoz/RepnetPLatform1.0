@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "../../lib/apiClient.js";
+import { createVisiblePoller, pollingError } from "../utils/visiblePolling.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -94,38 +95,29 @@ export default function usePublicationExport({ authUserId, scope = "date", visit
     const jobId = job?.job_id;
     if (!jobId || !isExporting) return undefined;
     const generation = generationRef.current;
-    const controller = new AbortController();
-    let loading = false;
-    const loadStatus = async () => {
-      if (loading || controller.signal.aborted) return;
-      loading = true;
-      try {
+    return createVisiblePoller({
+      intervalMs: 3000,
+      run: async (signal) => {
         const response = await authFetch(
           `${API_BASE}/publications/export/${jobId}`,
-          { method: "GET", credentials: "include", signal: controller.signal }
+          { method: "GET", credentials: "include", signal }
         );
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(readPublicationError(data, "No se pudo consultar el estado de la exportación."));
+          throw pollingError(response, readPublicationError(data, "No se pudo consultar el estado de la exportación."));
         }
-        if (!controller.signal.aborted && generation === generationRef.current) {
+        if (!signal.aborted && generation === generationRef.current) {
           setJob(data);
           if (data.status !== "error") setError("");
         }
-      } catch (statusError) {
-        if (!controller.signal.aborted && generation === generationRef.current) {
-          setError(statusError?.message || "No se pudo consultar el estado de la exportación.");
+        if (!["queued", "processing", "retrying"].includes(data.status)) return false;
+      },
+      onError: (statusError) => {
+        if (generation === generationRef.current) {
+          setError(statusError.message + (statusError.pollingStopped ? " Actualiza la página para reintentar." : ""));
         }
-      } finally {
-        loading = false;
-      }
-    };
-    loadStatus();
-    const interval = window.setInterval(loadStatus, 1000);
-    return () => {
-      controller.abort();
-      window.clearInterval(interval);
-    };
+      },
+    });
   }, [job?.job_id, isExporting]);
 
   useEffect(() => {

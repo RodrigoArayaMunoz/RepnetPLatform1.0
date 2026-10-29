@@ -84,7 +84,10 @@ async def _get_connected_ml_user_id() -> str:
 
 async def _get_sync_state() -> dict:
     state = publication_sync_store.get_state()
-    state["has_publications"] = await supabase_publications_store.has_rows()
+    state["has_publications"] = await supabase_publications_store.has_rows(cache_key=(
+        state.get("sync_run_id"), state.get("status"), state.get("finished_at"),
+        bool(state.get("saved_count")),
+    ))
     return state
 
 

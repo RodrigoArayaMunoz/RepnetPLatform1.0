@@ -1,8 +1,9 @@
 import "../styles/PriceStocksUploads.css";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import ResultModal from "../components/ResultModal";
 import PublicationsWithoutCompatibilityModal from "../components/PublicationsWithoutCompatibilityModal";
 import { authFetch, startMercadoLibreLogin } from "../../lib/apiClient.js";
+import { pollingError, waitForVisibleJob } from "../utils/visiblePolling.js";
 
 function ProcessingOverlay({ visible, progress = 0, message = "" }) {
   if (!visible) return null;
@@ -30,11 +31,12 @@ function ProcessingOverlay({ visible, progress = 0, message = "" }) {
 
 function PriceStocksUploads() {
   const fileInputRef = useRef(null);
+  const observerRef = useRef(null);
+  useEffect(() => () => observerRef.current?.abort(), []);
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
 
-  const [mlConnected, setMlConnected] = useState(false);
   const [mlVerified, setMlVerified] = useState(false);
   const [mlUserId, setMlUserId] = useState(null);
   const [checkingConnection, setCheckingConnection] = useState(true);
@@ -45,7 +47,6 @@ function PriceStocksUploads() {
   const [jobResult, setJobResult] = useState(null);
   const [loadingResult, setLoadingResult] = useState(false);
 
-  const [jobId, setJobId] = useState(null);
   const [loadingProcess, setLoadingProcess] = useState(false);
   const [progress, setProgress] = useState(0);
   const [processMessage, setProcessMessage] = useState("");
@@ -55,30 +56,10 @@ function PriceStocksUploads() {
   const API_BASE =
     import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-  useEffect(() => {
-    checkMlConnection();
-  }, []);
-
-  const handleCloseResultModal = () => {
-    setShowResultModal(false);
-    setFile(null);
-    setJobId(null);
-    setJobResult(null);
-    setProgress(0);
-    setProcessMessage("");
-    setStatus("idle");
-    setMessage("");
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const checkMlConnection = async () => {
+  const checkMlConnection = useCallback(async () => {
     try {
       setCheckingConnection(true);
       setMlVerified(false);
-      setMlConnected(false);
       setMlUserId(null);
       setMlStatusMessage("Verificando conexión con Mercado Libre...");
 
@@ -90,23 +71,38 @@ function PriceStocksUploads() {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data?.connected === true) {
-        setMlConnected(true);
         setMlVerified(true);
         setMlUserId(data?.user_id ? String(data.user_id) : null);
         setMlStatusMessage("Conectado exitosamente");
       } else {
-        setMlConnected(false);
         setMlVerified(false);
         setMlUserId(null);
         setMlStatusMessage("Debes conectar tu cuenta de Mercado Libre");
       }
-    } catch (error) {
-      setMlConnected(false);
+    } catch {
       setMlVerified(false);
       setMlUserId(null);
       setMlStatusMessage("No se pudo verificar la conexión con Mercado Libre");
     } finally {
       setCheckingConnection(false);
+    }
+  }, [API_BASE]);
+
+  useEffect(() => {
+    checkMlConnection();
+  }, [checkMlConnection]);
+
+  const handleCloseResultModal = () => {
+    setShowResultModal(false);
+    setFile(null);
+    setJobResult(null);
+    setProgress(0);
+    setProcessMessage("");
+    setStatus("idle");
+    setMessage("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -136,14 +132,12 @@ function PriceStocksUploads() {
 
     if (!isExcelFile(selectedFile)) {
       setFile(null);
-      setJobId(null);
       setStatus("error");
       setMessage("Archivo no válido. Selecciona un Excel (.xlsx, .xls) o CSV (.csv).");
       return;
     }
 
     setFile(selectedFile);
-    setJobId(null);
     setStatus("idle");
     setMessage("");
     setJobResult(null);
@@ -186,9 +180,9 @@ function PriceStocksUploads() {
     return data.job_id;
   };
 
-  const fetchJobResult = async (currentJobId) => {
+  const fetchJobResult = async (currentJobId, signal) => {
     const res = await authFetch(`${API_BASE}/imports/${currentJobId}/result`, {
-      method: "GET",
+      method: "GET", signal,
       credentials: "include",
     });
 
@@ -200,47 +194,31 @@ function PriceStocksUploads() {
       );
     }
 
+    if (signal?.aborted) return;
     setJobResult(data);
     setShowResultModal(true);
   };
 
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const pollStageJob = async (currentJobId, stageLabel) => {
-    let finished = false;
-
-    while (!finished) {
+  const pollStageJob = (currentJobId, stageLabel, signal) => waitForVisibleJob({
+    signal,
+    read: async (requestSignal) => {
       const response = await authFetch(`${API_BASE}/imports/${currentJobId}`, {
-        credentials: "include",
+        credentials: "include", signal: requestSignal,
       });
-
       const data = await response.json().catch(() => ({}));
-
       if (!response.ok) {
-        throw new Error(
-          data?.detail || data?.message || "Error consultando el estado del proceso."
+        throw pollingError(response,
+          data?.detail || data?.message || "No se pudo consultar el avance. El proceso puede seguir ejecutándose.",
         );
       }
-
-      const currentProgress =
-        typeof data.progress === "number" ? data.progress : 0;
-
-      setProgress(Math.min(100, currentProgress));
+      return data;
+    },
+    onProgress: (data) => {
+      setProgress(Math.min(100, typeof data.progress === "number" ? data.progress : 0));
       setProcessMessage(`${stageLabel}: ${data.message || "Procesando..."}`);
       setMessage(data.message || "");
-
-      if (data.status === "success") {
-        finished = true;
-        return data;
-      }
-
-      if (data.status === "error") {
-        throw new Error(data.message || `Error en etapa ${stageLabel}`);
-      }
-
-      await sleep(1200);
-    }
-  };
+    },
+  });
 
   const handleProcess = async () => {
     if (!mlVerified) {
@@ -261,6 +239,9 @@ function PriceStocksUploads() {
       return;
     }
 
+    const observer = new AbortController();
+    observerRef.current?.abort();
+    observerRef.current = observer;
     try {
       setShowResultModal(false);
       setJobResult(null);
@@ -272,11 +253,11 @@ function PriceStocksUploads() {
       setProcessMessage("Iniciando actualización de precios y stock...");
 
       const newJobId = await startPriceStockJob(file);
-      setJobId(newJobId);
+      if (observer.signal.aborted) return;
 
       await pollStageJob(
         newJobId,
-        "Actualizando precios y stock"
+        "Actualizando precios y stock", observer.signal
       );
 
       setProgress(100);
@@ -284,8 +265,9 @@ function PriceStocksUploads() {
 
       try {
         setLoadingResult(true);
-        await fetchJobResult(newJobId);
+        await fetchJobResult(newJobId, observer.signal);
       } catch (error) {
+        if (observer.signal.aborted) return;
         setStatus("error");
         setMessage(
           error?.message ||
@@ -296,10 +278,13 @@ function PriceStocksUploads() {
         setLoadingProcess(false);
       }
     } catch (error) {
+      if (observer.signal.aborted) return;
       setLoadingProcess(false);
       setLoadingResult(false);
       setStatus("error");
       setMessage(error?.message || "Ocurrió un error al procesar el archivo.");
+    } finally {
+      if (observerRef.current === observer) observerRef.current = null;
     }
   };
 

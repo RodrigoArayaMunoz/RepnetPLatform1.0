@@ -49,6 +49,7 @@ const LANES = [
 
 export default function ProcessBoard({
   groups,
+  pagination,
   isLoading,
   isQueueRunning,
   currentProcessRowId,
@@ -82,20 +83,25 @@ export default function ProcessBoard({
             aria-controls={`process-board-${lane.key}`}
             onClick={() => setSelectedLane(lane.key)}
           >
-            {lane.title}<span>{groups[lane.key].length}</span>
+            {lane.title}<span>{pagination?.[lane.key]?.total ?? groups[lane.key].length}</span>
           </button>
         ))}
       </nav>
       {LANES.map((lane) => {
         const rows = groups[lane.key];
-        const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
+        const remote = pagination?.[lane.key];
+        const totalRows = remote?.total ?? rows.length;
+        const totalPages = Math.max(1, Math.ceil(totalRows / ROWS_PER_PAGE));
         const firstRowId = rows[0]?.id;
         const savedPage = pages[lane.key];
-        const page = savedPage?.firstRowId === firstRowId
+        const page = remote ? Math.min(remote.page, totalPages) : savedPage?.firstRowId === firstRowId
           ? Math.min(savedPage?.page || 1, totalPages)
           : 1;
         const startIndex = (page - 1) * ROWS_PER_PAGE;
-        const visibleRows = rows.slice(startIndex, startIndex + ROWS_PER_PAGE);
+        const visibleRows = remote ? rows : rows.slice(startIndex, startIndex + ROWS_PER_PAGE);
+        const changePage = (nextPage) => remote
+          ? remote.setPage(nextPage)
+          : setPages((previous) => ({ ...previous, [lane.key]: { page: nextPage, firstRowId } }));
         const LaneIcon = lane.icon;
         const isWaitingForNext = lane.key === "processing" && isQueueRunning;
 
@@ -112,15 +118,15 @@ export default function ProcessBoard({
                   <LaneIcon size={21} aria-hidden="true" />
                 </span>
                 <h2 id={`process-board-${lane.key}-title`}>{lane.title}</h2>
-                <span className="process-board__count" aria-label={`${rows.length} procesos`}>
-                  {rows.length}
+                <span className="process-board__count" aria-label={`${totalRows} procesos`}>
+                  {totalRows}
                 </span>
               </div>
               <p>{lane.description}</p>
             </header>
 
             <div className="process-board__content">
-              {isInitialLoading ? (
+              {isInitialLoading || (remote?.loading && rows.length === 0) ? (
                 <div className="process-board__empty" role="status">
                   <LoaderCircle className="process-board__spinner" size={28} aria-hidden="true" />
                   <p>Cargando procesos...</p>
@@ -248,20 +254,20 @@ export default function ProcessBoard({
             </div>
 
             <footer className="process-board__footer">
-              <span>{rows.length > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + ROWS_PER_PAGE, rows.length)} de {rows.length}</span>
+              <span>{totalRows > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + ROWS_PER_PAGE, totalRows)} de {totalRows}</span>
               <nav className="process-board__pagination" aria-label={`Paginación de ${lane.title.toLowerCase()}`}>
                 <button
                   type="button"
                   aria-label={`Página anterior de ${lane.title.toLowerCase()}`}
-                  disabled={page === 1}
-                  onClick={() => setPages((previous) => ({ ...previous, [lane.key]: { page: page - 1, firstRowId } }))}
+                  disabled={page === 1 || remote?.loading}
+                  onClick={() => changePage(page - 1)}
                 ><ChevronLeft size={16} aria-hidden="true" /></button>
                 <span>{page} / {totalPages}</span>
                 <button
                   type="button"
                   aria-label={`Página siguiente de ${lane.title.toLowerCase()}`}
-                  disabled={page === totalPages}
-                  onClick={() => setPages((previous) => ({ ...previous, [lane.key]: { page: page + 1, firstRowId } }))}
+                  disabled={page === totalPages || remote?.loading}
+                  onClick={() => changePage(page + 1)}
                 ><ChevronRight size={16} aria-hidden="true" /></button>
               </nav>
             </footer>

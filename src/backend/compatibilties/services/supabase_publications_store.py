@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -44,6 +45,8 @@ class SupabasePublicationsStore:
 
     def __init__(self) -> None:
         self.table_name = settings.supabase_publications_table
+        self._presence_cache = None
+        self._presence_lock = asyncio.Lock()
 
     @property
     def table_url(self) -> str | None:
@@ -96,7 +99,20 @@ class SupabasePublicationsStore:
                 "requerida. Ejecuta primero la migración SQL incluida."
             )
 
-    async def has_rows(self) -> bool:
+    async def has_rows(self, *, cache_key: tuple | None = None) -> bool:
+        if cache_key is None:
+            return await self._read_has_rows()
+        key = (self.table_url, cache_key)
+        async with self._presence_lock:
+            cached = self._presence_cache
+            if cached and cached[0] == key and cached[1] > time.monotonic():
+                return cached[2]
+            value = await self._read_has_rows()
+            # Bound memory to one snapshot, and do not cache network failures.
+            self._presence_cache = (key, time.monotonic() + 60, value)
+            return value
+
+    async def _read_has_rows(self) -> bool:
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.get(
                 self.table_url,

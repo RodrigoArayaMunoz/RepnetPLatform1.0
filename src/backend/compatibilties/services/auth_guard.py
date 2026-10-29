@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import time
 from typing import Any
@@ -10,7 +11,16 @@ from config import settings
 
 class SupabaseAuthVerifier:
     def __init__(self) -> None:
-        self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
+        self._inflight: dict[str, asyncio.Task] = {}
+
+    def _remember(self, key: str, user: dict[str, Any] | None, ttl: int) -> None:
+        now = time.monotonic()
+        self._cache = {key: value for key, value in self._cache.items() if value[0] > now}
+        if len(self._cache) >= 2048:
+            self._cache.pop(next(iter(self._cache)))
+        if ttl > 0:
+            self._cache[key] = (now + ttl, user)
 
     @staticmethod
     def _token_cache_key(token: str) -> str:
@@ -39,11 +49,30 @@ class SupabaseAuthVerifier:
     ) -> dict[str, Any]:
         token = self._extract_bearer_token(authorization_header)
 
-        now = time.time()
+        now = time.monotonic()
         cache_key = self._token_cache_key(token)
         cached = self._cache.get(cache_key)
         if cached and cached[0] > now:
+            if cached[1] is None:
+                raise HTTPException(status_code=401, detail="Sesion invalida o expirada")
             return cached[1]
+
+        pending = self._inflight.get(cache_key)
+        if pending is None:
+            pending = asyncio.create_task(self._verify_token(token, cache_key))
+            self._inflight[cache_key] = pending
+
+            def completed(task):
+                self._inflight.pop(cache_key, None)
+                # A disconnected caller must not cancel verification for other
+                # requests; retrieve any exception even if all callers left.
+                if not task.cancelled():
+                    task.exception()
+
+            pending.add_done_callback(completed)
+        return await asyncio.shield(pending)
+
+    async def _verify_token(self, token: str, cache_key: str) -> dict[str, Any]:
 
         if not settings.supabase_url or not settings.supabase_anon_key:
             raise HTTPException(
@@ -68,6 +97,8 @@ class SupabaseAuthVerifier:
             )
 
         if response.status_code in (401, 403):
+            # Cache only denials, briefly. A refreshed token has a different key.
+            self._remember(cache_key, None, 10)
             raise HTTPException(
                 status_code=401,
                 detail="Sesion invalida o expirada",
@@ -87,8 +118,7 @@ class SupabaseAuthVerifier:
             )
 
         ttl = max(int(settings.backend_auth_cache_ttl_seconds), 0)
-        if ttl:
-            self._cache[cache_key] = (now + ttl, user)
+        self._remember(cache_key, user, ttl)
 
         return user
 

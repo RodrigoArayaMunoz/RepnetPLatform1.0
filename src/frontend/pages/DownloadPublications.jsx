@@ -8,6 +8,7 @@ import {
   Layers3,
 } from "lucide-react";
 import { authFetch } from "../../lib/apiClient.js";
+import { createVisiblePoller, pollingError } from "../utils/visiblePolling.js";
 import usePublicationExport, { readPublicationError } from "../hooks/usePublicationExport.js";
 import PublicationExportStatus from "../components/PublicationExportStatus.jsx";
 import "../styles/DownloadPublications.css";
@@ -33,19 +34,20 @@ export default function DownloadPublications({ authUserId }) {
   const isSyncing = Boolean(syncState?.running);
   const isExportBusy = dateExport.isBusy || catalogExport.isBusy;
 
-  const loadSyncStatus = useCallback(async () => {
+  const loadSyncStatus = useCallback(async (signal) => {
     try {
       const response = await authFetch(
         `${API_BASE}/publications/sync/status`,
         {
           method: "GET",
           credentials: "include",
+          signal,
         }
       );
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(
+        throw pollingError(response,
           readPublicationError(
             data,
             "No se pudo consultar el estado de las publicaciones."
@@ -53,30 +55,29 @@ export default function DownloadPublications({ authUserId }) {
         );
       }
 
+      if (signal?.aborted) return data;
       setSyncState(data);
       if (data?.status !== "error") {
         setSyncError("");
       }
+      return data;
     } catch (error) {
-      setSyncError(
+      if (!signal?.aborted) setSyncError(
         error?.message ||
           "No se pudo consultar el estado de las publicaciones."
       );
+      throw error;
     }
   }, []);
 
-  useEffect(() => {
-    loadSyncStatus();
-  }, [loadSyncStatus]);
-
-  useEffect(() => {
-    if (!isSyncing) {
-      return undefined;
-    }
-
-    const interval = window.setInterval(loadSyncStatus, 3000);
-    return () => window.clearInterval(interval);
-  }, [isSyncing, loadSyncStatus]);
+  useEffect(() => createVisiblePoller({
+    intervalMs: 5000,
+    run: async (signal) => {
+      const data = await loadSyncStatus(signal);
+      if (!data.running) return false;
+    },
+    onError: (error) => setSyncError(error.message + (error.pollingStopped ? " Actualiza la página para reintentar." : "")),
+  }), [isSyncing, loadSyncStatus]);
 
   const handleLoadPublications = async () => {
     if (isSyncing || isExportBusy) {

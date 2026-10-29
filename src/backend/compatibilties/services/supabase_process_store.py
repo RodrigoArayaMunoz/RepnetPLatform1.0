@@ -44,6 +44,7 @@ class SupabaseProcessStore:
             "apikey": api_key,
             "Authorization": f"Bearer {api_key}",
             "Accept": "application/json",
+            "Prefer": "return=minimal",
         }
         if return_representation:
             headers["Prefer"] = "return=representation"
@@ -99,7 +100,7 @@ class SupabaseProcessStore:
             "PATCH",
             params={"id": f"eq.{row_id}"},
             json_body={"estado": status},
-            return_representation=True,
+            return_representation=False,
         )
 
     async def download_process_file(
