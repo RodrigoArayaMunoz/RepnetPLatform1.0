@@ -119,6 +119,7 @@ services:
     restart: unless-stopped
     command: celery -A celery_app:celery_app worker -Q publications_sync --concurrency=1 --loglevel=info
 
+  # Legacy queue drain only; notification and sales processing are retired.
   worker_meli_notifications:
     build:
       context: .
@@ -134,7 +135,7 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    command: celery -A celery_app:celery_app worker -Q meli_notifications --concurrency=1 --loglevel=info
+    command: celery -A celery_app:celery_app worker -Q meli_notifications --concurrency=1 --loglevel=warning
     stop_grace_period: 2m
 
   worker_publication_exports:

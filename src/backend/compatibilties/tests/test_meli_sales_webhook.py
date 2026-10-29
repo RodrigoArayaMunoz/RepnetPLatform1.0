@@ -1,627 +1,133 @@
 import unittest
-from datetime import datetime
-from types import SimpleNamespace
+from contextlib import ExitStack
 from unittest.mock import AsyncMock, patch
 
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from config import settings
+from celery_app import celery_app
 from main import app
-from routers.mercadolibre_webhook_router import (
-    notification_event_key,
-    validate_meli_notification,
-)
-from services.meli_sales_sync_service import MeliSalesSyncService
-from services.supabase_meli_sales_store import (
-    SupabaseMeliSalesStore,
-    is_shipment_dispatched,
+from tasks.meli_sales_tasks import (
+    backfill_meli_sales_task,
+    process_meli_notification_task,
 )
 
 
-class MercadoLibreWebhookValidationTests(unittest.TestCase):
-    def test_endpoint_is_public_and_queues_valid_notification(self):
-        payload = {
-            "_id": "event-public-route",
-            "application_id": "1234",
-            "user_id": 99,
-            "topic": "shipments",
-            "resource": "/shipments/40000000001",
-            "attempts": 1,
-        }
-        with (
-            patch.object(settings, "ml_client_id", "1234"),
-            patch.object(settings, "ml_notification_application_id", None),
-            patch.object(settings, "ml_notification_allowed_user_id", None),
-            patch(
-                "routers.mercadolibre_webhook_router."
-                "process_meli_notification_task.apply_async",
-                return_value=SimpleNamespace(id="task-1"),
-            ) as enqueue,
-        ):
-            response = TestClient(app).post(
-                "/webhooks/mercadolibre",
-                json=payload,
-            )
+def forbid_retired_io(stack):
+    """Fail a test if retired work reaches storage, a queue, or an HTTP service."""
+    mocks = []
+    for target in (
+        "httpx.AsyncClient.request",
+        "redis.asyncio.Redis.execute_command",
+        "redis.Redis.execute_command",
+        "celery.app.base.Celery.send_task",
+    ):
+        mocks.append(stack.enter_context(patch(
+            target, side_effect=AssertionError("Retired integration attempted I/O"),
+        )))
+    for task in (process_meli_notification_task, backfill_meli_sales_task):
+        mocks.append(stack.enter_context(patch.object(
+            task, "apply_async", side_effect=AssertionError("Retired task was queued"),
+        )))
+    return mocks
 
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["queued"])
-        enqueue.assert_called_once()
 
-    def test_accepts_only_configured_app_and_supported_resource(self):
-        payload = {
-            "_id": "event-1",
-            "application_id": "1234",
-            "user_id": 99,
-            "topic": "orders_v2",
-            "resource": "/orders/2000000000000001",
-            "attempts": 1,
-            "sent": "2026-08-28T10:00:00Z",
-        }
-        with (
-            patch.object(settings, "ml_client_id", "1234"),
-            patch.object(settings, "ml_notification_application_id", None),
-            patch.object(settings, "ml_notification_allowed_user_id", None),
-        ):
-            normalized = validate_meli_notification(payload)
+class RetiredMercadoLibreHttpTests(unittest.TestCase):
+    def test_late_webhooks_are_acknowledged_without_auth_or_io(self):
+        with ExitStack() as stack:
+            io = forbid_retired_io(stack)
+            auth = stack.enter_context(patch("main.verify_supabase_request", new=AsyncMock()))
+            client = TestClient(app)
+            for payload in (
+                {"topic": "items", "resource": "/items/MLC123", "user_id": 99},
+                {"topic": "orders_v2", "resource": "/orders/123", "attempts": 8},
+                {},
+            ):
+                response = client.post("/webhooks/mercadolibre", json=payload)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json(), {"ok": True, "queued": False, "disabled": True})
+            # No parser is needed after retirement, including for stale malformed callbacks.
+            response = client.post("/webhooks/mercadolibre", content=b"not-json")
+            self.assertEqual(response.status_code, 200)
+            auth.assert_not_awaited()
+            for call in io:
+                call.assert_not_called()
 
-        self.assertEqual(normalized["user_id"], "99")
-        self.assertEqual(normalized["resource"], "/orders/2000000000000001")
+    def test_health_reports_integration_disabled_without_io(self):
+        with ExitStack() as stack:
+            io = forbid_retired_io(stack)
+            response = TestClient(app).get("/webhooks/mercadolibre/health")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {"ok": True, "enabled": False})
+            for call in io:
+                call.assert_not_called()
 
-        with (
-            patch.object(settings, "ml_client_id", "other"),
-            patch.object(settings, "ml_notification_application_id", None),
-            patch.object(settings, "ml_notification_allowed_user_id", None),
-        ):
-            with self.assertRaises(HTTPException) as context:
-                validate_meli_notification(payload)
-        self.assertEqual(context.exception.status_code, 403)
+    def test_all_legacy_sales_routes_stop_before_auth_or_io(self):
+        with ExitStack() as stack:
+            io = forbid_retired_io(stack)
+            auth = stack.enter_context(patch("main.verify_supabase_request", new=AsyncMock()))
+            client = TestClient(app)
+            for method, path in (
+                ("GET", "/ml/sales"),
+                ("GET", "/ml/sales/today?date=2026-10-28"),
+                ("POST", "/ml/sales/sync"),
+                ("GET", "/ml/sales/sync/old-task-id"),
+                ("PUT", "/ml/sales/123/picking-status"),
+            ):
+                with self.subTest(method=method, path=path):
+                    response = client.request(method, path)
+                    self.assertEqual(response.status_code, 410)
+            auth.assert_not_awaited()
+            for call in io:
+                call.assert_not_called()
 
-    def test_retries_without_id_have_the_same_idempotency_key(self):
-        base = {
-            "application_id": "1234",
-            "user_id": "99",
-            "topic": "shipments",
-            "resource": "/shipments/40000000001",
-            "sent": "2026-08-28T10:00:00Z",
-        }
-        self.assertEqual(
-            notification_event_key({**base, "attempts": 1}),
-            notification_event_key({**base, "attempts": 8}),
+
+class RetiredMercadoLibreTaskTests(unittest.TestCase):
+    def test_legacy_deliveries_and_retries_terminate_without_external_work(self):
+        cases = (
+            (process_meli_notification_task,
+             [{"topic": "items", "user_id": 99}, "event-123"], {}),
+            (process_meli_notification_task,
+             [], {"payload": {"topic": "orders_v2"}, "event_key": "old-event"}),
+            (backfill_meli_sales_task,
+             ["99", "2026-10-01T00:00:00Z", "2026-10-02T00:00:00Z"], {}),
+            (backfill_meli_sales_task,
+             [], {"user_id": "99", "range_start": "old-date", "range_end": "old-date"}),
         )
+        for task, args, kwargs in cases:
+            with self.subTest(task=task.name, kwargs=kwargs), ExitStack() as stack:
+                io = forbid_retired_io(stack)
+                retry = stack.enter_context(patch.object(
+                    task, "retry", side_effect=AssertionError("Retired task retried"),
+                ))
+                save = stack.enter_context(patch.object(
+                    task.backend, "store_result", side_effect=AssertionError("Retired task saved result"),
+                ))
+                result = task.apply(args=args, kwargs=kwargs, retries=9, throw=True)
+                self.assertTrue(result.successful())
+                self.assertIsNone(result.result)
+                retry.assert_not_called()
+                save.assert_not_called()
+                for call in io:
+                    call.assert_not_called()
+                self.assertTrue(task.ignore_result)
+                self.assertFalse(task.track_started)
+                self.assertFalse(task.acks_late)
+                self.assertEqual(task.max_retries, 0)
 
-    def test_accepts_items_notifications(self):
-        payload = {
-            "_id": "event-item-1",
-            "application_id": "1234",
-            "user_id": 99,
-            "topic": "items",
-            "resource": "/items/MLC123456789",
-            "attempts": 1,
-        }
-        with (
-            patch.object(settings, "ml_client_id", "1234"),
-            patch.object(settings, "ml_notification_application_id", None),
-            patch.object(settings, "ml_notification_allowed_user_id", None),
+    def test_retired_names_are_isolated_from_live_process_queues(self):
+        for task_name in ("tasks.process_meli_notification", "tasks.backfill_meli_sales"):
+            self.assertIn(task_name, celery_app.tasks)
+            self.assertEqual(celery_app.conf.task_routes[task_name]["queue"], "meli_notifications")
+        for task_name, queue in (
+            ("tasks.run_process_queue_job", "compat_dispatch"),
+            ("tasks.process_item_pictures_job", "compat_dispatch"),
+            ("tasks.process_price_stock_job", "compat_dispatch"),
+            ("tasks.add_compatibilities_batch_job", "compat_chunks"),
+            ("tasks.sync_publications_job", "publications_sync"),
+            ("tasks.export_publications_job", "publication_exports"),
         ):
-            normalized = validate_meli_notification(payload)
-
-        self.assertEqual(normalized["topic"], "items")
-        self.assertEqual(normalized["resource"], "/items/MLC123456789")
-
-
-class MercadoLibreShipmentDispatchTests(unittest.TestCase):
-    def test_classifies_shipment_states_from_mercado_libre(self):
-        self.assertFalse(is_shipment_dispatched("pending"))
-        self.assertFalse(is_shipment_dispatched("handling"))
-        self.assertFalse(is_shipment_dispatched("ready_to_ship", "printed"))
-        self.assertTrue(is_shipment_dispatched("shipped"))
-        self.assertTrue(is_shipment_dispatched("delivered"))
-        self.assertTrue(is_shipment_dispatched("not_delivered"))
-        self.assertIsNone(is_shipment_dispatched("cancelled"))
-        self.assertIsNone(is_shipment_dispatched(None))
-
-    def test_cross_docking_pickup_is_already_dispatched(self):
-        self.assertTrue(is_shipment_dispatched("ready_to_ship", "picked_up"))
-        self.assertTrue(is_shipment_dispatched("ready_to_ship", "in_hub"))
-
-
-class MercadoLibreSalesNormalizationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_items_notification_upserts_created_or_modified_publication(self):
-        service = MeliSalesSyncService()
-        item_payload = {
-            "id": "MLC123456789",
-            "seller_id": 99,
-            "title": "Publicacion creada o modificada",
-            "date_created": "2026-09-26T11:30:00.000Z",
-            "status": "active",
-            "tags": [],
-            "attributes": [
-                {
-                    "id": "SELLER_SKU",
-                    "value_name": "SKU-ITEM",
-                },
-                {
-                    "id": "PART_NUMBER",
-                    "value_name": " PN-123 ",
-                },
-                {"id": "HAS_COMPATIBILITIES", "value_name": "Sí"},
-            ],
-        }
-
-        async def request_ml(path, *, user_id, params=None):
-            self.assertEqual(path, "/items/MLC123456789")
-            self.assertEqual(user_id, "99")
-            self.assertEqual(params["attributes"], "id,title,attributes,date_created,status,tags,seller_id")
-            return item_payload
-
-        with (
-            patch.object(service, "_request_ml", AsyncMock(side_effect=request_ml)),
-            patch(
-                "services.meli_sales_sync_service."
-                "supabase_publications_store.upsert_incremental_rows",
-                new=AsyncMock(return_value=1),
-            ) as upsert_publications,
-        ):
-            await service.process_notification(
-                {
-                    "topic": "items",
-                    "resource": "/items/MLC123456789",
-                    "user_id": "99",
-                }
-            )
-
-        upsert_publications.assert_awaited_once()
-        row = upsert_publications.await_args.args[0][0]
-        self.assertEqual(row["seller_id"], 99)
-        self.assertEqual(row["mlc"], "MLC123456789")
-        self.assertEqual(row["sku"], "SKU-ITEM")
-        self.assertEqual(row["part_number"], "PN-123")
-        self.assertEqual(row["status"], "active")
-        self.assertIs(row["has_compatibilities"], True)
-        self.assertEqual(row["titulo"], "Publicacion creada o modificada")
-        self.assertEqual(row["fecha_creacion"], "2026-09-26")
-
-    async def test_orders_v2_upserts_publication_details(self):
-        service = MeliSalesSyncService()
-        order = {
-            "id": 2000000000000001,
-            "status": "paid",
-            "seller": {"id": 99},
-            "order_items": [
-                {
-                    "item": {
-                        "id": "MLC123456789",
-                        "title": "Titulo desde la orden",
-                        "seller_sku": "SKU-ORDER",
-                    },
-                    "quantity": 1,
-                }
-            ],
-        }
-
-        async def request_ml(path, *, user_id, params=None):
-            self.assertEqual(user_id, "99")
-            if path == "/orders/2000000000000001":
-                return order
-            if path == "/orders/2000000000000001/notes":
-                return []
-            if path == "/items":
-                self.assertEqual(params["ids"], "MLC123456789")
-                return [
-                    {
-                        "code": 200,
-                        "body": {
-                            "id": "MLC123456789",
-                            "title": "Titulo actualizado",
-                            "date_created": "2026-09-25T12:30:00.000Z",
-                            "status": "paused",
-                            "tags": ["incomplete_compatibilities"],
-                            "attributes": [
-                                {
-                                    "id": "SELLER_SKU",
-                                    "value_name": "SKU-DETAIL",
-                                },
-                                {
-                                    "id": "PART_NUMBER",
-                                    "value_name": "PN-ORDER",
-                                },
-                            ],
-                        },
-                    }
-                ]
-            raise AssertionError(path)
-
-        with (
-            patch.object(service, "_request_ml", AsyncMock(side_effect=request_ml)),
-            patch(
-                "services.meli_sales_sync_service."
-                "supabase_meli_sales_store.upsert_order",
-                new=AsyncMock(),
-            ),
-            patch(
-                "services.meli_sales_sync_service."
-                "supabase_publications_store.upsert_incremental_rows",
-                new=AsyncMock(return_value=1),
-            ) as upsert_publications,
-        ):
-            await service.process_notification(
-                {
-                    "topic": "orders_v2",
-                    "resource": "/orders/2000000000000001",
-                    "user_id": "99",
-                }
-            )
-
-        upsert_publications.assert_awaited_once()
-        rows = upsert_publications.await_args.args[0]
-        self.assertEqual(
-            rows[0],
-            {
-                "seller_id": 99,
-                "mlc": "MLC123456789",
-                "sku": "SKU-DETAIL",
-                "part_number": "PN-ORDER",
-                "status": "paused",
-                "has_compatibilities": False,
-                "titulo": "Titulo actualizado",
-                "fecha_creacion": "2026-09-25",
-                "sincronizado_at": rows[0]["sincronizado_at"],
-            },
-        )
-        self.assertNotIn("sync_run_id", rows[0])
-
-    async def test_stored_sales_groups_pack_orders_and_items(self):
-        store = SupabaseMeliSalesStore()
-        orders = [
-            {
-                "order_id": "1",
-                "sale_id": "100",
-                "pack_id": "100",
-                "shipment_id": "500",
-                "status": "paid",
-                "date_closed": "2026-08-28T10:00:00-04:00",
-                "total_amount": 1000,
-                "sale_note": "Nota",
-                "notes_error": False,
-            },
-            {
-                "order_id": "2",
-                "sale_id": "100",
-                "pack_id": "100",
-                "shipment_id": "500",
-                "status": "paid",
-                "date_closed": "2026-08-28T10:00:00-04:00",
-                "total_amount": 2000,
-                "sale_note": "",
-                "notes_error": False,
-            },
-        ]
-        items = [
-            {"order_id": "1", "line_number": 0, "sku": "A", "quantity": 2},
-            {"order_id": "2", "line_number": 0, "sku": "B", "quantity": 1},
-        ]
-        shipments = [
-            {
-                "shipment_id": "500",
-                "shipping_type": "flex",
-                "logistic_type": "self_service",
-                "status": "ready_to_ship",
-            }
-        ]
-
-        async def list_by_ids(table_name, **_kwargs):
-            if table_name == store.order_items_table:
-                return items
-            if table_name == store.shipments_table:
-                return shipments
-            raise AssertionError(table_name)
-
-        with (
-            patch.object(store, "_list_all", AsyncMock(return_value=orders)),
-            patch.object(store, "_list_by_ids", AsyncMock(side_effect=list_by_ids)),
-            patch.object(
-                store,
-                "_list_pickings",
-                AsyncMock(
-                    return_value=[
-                        {
-                            "seller_id": "99",
-                            "sale_id": "100",
-                            "status": "in_preparation",
-                            "last_scanned_sku": "A",
-                            "started_at": "2026-08-28T10:05:00-04:00",
-                            "packed_at": None,
-                        }
-                    ]
-                ),
-            ),
-        ):
-            sales = await store.list_sales(
-                seller_id="99",
-                range_start=datetime.fromisoformat("2026-08-28T00:00:00-04:00"),
-                range_end=datetime.fromisoformat("2026-08-29T00:00:00-04:00"),
-            )
-
-        self.assertEqual(len(sales), 1)
-        self.assertEqual(sales[0]["order_ids"], ["1", "2"])
-        self.assertEqual([item["sku"] for item in sales[0]["items"]], ["A", "B"])
-        self.assertEqual(sales[0]["shipping_type"], "flex")
-        self.assertFalse(sales[0]["is_dispatched"])
-        self.assertEqual(sales[0]["picking_status"], "in_preparation")
-        self.assertEqual(sales[0]["last_scanned_sku"], "A")
-        self.assertEqual(sales[0]["total_amount"], 3000)
-
-    async def test_valid_sku_starts_picking_and_persists_status(self):
-        store = SupabaseMeliSalesStore()
-        with (
-            patch.object(
-                store,
-                "_list_all",
-                AsyncMock(return_value=[{"order_id": "1"}]),
-            ),
-            patch.object(
-                store,
-                "_list_by_ids",
-                AsyncMock(return_value=[{"order_id": "1", "sku": "SKU-ONE"}]),
-            ),
-            patch.object(
-                store,
-                "_request",
-                AsyncMock(return_value=SimpleNamespace(json=lambda: [])),
-            ),
-            patch.object(store, "_upsert", AsyncMock()) as upsert,
-        ):
-            result = await store.set_sale_picking_status(
-                seller_id="99",
-                sale_id="100",
-                status="in_preparation",
-                scanned_sku="sku-one",
-            )
-
-        self.assertEqual(result["status"], "in_preparation")
-        self.assertEqual(result["last_scanned_sku"], "sku-one")
-        upsert.assert_awaited_once()
-
-    async def test_rejects_sku_that_does_not_belong_to_sale(self):
-        store = SupabaseMeliSalesStore()
-        with (
-            patch.object(
-                store,
-                "_list_all",
-                AsyncMock(return_value=[{"order_id": "1"}]),
-            ),
-            patch.object(
-                store,
-                "_list_by_ids",
-                AsyncMock(return_value=[{"order_id": "1", "sku": "SKU-ONE"}]),
-            ),
-        ):
-            with self.assertRaisesRegex(ValueError, "no pertenece"):
-                await store.set_sale_picking_status(
-                    seller_id="99",
-                    sale_id="100",
-                    status="in_preparation",
-                    scanned_sku="SKU-WRONG",
-                )
-
-    async def test_rejects_incomplete_multi_product_picking(self):
-        store = SupabaseMeliSalesStore()
-        with (
-            patch.object(
-                store,
-                "_list_all",
-                AsyncMock(return_value=[{"order_id": "1"}]),
-            ),
-            patch.object(
-                store,
-                "_list_by_ids",
-                AsyncMock(
-                    return_value=[
-                        {"order_id": "1", "sku": "SKU-ONE", "quantity": 1},
-                        {"order_id": "1", "sku": "SKU-TWO", "quantity": 1},
-                    ]
-                ),
-            ),
-        ):
-            with self.assertRaisesRegex(ValueError, "todos los productos"):
-                await store.set_sale_picking_status(
-                    seller_id="99",
-                    sale_id="100",
-                    status="in_preparation",
-                    scanned_skus=["SKU-ONE"],
-                )
-
-    async def test_accepts_all_skus_and_quantities_for_multi_product_picking(self):
-        store = SupabaseMeliSalesStore()
-        with (
-            patch.object(
-                store,
-                "_list_all",
-                AsyncMock(return_value=[{"order_id": "1"}]),
-            ),
-            patch.object(
-                store,
-                "_list_by_ids",
-                AsyncMock(
-                    return_value=[
-                        {"order_id": "1", "sku": "SKU-ONE", "quantity": 2},
-                        {"order_id": "1", "sku": "SKU-TWO", "quantity": 1},
-                    ]
-                ),
-            ),
-            patch.object(
-                store,
-                "_request",
-                AsyncMock(return_value=SimpleNamespace(json=lambda: [])),
-            ),
-            patch.object(store, "_upsert", AsyncMock()) as upsert,
-        ):
-            result = await store.set_sale_picking_status(
-                seller_id="99",
-                sale_id="100",
-                status="in_preparation",
-                scanned_skus=["sku-one", "SKU-TWO", "SKU-ONE"],
-            )
-
-        self.assertEqual(result["status"], "in_preparation")
-        self.assertEqual(result["last_scanned_sku"], "SKU-ONE")
-        upsert.assert_awaited_once()
-
-    async def test_valid_sku_moves_picking_to_packed(self):
-        store = SupabaseMeliSalesStore()
-        started_at = "2026-08-28T10:05:00-04:00"
-        with (
-            patch.object(
-                store,
-                "_list_all",
-                AsyncMock(return_value=[{"order_id": "1"}]),
-            ),
-            patch.object(
-                store,
-                "_list_by_ids",
-                AsyncMock(return_value=[{"order_id": "1", "sku": "SKU-ONE"}]),
-            ),
-            patch.object(
-                store,
-                "_request",
-                AsyncMock(
-                    return_value=SimpleNamespace(
-                        json=lambda: [
-                            {
-                                "started_at": started_at,
-                                "last_scanned_sku": "SKU-ONE",
-                            }
-                        ]
-                    )
-                ),
-            ),
-            patch.object(store, "_upsert", AsyncMock()) as upsert,
-        ):
-            result = await store.set_sale_picking_status(
-                seller_id="99",
-                sale_id="100",
-                status="packed",
-                scanned_sku="SKU-ONE",
-            )
-
-        self.assertEqual(result["status"], "packed")
-        self.assertEqual(result["started_at"], started_at)
-        self.assertIsNotNone(result["packed_at"])
-        upsert.assert_awaited_once()
-
-    async def test_hydrates_all_pack_orders_with_skus_quantities_and_flex(self):
-        service = MeliSalesSyncService()
-        order_one = {
-            "id": 2000000000000001,
-            "pack_id": 2000000000000100,
-            "status": "paid",
-            "date_closed": "2026-08-28T10:00:00-04:00",
-            "seller": {"id": 99},
-            "shipping": {"id": 40000000001},
-            "order_items": [
-                {
-                    "item": {
-                        "id": "MLC1",
-                        "title": "Producto uno",
-                        "seller_sku": "SKU-ONE",
-                    },
-                    "quantity": 2,
-                    "unit_price": 1000,
-                    "currency_id": "CLP",
-                }
-            ],
-        }
-        order_two = {
-            "id": 2000000000000002,
-            "pack_id": 2000000000000100,
-            "status": "paid",
-            "date_closed": "2026-08-28T10:00:00-04:00",
-            "seller": {"id": 99},
-            "shipping": {"id": 40000000001},
-            "order_items": [
-                {
-                    "item": {
-                        "id": "MLC2",
-                        "title": "Producto dos",
-                        "seller_custom_field": "SKU-TWO",
-                    },
-                    "quantity": 1,
-                    "unit_price": 2000,
-                    "currency_id": "CLP",
-                }
-            ],
-        }
-        pack_payload = {
-            "id": 2000000000000100,
-            "shipment": {"id": 40000000001},
-            "orders": [
-                {"id": 2000000000000001},
-                {"id": 2000000000000002},
-            ],
-            "status": "released",
-        }
-        shipment = {
-            "id": 40000000001,
-            "sender_id": 99,
-            "pack_id": 2000000000000100,
-            "order_id": 2000000000000001,
-            "type": "forward",
-            "status": "ready_to_ship",
-            "mode": "me2",
-            "logistic_type": "self_service",
-        }
-
-        async def request_ml(path, *, user_id, params=None):
-            del user_id, params
-            responses = {
-                "/orders/2000000000000001": order_one,
-                "/orders/2000000000000002": order_two,
-                "/packs/2000000000000100": pack_payload,
-                "/shipments/40000000001": shipment,
-                "/orders/2000000000000001/notes": [{"note": "Nota 1"}],
-                "/orders/2000000000000002/notes": [],
-            }
-            return responses[path]
-
-        saved_orders = []
-        saved_shipments = []
-
-        async def save_order(order_row, item_rows):
-            saved_orders.append((order_row, item_rows))
-
-        with (
-            patch.object(service, "_request_ml", AsyncMock(side_effect=request_ml)),
-            patch(
-                "services.meli_sales_sync_service.supabase_meli_sales_store.upsert_pack",
-                new=AsyncMock(),
-            ),
-            patch(
-                "services.meli_sales_sync_service.supabase_meli_sales_store.upsert_order",
-                new=AsyncMock(side_effect=save_order),
-            ),
-            patch(
-                "services.meli_sales_sync_service.supabase_meli_sales_store.upsert_shipment",
-                new=AsyncMock(side_effect=lambda row: saved_shipments.append(row)),
-            ),
-            patch(
-                "services.meli_sales_sync_service.supabase_meli_sales_store.link_order_shipment",
-                new=AsyncMock(),
-            ),
-        ):
-            order_ids = await service.hydrate_order(
-                order_id="2000000000000001",
-                user_id="99",
-            )
-
-        self.assertEqual(
-            order_ids,
-            {"2000000000000001", "2000000000000002"},
-        )
-        self.assertEqual(saved_orders[0][1][0]["sku"], "SKU-ONE")
-        self.assertEqual(saved_orders[0][1][0]["quantity"], 2)
-        self.assertEqual(saved_orders[1][1][0]["sku"], "SKU-TWO")
-        self.assertEqual(saved_shipments[0]["shipping_type"], "flex")
+            self.assertIn(task_name, celery_app.tasks)
+            self.assertEqual(celery_app.conf.task_routes[task_name]["queue"], queue)
 
 
 if __name__ == "__main__":

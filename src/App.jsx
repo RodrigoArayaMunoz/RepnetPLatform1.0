@@ -11,7 +11,6 @@ import MainSyncJobs from "./frontend/pages/MainSyncJobs.jsx";
 import CompatibilityCopy from "./frontend/pages/CompatibilityCopy.jsx";
 import DownloadPublications from "./frontend/pages/DownloadPublications.jsx";
 import Returns from "./frontend/pages/Returns.jsx";
-import SellerSales from "./frontend/pages/SellerSales.jsx";
 import SupplierIntegrations from "./frontend/pages/SupplierIntegrations.jsx";
 import ExcelFormats from "./frontend/pages/ExcelFormats.jsx";
 
@@ -259,12 +258,10 @@ export default function App() {
               canAccessProtectedRoutes={canAccessProtectedRoutes}
               authLoading={authLoading}
             >
-              <MainLayout />
+              <Navigate to="/procesos/sincronizacion-procesos" replace />
             </RequireAuth>
           }
-        >
-          <Route index element={<SellerSales />} />
-        </Route>
+        />
 
         <Route
           path="/integraciones/proveedores"

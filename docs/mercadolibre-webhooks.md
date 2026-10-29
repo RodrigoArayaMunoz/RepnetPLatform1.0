@@ -1,4 +1,10 @@
-# Despliegue de notificaciones de Mercado Libre
+# Referencia historica de notificaciones y publicaciones
+
+> El modulo de webhook y ventas fue retirado del codigo el 29 de octubre de 2026.
+> No seguir las instrucciones de activacion de notificaciones ni recrear sus tablas.
+> Consultar [el retiro y despliegue selectivo](retiro-ventas-webhook-2026-10-29.md).
+> Se conserva este documento como referencia de las migraciones y de las funciones
+> de publicaciones/exportaciones que continuan disponibles.
 
 ## 1. Seguridad previa
 

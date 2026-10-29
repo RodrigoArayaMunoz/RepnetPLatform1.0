@@ -5,13 +5,12 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 
 from config import settings
-from services.meli_sales_sync_service import MeliSalesSyncService
+from services.publication_sync_service import PublicationSyncService
 from services.ml_publication_fields import (
     extract_publication_has_compatibilities,
     extract_publication_status,
 )
 from services.supabase_publications_store import SupabasePublicationsStore
-from tasks.meli_sales_tasks import _process_notification
 
 
 class PublicationMetadataTests(unittest.TestCase):
@@ -44,64 +43,38 @@ class PublicationMetadataTests(unittest.TestCase):
 
 
 class PublicationMetadataPersistenceTests(unittest.IsolatedAsyncioTestCase):
-    async def test_notification_is_processed_only_after_status_and_false_are_stored(self):
-        stored_cases = [
-            {"status": "paused", "has_compatibilities": False},
-            {"status": None, "has_compatibilities": None},
-            {"status": "active", "has_compatibilities": False},
-            {"status": "paused", "has_compatibilities": True},
-            {"status": "paused", "has_compatibilities": None},
-        ]
-        for stored_fields in stored_cases:
-            with self.subTest(stored_fields=stored_fields):
-                service = MeliSalesSyncService()
-                service.start_request_context = Mock()
-                service.close_request_context = AsyncMock()
-                service._request_ml = AsyncMock(return_value={
-                    "id": "MLC123", "seller_id": 99, "title": "Repuesto",
-                    "date_created": "2026-10-01T10:00:00Z",
-                    "status": "paused", "attributes": [],
-                    "tags": ["incomplete_compatibilities"],
-                })
-                store = SupabasePublicationsStore()
-                store._headers = Mock(return_value={})
-                posts = []
+    async def test_manual_sync_preserves_status_and_false_through_supabase_write(self):
+        service = PublicationSyncService()
+        service._request_ml = AsyncMock(return_value=[{"code": 200, "body": {
+            "id": "MLC123", "seller_id": 99, "title": "Repuesto",
+            "date_created": "2026-10-01T10:00:00Z",
+            "status": "paused", "attributes": [],
+            "tags": ["incomplete_compatibilities"],
+        }}])
+        rows, failures = await service._fetch_multiget_chunk(
+            chunk=["MLC123"], user_id="99", seller_id="99", sync_run_id="run-123",
+        )
+        self.assertEqual(failures, 0)
+        store = SupabasePublicationsStore()
+        store._headers = Mock(return_value={})
+        posts = []
 
-                def handle_request(request):
-                    if request.method == "POST":
-                        posts.append(json.loads(request.content))
-                        return httpx.Response(200, json=1)
-                    return httpx.Response(200, json=[{"mlc": "MLC123", **stored_fields}])
+        def handle_request(request):
+            self.assertEqual(request.method, "POST")
+            self.assertEqual(request.url.path, "/rest/v1/publicaciones_ml")
+            posts.extend(json.loads(request.content))
+            return httpx.Response(201)
 
-                notifications = Mock()
-                notifications.register_notification = AsyncMock()
-                notifications.notification_status = AsyncMock(return_value="queued")
-                notifications.mark_notification = AsyncMock()
-                client = httpx.AsyncClient(transport=httpx.MockTransport(handle_request))
-                success = stored_fields == {"status": "paused", "has_compatibilities": False}
-                with (
-                    patch.object(settings, "supabase_url", "https://database.example.test"),
-                    patch("tasks.meli_sales_tasks._prepare_ml_user", new=AsyncMock()),
-                    patch("tasks.meli_sales_tasks.ml_client.startup", new=AsyncMock()),
-                    patch("tasks.meli_sales_tasks.ml_client.shutdown", new=AsyncMock()),
-                    patch("tasks.meli_sales_tasks.MeliSalesSyncService", return_value=service),
-                    patch("tasks.meli_sales_tasks.supabase_meli_sales_store", notifications),
-                    patch("services.meli_sales_sync_service.supabase_publications_store", store),
-                    patch("services.supabase_publications_store.httpx.AsyncClient", return_value=client),
-                ):
-                    payload = {"topic": "items", "resource": "/items/MLC123", "user_id": "99"}
-                    if success:
-                        await _process_notification(payload, "event-metadata")
-                    else:
-                        with self.assertRaisesRegex(RuntimeError, "Supabase no guardo"):
-                            await _process_notification(payload, "event-metadata")
-
-                row = posts[0]["publication_rows"][0]
-                self.assertEqual(row["status"], "paused")
-                self.assertIs(row["has_compatibilities"], False)
-                states = [call.kwargs["status"] for call in notifications.mark_notification.await_args_list]
-                self.assertEqual(states, ["processing", "processed"] if success else ["processing"])
-                service.close_request_context.assert_awaited_once()
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handle_request))
+        with (
+            patch.object(settings, "supabase_url", "https://database.example.test"),
+            patch("services.supabase_publications_store.httpx.AsyncClient", return_value=client),
+        ):
+            self.assertEqual(await store.upsert_rows(rows), 1)
+        self.assertEqual(posts[0]["status"], "paused")
+        self.assertIs(posts[0]["has_compatibilities"], False)
+        self.assertEqual(posts[0]["seller_id"], 99)
+        self.assertEqual(posts[0]["sync_run_id"], "run-123")
 
     async def test_export_query_reads_new_fields_with_seller_filter(self):
         store = SupabasePublicationsStore()

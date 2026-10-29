@@ -30,7 +30,6 @@ from routers.item_pictures_router import router as item_pictures_router
 from routers.price_stock_router import router as price_stock_router
 from routers.process_queue_router import router as process_queue_router
 from routers.publications_router import router as publications_router
-from routers.seller_sales_router import router as seller_sales_router
 from routers.mercadolibre_webhook_router import router as mercadolibre_webhook_router
 from routers.refax_router import router as refax_router
 
@@ -57,7 +56,6 @@ app.include_router(item_pictures_router)
 app.include_router(price_stock_router)
 app.include_router(process_queue_router)
 app.include_router(publications_router)
-app.include_router(seller_sales_router)
 app.include_router(mercadolibre_webhook_router)
 app.include_router(refax_router)
 
@@ -76,6 +74,14 @@ app.add_middleware(
 
 @app.middleware("http")
 async def require_supabase_auth(request: Request, call_next):
+    # Old tabs may still poll the retired sales API. Return before authentication
+    # so they cannot keep generating Supabase traffic for a removed feature.
+    if request.url.path == "/ml/sales" or request.url.path.startswith("/ml/sales/"):
+        return JSONResponse(
+            status_code=410,
+            content={"detail": "El modulo de ventas fue retirado."},
+        )
+
     if (
         not settings.backend_auth_enabled
         or request.method == "OPTIONS"

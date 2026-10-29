@@ -51,15 +51,6 @@ class SupabasePublicationsStore:
             return None
         return f"{settings.supabase_url.rstrip('/')}/rest/v1/{self.table_name}"
 
-    @property
-    def incremental_upsert_url(self) -> str | None:
-        if not settings.supabase_url:
-            return None
-        return (
-            f"{settings.supabase_url.rstrip('/')}/rest/v1/rpc/"
-            "upsert_publicaciones_ml_incremental"
-        )
-
     def _headers(self, *, upsert: bool = False) -> dict[str, str]:
         service_key = settings.supabase_service_role_key
         if not self.table_url or not service_key:
@@ -328,104 +319,6 @@ class SupabasePublicationsStore:
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             return await self._upsert_batch(client, rows)
-
-    async def upsert_incremental_rows(self, rows: list[dict[str, Any]]) -> int:
-        if not rows:
-            return 0
-
-        payload_rows = [
-            {key: value for key, value in row.items() if key != "sync_run_id"}
-            for row in rows
-        ]
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                self.incremental_upsert_url,
-                headers=self._headers(),
-                json={"publication_rows": payload_rows},
-            )
-
-            if response.status_code >= 400:
-                logger.error(
-                    "[SUPABASE_PUBLICATIONS][INCREMENTAL_UPSERT_ERROR] "
-                    "status=%s rows=%s body=%s",
-                    response.status_code,
-                    len(payload_rows),
-                    response.text[:1000],
-                )
-                raise RuntimeError(
-                    "No se pudieron guardar las publicaciones notificadas por "
-                    "Mercado Libre. Verifica que la migracion de upsert incremental "
-                    f"este aplicada ({response.status_code})."
-                )
-
-            # An older deployed RPC may silently ignore new JSON fields. Check
-            # persistence before allowing the notification to be marked processed.
-            await self._verify_incremental_fields(client, payload_rows)
-
-        return len(payload_rows)
-
-    async def _verify_incremental_fields(
-        self,
-        client: httpx.AsyncClient,
-        rows: list[dict[str, Any]],
-    ) -> None:
-        fields = ("part_number", "status", "has_compatibilities")
-        expected_by_seller: dict[str, dict[str, dict[str, Any]]] = {}
-        for row in rows:
-            seller_id = str(row["seller_id"])
-            item_id = str(row["mlc"]).strip()
-            expected = expected_by_seller.setdefault(seller_id, {}).setdefault(item_id, {})
-            for field in fields:
-                value = row.get(field)
-                if value is None:
-                    continue
-                if field != "has_compatibilities":
-                    value = str(value).strip()
-                    if not value:
-                        continue
-                # False is a confirmed value and must also be verified.
-                expected[field] = value
-
-        for seller_id, expected in expected_by_seller.items():
-            item_ids = [item_id for item_id, values in expected.items() if values]
-            for start in range(0, len(item_ids), 100):
-                batch = item_ids[start : start + 100]
-                response = await client.get(
-                    self.table_url,
-                    headers=self._headers(),
-                    params={
-                        "select": "mlc,part_number,status,has_compatibilities",
-                        "seller_id": f"eq.{seller_id}",
-                        "mlc": "in.(" + ",".join(json.dumps(item_id) for item_id in batch) + ")",
-                        "limit": str(len(batch)),
-                    },
-                )
-                if response.status_code >= 400:
-                    raise RuntimeError(
-                        "No se pudo verificar part_number/status/has_compatibilities despues del guardado "
-                        f"en publicaciones_ml ({response.status_code})."
-                    )
-                stored_rows = response.json()
-                if not isinstance(stored_rows, list):
-                    raise RuntimeError("Respuesta invalida al verificar campos de publicaciones en Supabase.")
-                stored = {
-                    str(row.get("mlc") or ""): row
-                    for row in stored_rows
-                    if isinstance(row, dict)
-                }
-                for field in fields:
-                    mismatches = [
-                        item_id for item_id in batch
-                        if field in expected[item_id]
-                        and stored.get(item_id, {}).get(field) != expected[item_id][field]
-                    ]
-                    if mismatches:
-                        label = "PART_NUMBER" if field == "part_number" else field
-                        raise RuntimeError(
-                            f"Supabase no guardo el {label} recibido de Mercado Libre "
-                            f"para {', '.join(mismatches)}. Verifica la funcion "
-                            "upsert_publicaciones_ml_incremental y las migraciones de publicaciones."
-                        )
 
     async def _upsert_batch(
         self,

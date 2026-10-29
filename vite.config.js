@@ -16,12 +16,12 @@ export default defineConfig({
       ],
       manifest: {
         id: "/",
-        name: "REPNET - Gestión de Pedidos",
+        name: "REPNET - Gestión de Procesos",
         short_name: "REPNET",
         description:
-          "Gestión de pedidos, picking y validación de productos REPNET.",
+          "Gestión de publicaciones, compatibilidades y procesos REPNET.",
         lang: "es-CL",
-        start_url: "/gestion/ventas",
+        start_url: "/procesos/sincronizacion-procesos",
         scope: "/",
         display: "standalone",
         orientation: "portrait-primary",
@@ -47,9 +47,9 @@ export default defineConfig({
         ],
         shortcuts: [
           {
-            name: "Gestión de pedidos",
-            short_name: "Pedidos",
-            url: "/gestion/ventas",
+            name: "Sincronización de procesos",
+            short_name: "Procesos",
+            url: "/procesos/sincronizacion-procesos",
             icons: [
               {
                 src: "/pwa-192x192.png",
