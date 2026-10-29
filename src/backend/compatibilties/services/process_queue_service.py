@@ -771,6 +771,8 @@ async def run_process_queue(*, user_id: str) -> None:
     await supabase_meli_connection_store.restore_token_store()
     try:
         while True:
+            # Read the FIFO order again after each file so newly saved files
+            # join the tail without overtaking pending work.
             pending_rows = await supabase_process_store.list_pending_processes()
             if not pending_rows:
                 process_queue_store.finish(

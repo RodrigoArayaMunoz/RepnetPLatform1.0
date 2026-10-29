@@ -87,7 +87,9 @@ class SupabaseProcessStore:
         params = {
             "select": "id,proceso_id,archivo,fecha_proceso,hora_proceso,estado,storage_bucket,storage_path,generado",
             "estado": "eq.Pendiente",
-            "order": "fecha_proceso.desc,hora_proceso.desc,id.desc",
+            # Oldest saved file goes first. The process number breaks ties
+            # within one second before the UUID, which has no temporal order.
+            "order": "fecha_proceso.asc,hora_proceso.asc,proceso_id.asc,id.asc",
         }
         if limit is not None:
             params["limit"] = str(limit)

@@ -35,7 +35,7 @@ export function groupProcessRows(rows, isQueueRunning, currentProcessRowId) {
     }
   }
 
-  // Keep the newest-first order used by the queue worker and process history.
+  // Preserve the supplied order; only move the currently running file first.
   groups.processing.sort(
     (a, b) =>
       Number(isCurrentProcess(b, isQueueRunning, currentProcessRowId)) -

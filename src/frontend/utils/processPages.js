@@ -18,10 +18,15 @@ function check(result) {
 
 export async function fetchProcessPage(client, { lane, page = 1, currentId, signal }) {
   const query = () => client.from("procesos").select(PROCESS_COLUMNS, { count: "exact" });
-  const ordered = (request) => request
-    .order("fecha_proceso", { ascending: false })
-    .order("hora_proceso", { ascending: false })
-    .order("id", { ascending: false });
+  const ordered = (request) => {
+    const pending = lane === "pending";
+    const dated = request
+      .order("fecha_proceso", { ascending: pending })
+      .order("hora_proceso", { ascending: pending });
+    // Match the worker's FIFO order, including files saved in the same second.
+    if (pending) dated.order("proceso_id", { ascending: true });
+    return dated.order("id", { ascending: pending });
+  };
   const start = (Math.max(1, page) - 1) * PROCESS_PAGE_SIZE;
   let request = query();
   let current = [];

@@ -51,7 +51,7 @@ test("reclassifies the same process as execution starts and completes", () => {
   assert.deepEqual(groups.completed, [completed]);
 });
 
-test("preserves the queue worker's newest-first order and groups using the persisted status", () => {
+test("preserves the supplied order and groups using the persisted status", () => {
   const rows = [
     { id: 5, estado: " pendiente ", displayEstado: "Error" },
     { id: 4, estado: "Procesado" },

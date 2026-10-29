@@ -21,6 +21,7 @@ function database(respond) {
 
 test("large completed histories use a bounded server page and exact total", async () => {
   const { client, calls } = database((params) => {
+    assert.equal(params.get("order"), "fecha_proceso.desc,hora_proceso.desc,id.desc");
     assert.equal(params.get("offset"), "6");
     assert.equal(params.get("limit"), "3");
     assert.equal(params.get("id"), "neq.current");
@@ -32,6 +33,31 @@ test("large completed histories use a bounded server page and exact total", asyn
   assert.equal(calls.length, 1);
   assert.equal(result.total, 10001);
   assert.equal(result.rows.length, 3);
+});
+
+test("pending pages keep FIFO positions when new files arrive, including timestamp ties", async () => {
+  const rows = [
+    { id: "z-first", proceso_id: "00001", fecha_proceso: "2026-10-28", hora_proceso: "23:59:00" },
+    { id: "y-second", proceso_id: "00002", fecha_proceso: "2026-10-29", hora_proceso: "00:00:00" },
+    { id: "x-third", proceso_id: "00003", fecha_proceso: "2026-10-29", hora_proceso: "00:01:00" },
+    { id: "a-fourth", proceso_id: "00004", fecha_proceso: "2026-10-29", hora_proceso: "00:01:00" },
+  ];
+  const { client } = database((params) => {
+    const ordered = [...rows];
+    for (const term of params.get("order").split(",").reverse()) {
+      const [field, direction] = term.split(".");
+      ordered.sort((a, b) => a[field].localeCompare(b[field]) * (direction === "asc" ? 1 : -1));
+    }
+    const offset = Number(params.get("offset"));
+    const limit = Number(params.get("limit"));
+    return [ordered.slice(offset, offset + limit), ordered.length];
+  });
+  const first = await fetchProcessPage(client, { lane: "pending" });
+  assert.deepEqual(first.rows.map((row) => row.id), ["z-first", "y-second", "x-third"]);
+  rows.unshift({ id: "b-new", proceso_id: "00005", fecha_proceso: "2026-10-29", hora_proceso: "00:02:00" });
+  const second = await fetchProcessPage(client, { lane: "pending", page: 2 });
+  assert.deepEqual(second.rows.map((row) => row.id), ["a-fourth", "b-new"]);
+  assert.equal(second.total, 5);
 });
 
 test("current file is first in processing, excluded from pending and not duplicated across pages", async () => {
